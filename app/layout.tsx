@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SidebarDemo } from "@/components/aceternity/SideBarDemo";
+import MusicPlayer from "@/components/music-player/MusicPlayer";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -26,12 +27,12 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased h-screen w-full dark`}
+        className={`${geistSans.variable} ${geistMono.variable} flex flex-col justify-center items-center antialiased h-screen  w-full dark   p-1`}
       >
         <SidebarDemo>
           {children} {/* All page content is passed here */}
         </SidebarDemo>
-  
+        <MusicPlayer trackName="Sample Track" artist="Sample Artist" />
       </body>
     </html>
   );
