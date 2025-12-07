@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { Howl } from "howler";
 
-interface Track {
+export interface Track {
   id: string;
   title: string;
   artist: string;
   url: string;
   prev?: Track;
   next?: Track;
+  image?: string;
 }
 
 interface AudioState {
@@ -31,20 +32,29 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   isPlaying: false,
   volume: 1,
 
-  playTrack: (track: Track) => {
+    playTrack: (track: Track) => {
     const old = get().howl;
-    if (old) old.unload();
+    if (old) old.unload(); // stop previous audio
 
     const sound = new Howl({
-      src: [track.url],
-      html5: true,
-      volume: get().volume,
-      onend: () => console.log("Track finished."),
+        src: [track.url],
+        html5: true,
+        volume: get().volume,
+        onend: () => {
+        const { currentTrack } = get();
+        if (currentTrack?.next) {
+            get().playTrack(currentTrack.next); // play next track automatically
+        } else {
+            set({ isPlaying: false }); // no next track, just pause
+        }
+        },
     });
 
     sound.play();
+
     set({ currentTrack: track, howl: sound, isPlaying: true });
-  },
+    },
+
 
   togglePlay: () => {
     const { howl, isPlaying } = get();
