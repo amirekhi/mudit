@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import { motion } from "framer-motion";
 import {
   IconX,
@@ -13,39 +12,50 @@ import {
   IconArrowsShuffle,
 } from "@tabler/icons-react";
 
+import { useAudioStore } from "@/store/useAudioStore";
+
 interface MusicPlayerProps {
-  trackName: string;
-  artist?: string;
   onClose?: () => void;
 }
 
-export default function EnhancedMusicPlayer({ trackName, artist, onClose }: MusicPlayerProps) {
-  const [isOpen, setIsOpen] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [volume, setVolume] = useState(50);
+export default function EnhancedMusicPlayer({ onClose }: MusicPlayerProps) {
+  const {
+    currentTrack,
+    isPlaying,
+    volume,
+    nextTrack,
+    prevTrack,
+    playTrack,
+    unload,
+    togglePlay,
+    setVolume,
+  } = useAudioStore();
 
   const handleClose = () => {
-    setIsOpen(false);
+  unload(); // completely remove the track
     if (onClose) onClose();
-  };
-
-  const togglePlay = () => setIsPlaying(!isPlaying);
-
-  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setVolume(Number(e.target.value));
   };
 
   return (
     <motion.div
       initial={{ height: "120px", opacity: 1 }}
-      animate={{ height: isOpen ? "120px" : 0, opacity: isOpen ? 1 : 0 }}
+      animate={{
+        height: currentTrack ? "120px" : 0,
+        opacity: currentTrack ? 1 : 0,
+      }}
       transition={{ duration: 0.4 }}
-      className="overflow-hidden bg-neutral-800 text-white w-full flex rounded-full m-1   flex-col md:flex-row items-center justify-between px-4 md:px-8 shadow-lg"
+      className="overflow-hidden bg-neutral-800 text-white w-full flex rounded-full m-1 flex-col md:flex-row items-center justify-between px-4 md:px-8 shadow-lg"
     >
       {/* Track Info */}
       <div className="flex flex-col max-md:flex-row max-md:items-center max-md:text-sm max-md:gap-2 justify-center md:flex-1 max-md:pt-2 min-w-0">
-        <span className="font-semibold text-lg truncate">{trackName}</span>
-        {artist && <span className="text-sm text-gray-400 truncate">{artist}</span>}
+        <span className="font-semibold text-lg truncate">
+          {currentTrack?.title ?? "No Track Selected"}
+        </span>
+        {currentTrack?.artist && (
+          <span className="text-sm text-gray-400 truncate">
+            {currentTrack.artist}
+          </span>
+        )}
       </div>
 
       {/* Controls */}
@@ -53,9 +63,17 @@ export default function EnhancedMusicPlayer({ trackName, artist, onClose }: Musi
         <button className="p-2 hover:bg-neutral-700 rounded-full transition-colors">
           <IconArrowsShuffle className="w-5 h-5" />
         </button>
-        <button className="p-2 hover:bg-neutral-700 rounded-full transition-colors">
-          <IconPlayerSkipBack className="w-5 h-5" />
-        </button>
+
+          <button
+            onClick={prevTrack}
+            className={`p-2 rounded-full transition-colors ${
+              currentTrack?.prev ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"
+            }`}
+          >
+            <IconPlayerSkipBack className="w-5 h-5" />
+          </button>
+
+
         <button
           onClick={togglePlay}
           className="p-3 bg-neutral-700 hover:bg-neutral-600 rounded-full transition-colors"
@@ -66,29 +84,35 @@ export default function EnhancedMusicPlayer({ trackName, artist, onClose }: Musi
             <IconPlayerPlay className="w-6 h-6" />
           )}
         </button>
-        <button className="p-2 hover:bg-neutral-700 rounded-full transition-colors">
-          <IconPlayerSkipForward className="w-5 h-5" />
-        </button>
-        <button className="p-2 hover:bg-neutral-700 rounded-full transition-colors">
-          <IconRepeat className="w-5 h-5" />
-        </button>
+
+
+          <button
+            onClick={nextTrack}
+            className={`p-2 rounded-full transition-colors ${
+              currentTrack?.next ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"
+            }`}
+          >
+            <IconPlayerSkipForward className="w-5 h-5" />
+          </button>
+
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2 mt-2 md:mt-0 w-32 md:w-40 max-md:hidden" >
+      <div className="flex items-center gap-2 mt-2 md:mt-0 w-32 md:w-40 max-md:hidden">
         <IconVolume className="w-5 h-5" />
         <input
           type="range"
           min={0}
-          max={100}
+          max={1}
+          step={0.01}
           value={volume}
-          onChange={handleVolumeChange}
-          className="w-full h-1 rounded-lg accent-indigo-500"
+          onChange={(e) => setVolume(Number(e.target.value))}
+          className="w-full h-1 accent-indigo-500"
         />
       </div>
 
       {/* Close Button */}
-      <div className="ml-2 max-md:hidden" >
+      <div className="ml-2 max-md:hidden">
         <button
           onClick={handleClose}
           className="p-2 rounded-full hover:bg-neutral-700 transition-colors"

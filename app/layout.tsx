@@ -32,7 +32,7 @@ export default function RootLayout({
         <SidebarDemo>
           {children} {/* All page content is passed here */}
         </SidebarDemo>
-        <MusicPlayer trackName="Sample Track" artist="Sample Artist" />
+        <MusicPlayer  />
       </body>
     </html>
   );
