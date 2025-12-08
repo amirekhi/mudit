@@ -58,9 +58,9 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
 
   return (
     <motion.div
-      initial={{ height: "140px", opacity: 1 }}
+      initial={{ height: "80px", opacity: 1 }}
       animate={{
-        height: currentTrack ? "140px" : 0,
+        height: currentTrack ? "80px" : 0,
         opacity: currentTrack ? 1 : 0,
       }}
       transition={{ duration: 0.4 }}

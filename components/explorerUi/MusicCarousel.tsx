@@ -13,18 +13,6 @@ interface MusicCarouselProps {
 
 export default function MusicCarousel({ tracks  , title }: MusicCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-    const {
-      currentTrack,
-      isPlaying,
-      volume,
-      nextTrack,
-      prevTrack,
-      playTrack,
-      unload,
-      togglePlay,
-      setVolume,
-    } = useAudioStore();
-
   const scroll = (direction: "left" | "right") => {
     if (!containerRef.current) return;
 
@@ -33,9 +21,7 @@ export default function MusicCarousel({ tracks  , title }: MusicCarouselProps) {
     else containerRef.current.scrollBy({ left: scrollAmount, behavior: "smooth" });
   };
 
-    function onCardClick(track: Track) {
-        playTrack(track);
-    }
+
 
   return (
     <div className="relative w-full">
@@ -60,13 +46,12 @@ export default function MusicCarousel({ tracks  , title }: MusicCarouselProps) {
 
         <div
         ref={containerRef}
-        className="flex gap-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar"
+        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar"
       >
         {tracks.map((track) => (
           <MusicCard
             key={track.id}
             track={track}
-            onClick={() => onCardClick?.(track)}
           />
         ))}
       </div>
