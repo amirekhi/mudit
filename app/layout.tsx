@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { SidebarDemo } from "@/components/aceternity/SideBarDemo";
 import MusicPlayer from "@/components/music-player/MusicPlayer";
+import QueryProvider from "@/lib/TanStackQuery/QueryProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,10 +30,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} flex flex-col justify-center items-center antialiased h-screen  w-full dark   p-1`}
       >
-        <SidebarDemo>
-          {children} {/* All page content is passed here */}
-        </SidebarDemo>
-        <MusicPlayer  />
+          <QueryProvider>
+            <SidebarDemo>
+              {children} 
+            </SidebarDemo>
+            <MusicPlayer  />
+        </QueryProvider>
       </body>
     </html>
   );

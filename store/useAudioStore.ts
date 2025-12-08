@@ -27,7 +27,7 @@ interface AudioState {
 }
 
 export const useAudioStore = create<AudioState>((set, get) => ({
-  currentTrack: {id: "123", title: "me & you", artist: "RUSS", url: "/MeYou.mp3"},
+  currentTrack: null,
   howl: null,
   isPlaying: false,
   volume: 1,

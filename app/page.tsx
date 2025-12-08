@@ -1,18 +1,35 @@
-"use client"
-import MusicCarousel from "@/components/explorerUi/MusicCarousel";
-import { dummyTracks } from "@/Data/Tracks";
-import { IconChevronLeft, IconChevronRight, IconSearch } from "@tabler/icons-react";
-import { useState } from "react";
+"use client";
 
+import MusicCarousel from "@/components/explorerUi/MusicCarousel";
+import { IconSearch } from "@tabler/icons-react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
+import { Track } from "@/store/useAudioStore";
 
 export default function Home() {
- const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
 
-  const filteredTracks = dummyTracks.filter(
-    (track) =>
+  const { data: tracks = [], isLoading, error } = useQuery({
+    queryKey: ["songs"],
+    queryFn: fetchSongs,
+  });
+
+  const filteredTracks = tracks.filter(
+    (track : Track) =>
       track.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
       track.artist.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  if (isLoading)
+    return <div className="p-6 text-center text-neutral-500">Loading...</div>;
+
+  if (error)
+    return (
+      <div className="p-6 text-center text-red-500">
+        Failed to load songs.
+      </div>
+    );
 
   return (
     <div className="p-6 flex flex-col gap-8">
@@ -28,13 +45,15 @@ export default function Home() {
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
       </div>
 
-      {/* Carousel */}
+      {/* Carousel 1 */}
       <div className="relative">
-        <MusicCarousel tracks={filteredTracks} title="Your Music" />     
+        <MusicCarousel tracks={filteredTracks} title="Your Music" />
       </div>
-        <div className="relative">
-          <MusicCarousel tracks={filteredTracks}  title="Trending" />     
-        </div>
+
+      {/* Carousel 2 */}
+      <div className="relative">
+        <MusicCarousel tracks={filteredTracks} title="Trending" />
+      </div>
     </div>
   );
 }
