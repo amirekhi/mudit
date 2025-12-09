@@ -6,6 +6,8 @@ import { useRef, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import { Track } from "@/store/useAudioStore";
+import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
+import { dummyTracks, dummyTracks2, dummyTracks3 } from "@/Data/Tracks";
 
 export default function Home() {
   const searchValueRef = useRef(""); // only one ref needed
@@ -60,12 +62,43 @@ export default function Home() {
       </div>
 
       {/* Carousels */}
-      <div className="relative">
-        <MusicCarousel tracks={filteredTracks} title="Your Music" />
-      </div>
+      <PlaylistCarousel
+        title="Your Playlists"
+        playlists={[
+          {
+            id: "111",
+            title: "Chill Vibes",
+            description: "Relaxing and smooth tracks to unwind.",
+            image: "/test.jpg",
+            tracks: dummyTracks
+          },
+          {
+            id: "2",
+            title: "Workout Mix",
+            description: "Energetic hits to boost your workout.",
+            image: "/test.jpg",
+            tracks: dummyTracks2
+          },
+          {
+            id: "3",
+            title: "Workout Mix",
+            description: "Energetic hits to boost your workout.",
+            image: "/test.jpg",
+            tracks: dummyTracks3
+          },
+          {
+            id: "4",
+            title: "Workout Mix",
+            description: "Energetic hits to boost your workout.",
+            image: "/test.jpg",
+            tracks: dummyTracks
+          },
+        ]}
+      />
       <div className="relative">
         <MusicCarousel tracks={filteredTracks} title="Trending" />
       </div>
+
     </div>
   );
 }

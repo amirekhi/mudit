@@ -11,11 +11,8 @@ interface MusicCardProps {
 
 export default function MusicCard({ track }: MusicCardProps) {
 
+  
 
-  const handleCardClick = () => {
-    // Optional: You can handle card clicks here if needed
-    // e.g., show details, etc.
-  };
 
   return (
     <motion.div
@@ -34,7 +31,7 @@ export default function MusicCard({ track }: MusicCardProps) {
         <p className="text-gray-400 text-sm truncate">{track.artist}</p>
       </div>
 
-      {/* Ensure the button stays visually in the same place */}
+      
       <div className="absolute bottom-4 right-4">
         <PlayButton track={track} />
       </div>

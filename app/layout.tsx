@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Play } from "next/font/google";
 import "./globals.css";
 import { SidebarDemo } from "@/components/aceternity/SideBarDemo";
 import MusicPlayer from "@/components/music-player/MusicPlayer";
 import QueryProvider from "@/lib/TanStackQuery/QueryProvider";
+import PlaylistWindow from "@/components/PlayList/PlaylistWindow";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +32,14 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} flex flex-col justify-center items-center antialiased h-screen  w-full dark   p-1`}
       >
           <QueryProvider>
+            <div className="flex flex-1 w-full overflow-hidden rounded-md border border-neutral-200 bg-neutral-400 dark:border-neutral-700 dark:bg-neutral-800">  
+            <div className="flex flex-1 overflow-hidden">
             <SidebarDemo>
-              {children} 
+              {children}  
             </SidebarDemo>
+            </div>
+            <PlaylistWindow  />
+            </div>
             <MusicPlayer  />
         </QueryProvider>
       </body>
