@@ -1,15 +1,17 @@
 "use client";
 
 import { Track, useAudioStore } from "@/store/useAudioStore";
+import { usePlaylistStore } from "@/store/usePlaylistStore";
 import { IconPlayerPlay, IconPlayerPause, IconX } from "@tabler/icons-react";
 
 interface PlaylistTrackProps {
   track: Track;
   index: number;
+  idx: number;
   removeTrack: (id: string) => void;
 }
 
-export default function PlaylistTrack({ track, removeTrack }: PlaylistTrackProps) {
+export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrackProps) {
   // Selector: this track's playing status
   const isPlaying = useAudioStore(
     (state) => state.currentTrack?.id === track.id && state.isPlaying
@@ -17,12 +19,13 @@ export default function PlaylistTrack({ track, removeTrack }: PlaylistTrackProps
 
 
   // Functions from the store
-  const playTrack = useAudioStore((state) => state.playTrack);
   const togglePlay = useAudioStore((state) => state.togglePlay);
-
+  const playTrack = usePlaylistStore((state) => state.playTrack);
   const handlePlayPause = () => {
     if (isPlaying) togglePlay();
-    else playTrack(track);
+    else {
+      playTrack(idx);
+    }
   };
 
   return (

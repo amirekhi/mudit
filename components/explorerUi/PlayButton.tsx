@@ -1,4 +1,6 @@
+import { dummyTracks } from "@/Data/Tracks";
 import { Track, useAudioStore } from "@/store/useAudioStore";
+import { usePlaylistStore } from "@/store/usePlaylistStore";
 import { IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
 
 export default function PlayButton({ track }: { track: Track }) {
@@ -7,11 +9,20 @@ export default function PlayButton({ track }: { track: Track }) {
   );
   const playTrack = useAudioStore((state) => state.playTrack);
   const togglePlay = useAudioStore((state) => state.togglePlay);
+  const playTrackPlayList = usePlaylistStore((state) => state.playTrack);
+  const setCurrentPlaylist = usePlaylistStore((state) => state.setCurrentPlaylist);
+  const setPlaylist = usePlaylistStore((state) => state.setPlaylist);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isPlaying) togglePlay();
-    else playTrack(track);
+    if (isPlaying) {
+      togglePlay();
+    }else if (track.playlistId){
+      setCurrentPlaylist(track.playlistId);
+      setPlaylist(dummyTracks);
+      playTrackPlayList(track.idx);
+    } else playTrack(track);
+
   };
 
   return (

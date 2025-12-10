@@ -1,9 +1,7 @@
-// stores/usePlaylistStore.ts
 import { create } from "zustand";
-import { Track } from "./useAudioStore";
+import { Track, useAudioStore } from "./useAudioStore";
 
 interface PlaylistState {
-  
   playlist: Track[];
   currentTrackIndex: number | null;
   isPlaying: boolean;
@@ -15,7 +13,6 @@ interface PlaylistState {
 
   currentPlaylist: string | null;
   setCurrentPlaylist: (id: string) => void;
-
 
   playTrack: (index: number) => void;
   togglePlay: () => void;
@@ -29,30 +26,52 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   currentTrackIndex: null,
   currentPlaylist: null,
   isPlaying: false,
-  
-  setCurrentPlaylist: (id: string) => set({ currentPlaylist: id }),
 
+  setCurrentPlaylist: (id: string) => set({ currentPlaylist: id }),
   setPlaylist: (tracks) => set({ playlist: tracks }),
   addTrack: (track) => set((s) => ({ playlist: [...s.playlist, track] })),
   removeTrack: (id) =>
     set((s) => ({ playlist: s.playlist.filter((t) => t.id !== id) })),
-  clearPlaylist: () => set({ playlist: [], currentTrackIndex: null, isPlaying: false }),
+  clearPlaylist: () =>
+    set({ playlist: [], currentTrackIndex: null, isPlaying: false }),
 
-  playTrack: (index) => set({ currentTrackIndex: index, isPlaying: true }),
-  togglePlay: () => set((s) => ({ isPlaying: !s.isPlaying })),
-  pause: () => set({ isPlaying: false }),
+  playTrack: (index) => {
+    const tracks = get().playlist;
+    if (!tracks[index]) return;
 
-  nextTrack: () =>
-    set((s) => {
-      if (s.currentTrackIndex === null) return {};
-      const nextIndex = (s.currentTrackIndex + 1) % s.playlist.length;
-      return { currentTrackIndex: nextIndex, isPlaying: true };
-    }),
-  prevTrack: () =>
-    set((s) => {
-      if (s.currentTrackIndex === null) return {};
-      const prevIndex =
-        (s.currentTrackIndex - 1 + s.playlist.length) % s.playlist.length;
-      return { currentTrackIndex: prevIndex, isPlaying: true };
-    }),
+    set({ currentTrackIndex: index, isPlaying: true });
+
+    // Update the audio store
+    useAudioStore.getState().playTrack(tracks[index]);
+  },
+
+  togglePlay: () => {
+    set((s) => ({ isPlaying: !s.isPlaying }));
+    useAudioStore.getState().togglePlay();
+  },
+
+  pause: () => {
+    set({ isPlaying: false });
+    useAudioStore.getState().stop();
+  },
+
+  nextTrack: () => {
+    const { playlist, currentTrackIndex } = get();
+    if (currentTrackIndex === null || playlist.length === 0) return;
+
+    const nextIndex = (currentTrackIndex + 1) % playlist.length;
+    set({ currentTrackIndex: nextIndex, isPlaying: true });
+
+    useAudioStore.getState().playTrack(playlist[nextIndex]);
+  },
+
+  prevTrack: () => {
+    const { playlist, currentTrackIndex } = get();
+    if (currentTrackIndex === null || playlist.length === 0) return;
+
+    const prevIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+    set({ currentTrackIndex: prevIndex, isPlaying: true });
+
+    useAudioStore.getState().playTrack(playlist[prevIndex]);
+  },
 }));

@@ -13,21 +13,30 @@ import {
 } from "@tabler/icons-react";
 
 import { useAudioStore } from "@/store/useAudioStore";
+import { usePlaylistStore } from "@/store/usePlaylistStore";
 
 export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void }) {
   const {
     currentTrack,
     isPlaying,
     volume,
-    nextTrack,
-    prevTrack,
     togglePlay,
     setVolume,
     howl,
     unload,
   } = useAudioStore();
 
+  const {currentPlaylist , nextTrack, prevTrack} = usePlaylistStore();
+
   const [progress, setProgress] = useState(0);
+
+  const handlePrevTrack = () => {
+    prevTrack();
+  }
+
+  const handleNextTrack = () => {
+    nextTrack();
+  }
 
   // Update progress
   useEffect(() => {
@@ -99,8 +108,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         </button>
 
         <button
-          onClick={prevTrack}
-          className={`p-2 rounded-full transition-colors ${currentTrack?.prev ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
+          onClick={handlePrevTrack}
+          className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
         >
           <IconPlayerSkipBack className="w-5 h-5" />
         </button>
@@ -113,8 +122,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         </button>
 
         <button
-          onClick={nextTrack}
-          className={`p-2 rounded-full transition-colors ${currentTrack?.next ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
+          onClick={handleNextTrack}
+          className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
         >
           <IconPlayerSkipForward className="w-5 h-5" />
         </button>

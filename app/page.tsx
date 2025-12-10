@@ -77,14 +77,14 @@ export default function Home() {
             title: "Workout Mix",
             description: "Energetic hits to boost your workout.",
             image: "/test.jpg",
-            tracks: dummyTracks2
+            tracks: dummyTracks
           },
           {
             id: "3",
             title: "Workout Mix",
             description: "Energetic hits to boost your workout.",
             image: "/test.jpg",
-            tracks: dummyTracks3
+            tracks: dummyTracks
           },
           {
             id: "4",

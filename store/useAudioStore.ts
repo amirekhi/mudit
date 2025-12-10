@@ -9,6 +9,8 @@ export interface Track {
   prev?: Track;
   next?: Track;
   image?: string;
+  playlistId?: string;
+  idx : number;
 }
 
 interface AudioState {
@@ -18,8 +20,6 @@ interface AudioState {
   volume: number;
   
   unload: () => void;
-  nextTrack: () => void;
-  prevTrack: () => void;
   playTrack: (track: Track) => void;
   togglePlay: () => void;
   stop: () => void;
@@ -83,15 +83,5 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     set({ volume: v });
   },
 
-    nextTrack: () => {
-    const { currentTrack } = get();
-    if (!currentTrack?.next) return;
-    get().playTrack(currentTrack.next);
-    },
 
-    prevTrack: () => {
-    const { currentTrack } = get();
-    if (!currentTrack?.prev) return;
-    get().playTrack(currentTrack.prev);
-    },
 }));
