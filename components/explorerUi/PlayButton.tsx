@@ -9,20 +9,16 @@ export default function PlayButton({ track }: { track: Track }) {
   );
   const playTrack = useAudioStore((state) => state.playTrack);
   const togglePlay = useAudioStore((state) => state.togglePlay);
-  const playTrackPlayList = usePlaylistStore((state) => state.playTrack);
   const setCurrentPlaylist = usePlaylistStore((state) => state.setCurrentPlaylist);
-  const setPlaylist = usePlaylistStore((state) => state.setPlaylist);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isPlaying) {
       togglePlay();
-    }else if (track.playlistId){
-      setCurrentPlaylist(track.playlistId);
-      setPlaylist(dummyTracks);
-      playTrackPlayList(track.idx);
-    } else playTrack(track);
-
+    }else {
+      setCurrentPlaylist(null);
+      playTrack(track);
+    }
   };
 
   return (

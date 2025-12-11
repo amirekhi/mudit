@@ -109,6 +109,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
 
         <button
           onClick={handlePrevTrack}
+          disabled={!currentPlaylist}
           className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
         >
           <IconPlayerSkipBack className="w-5 h-5" />
@@ -123,6 +124,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
 
         <button
           onClick={handleNextTrack}
+          disabled={!currentPlaylist}
           className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
         >
           <IconPlayerSkipForward className="w-5 h-5" />

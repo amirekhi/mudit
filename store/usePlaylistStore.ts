@@ -12,7 +12,7 @@ interface PlaylistState {
   clearPlaylist: () => void;
 
   currentPlaylist: string | null;
-  setCurrentPlaylist: (id: string) => void;
+  setCurrentPlaylist: (id: string | null) => void;
 
   playTrack: (index: number) => void;
   togglePlay: () => void;
@@ -27,7 +27,7 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   currentPlaylist: null,
   isPlaying: false,
 
-  setCurrentPlaylist: (id: string) => set({ currentPlaylist: id }),
+  setCurrentPlaylist: (id: string | null) => set({ currentPlaylist: id }),
   setPlaylist: (tracks) => set({ playlist: tracks }),
   addTrack: (track) => set((s) => ({ playlist: [...s.playlist, track] })),
   removeTrack: (id) =>
