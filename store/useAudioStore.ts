@@ -9,8 +9,6 @@ export interface Track {
   prev?: Track;
   next?: Track;
   image?: string;
-  playlistId?: string;
-  idx : number;
 }
 
 interface AudioState {

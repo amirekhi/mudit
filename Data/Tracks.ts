@@ -7,8 +7,7 @@ export const dummyTracks = [
     next: undefined,
     prev: undefined,
     image : "/test.jpg",
-    idx : 0,
-    playlistId : "111"
+
   },
   {
     id: "2",
@@ -16,8 +15,7 @@ export const dummyTracks = [
     artist: "Future Pop",
     url: "/OLD-DAYS.mp3",
      image : "/test.jpg",
-     idx : 1,
-     playlistId : "111"
+
   },
   {
     id: "3",
@@ -25,8 +23,7 @@ export const dummyTracks = [
     artist: "Chillhop",
     url: "/tracks/retro-waves.mp3",
      image : "/test.jpg",
-      idx : 2,
-      playlistId : "111"
+
   },
   {
     id: "4",
@@ -34,8 +31,7 @@ export const dummyTracks = [
     artist: "LoFi Beats",
     url: "/tracks/sunset-drive.mp3",
      image : "/test.jpg",
-      idx : 3,
-      playlistId : "111"
+
   },
   {
     id: "5",
@@ -43,8 +39,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 4,
-      playlistId : "111"
+
   },
   {
     id: "6",
@@ -52,8 +47,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
     image : "/test.jpg",
-    idx : 5,
-    playlistId : "111"
+
   },
   {
     id: "7",
@@ -61,8 +55,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 6,
-      playlistId : "111"
+
   },
   {
     id: "8",
@@ -70,8 +63,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 7,
-      playlistId : "111"
+
   },
   {
     id: "9",
@@ -79,8 +71,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 8,
-      playlistId : "111"
+
   },
   {
     id: "10",
@@ -88,8 +79,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 9,
-      playlistId : "111"
+
   },
   {
     id: "11",
@@ -97,8 +87,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg",
-      idx : 10,
-      playlistId : "111"
+
   },
   {
     id: "12",
@@ -106,8 +95,7 @@ export const dummyTracks = [
     artist: "Synthwave",
     url: "/tracks/neon-nights.mp3",
      image : "/test.jpg", 
-     idx : 11,
-     playlistId : "111"
+
   },
 ];
 export const dummyTracks3 = [

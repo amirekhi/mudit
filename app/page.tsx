@@ -1,33 +1,36 @@
 "use client";
 
 import MusicCarousel from "@/components/explorerUi/MusicCarousel";
-import { IconSearch } from "@tabler/icons-react";
-import { useRef, useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
-import { Track } from "@/store/useAudioStore";
 import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
-import { dummyTracks, dummyTracks2, dummyTracks3 } from "@/Data/Tracks";
+import { IconSearch } from "@tabler/icons-react";
+import { useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Track } from "@/store/useAudioStore"; // adjust imports if needed
+import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
+import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
 
 export default function Home() {
-  const searchValueRef = useRef(""); // only one ref needed
+  const searchValueRef = useRef(""); 
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  const { data: tracks = [], isLoading, error } = useQuery({
+
+  const { data: playlists = [], isLoading: playlistsLoading, error: playlistsError } = useQuery({
+    queryKey: ["playlists"],
+    queryFn: fetchPlaylists,
+  });
+
+  
+  const { data: tracks = [], isLoading: tracksLoading, error: tracksError } = useQuery({
     queryKey: ["songs"],
     queryFn: fetchSongs,
   });
 
-  
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     searchValueRef.current = e.target.value;
-
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-
     timeoutRef.current = setTimeout(() => {
-      setDebouncedQuery(searchValueRef.current); 
+      setDebouncedQuery(searchValueRef.current);
     }, 600);
   };
 
@@ -37,19 +40,19 @@ export default function Home() {
       track.artist.toLowerCase().includes(debouncedQuery.toLowerCase())
   );
 
-  if (isLoading)
+  if (playlistsLoading || tracksLoading)
     return <div className="p-6 text-center text-neutral-500">Loading...</div>;
 
-  if (error)
+  if (playlistsError || tracksError)
     return (
       <div className="p-6 text-center text-red-500">
-        Failed to load songs.
+        Failed to load data.
       </div>
     );
 
   return (
     <div className="p-6 flex flex-col gap-8">
-      {/* Search Bar */}
+
       <div className="relative max-w-md w-full mx-auto">
         <input
           type="text"
@@ -61,44 +64,15 @@ export default function Home() {
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
       </div>
 
-      {/* Carousels */}
+  
       <PlaylistCarousel
         title="Your Playlists"
-        playlists={[
-          {
-            id: "111",
-            title: "Chill Vibes",
-            description: "Relaxing and smooth tracks to unwind.",
-            image: "/test.jpg",
-            tracks: dummyTracks
-          },
-          {
-            id: "2",
-            title: "Workout Mix",
-            description: "Energetic hits to boost your workout.",
-            image: "/test.jpg",
-            tracks: dummyTracks
-          },
-          {
-            id: "3",
-            title: "Workout Mix",
-            description: "Energetic hits to boost your workout.",
-            image: "/test.jpg",
-            tracks: dummyTracks
-          },
-          {
-            id: "4",
-            title: "Workout Mix",
-            description: "Energetic hits to boost your workout.",
-            image: "/test.jpg",
-            tracks: dummyTracks
-          },
-        ]}
+        playlists={playlists} 
       />
+
       <div className="relative">
         <MusicCarousel tracks={filteredTracks} title="Trending" />
       </div>
-
     </div>
   );
 }

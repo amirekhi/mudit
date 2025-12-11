@@ -71,7 +71,7 @@ export default function PlaylistWindow() {
                 track={track}
                 index={index}
                 removeTrack={removeTrack}
-                idx={track.idx}
+                idx={index}
               />
             ))}
           </div>
