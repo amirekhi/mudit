@@ -1,4 +1,5 @@
-"use client"
+"use client";
+
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -6,11 +7,21 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { IconMusic, IconEye, IconEyeOff } from "@tabler/icons-react";
+import { useMutation } from "@tanstack/react-query";
+import { loginUser, LoginInput } from "@/lib/TanStackQuery/authQueries/loginUser";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  const { mutate, isPending, isError, isSuccess, error } = useMutation({
+    mutationFn: (input: LoginInput) => loginUser(input),
+  });
+
+  const handleLogin = () => {
+    mutate({ email, password });
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-black to-zinc-900 text-white p-4">
@@ -32,6 +43,15 @@ export default function LoginPage() {
             </h2>
 
             <div className="space-y-4 mt-4">
+              {isError && (
+                <p className="text-red-500 text-sm">
+                  {(error as Error).message}
+                </p>
+              )}
+              {isSuccess && (
+                <p className="text-green-500 text-sm">Login successful!</p>
+              )}
+
               <div>
                 <Label className="text-sm mb-1 text-zinc-400">Email</Label>
                 <Input
@@ -61,8 +81,12 @@ export default function LoginPage() {
                 </button>
               </div>
 
-              <Button className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-2 text-base">
-                Login
+              <Button
+                className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-2 text-base"
+                onClick={handleLogin}
+                disabled={isPending}
+              >
+                {isPending ? "Logging in..." : "Login"}
               </Button>
             </div>
           </CardContent>

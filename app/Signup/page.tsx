@@ -1,4 +1,5 @@
-"use client"
+"use client";
+
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { IconMusic, IconEye, IconEyeOff } from "@tabler/icons-react";
 import clsx from "clsx";
+import { useMutation } from "@tanstack/react-query";
+import { signupUser, SignupData } from "@/lib/TanStackQuery/authQueries/signupUser";
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -14,16 +17,55 @@ export default function SignupPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
-  function passwordStrength(pw: string ) {
+  // Compute password strength
+  function passwordStrength(pw: string) {
     let score = 0;
     if (pw.length >= 6) score++;
     if (/[A-Z]/.test(pw)) score++;
     if (/[^A-Za-z0-9]/.test(pw)) score++;
     return score;
   }
-
   const strength = passwordStrength(password);
+
+  const mutation = useMutation({
+    mutationFn: (data: SignupData) => signupUser(data),
+    onSuccess: () => {
+      setUsername("");
+      setEmail("");
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordError(null);
+    },
+  });
+
+  const handleSignup = () => {
+    setPasswordError(null);
+
+    // Password confirmation
+    if (password !== confirmPassword) {
+      setPasswordError("Passwords do not match");
+      return;
+    }
+
+    // Minimum password strength check
+    const MIN_STRENGTH = 2; // You can set this to 2 or 3
+    if (strength < MIN_STRENGTH) {
+      setPasswordError(
+        "Password is too weak. Use at least 6 characters, a capital letter, and a special character."
+      );
+      return;
+    }
+
+    mutation.mutate({ username, email, password });
+  };
+
+  // Mutation states
+  const isLoading = mutation.status === "pending";
+  const isError = mutation.status === "error";
+  const isSuccess = mutation.status === "success";
+  const errorMessage = (mutation.error as Error)?.message;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-black to-zinc-900 text-white p-4">
@@ -45,6 +87,12 @@ export default function SignupPage() {
             </h2>
 
             <div className="space-y-4 mt-4">
+              {passwordError && <p className="text-red-500 text-sm">{passwordError}</p>}
+              {isError && <p className="text-red-500 text-sm">{errorMessage}</p>}
+              {isSuccess && (
+                <p className="text-green-500 text-sm">Account created successfully!</p>
+              )}
+
               <div>
                 <Label className="text-sm mb-1 text-zinc-400">Username</Label>
                 <Input
@@ -84,9 +132,24 @@ export default function SignupPage() {
                 </button>
 
                 <div className="flex gap-1 mt-2">
-                        <div className={clsx("h-1 flex-1 rounded", strength >= 1 ? "bg-red-500" : "bg-zinc-700")}></div>
-                        <div className={clsx("h-1 flex-1 rounded", strength >= 2 ? "bg-yellow-500" : "bg-zinc-700")}></div>
-                        <div className={clsx("h-1 flex-1 rounded", strength >= 3 ? "bg-green-500" : "bg-zinc-700")}></div>
+                  <div
+                    className={clsx(
+                      "h-1 flex-1 rounded",
+                      strength >= 1 ? "bg-red-500" : "bg-zinc-700"
+                    )}
+                  ></div>
+                  <div
+                    className={clsx(
+                      "h-1 flex-1 rounded",
+                      strength >= 2 ? "bg-yellow-500" : "bg-zinc-700"
+                    )}
+                  ></div>
+                  <div
+                    className={clsx(
+                      "h-1 flex-1 rounded",
+                      strength >= 3 ? "bg-green-500" : "bg-zinc-700"
+                    )}
+                  ></div>
                 </div>
               </div>
 
@@ -101,8 +164,12 @@ export default function SignupPage() {
                 />
               </div>
 
-              <Button className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-2 text-base">
-                Sign Up
+              <Button
+                className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-2 text-base"
+                onClick={handleSignup}
+                disabled={isLoading}
+              >
+                {isLoading ? "Signing Up..." : "Sign Up"}
               </Button>
             </div>
           </CardContent>
