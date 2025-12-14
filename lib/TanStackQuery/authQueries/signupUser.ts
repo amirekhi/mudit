@@ -2,6 +2,7 @@ export interface SignupData {
   username: string;
   email: string;
   password: string;
+  profileImageUrl?: string | null;
 }
 
 export async function signupUser(data: SignupData) {

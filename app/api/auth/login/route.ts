@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       message: "Login successful",
-      user: { username: user.username, email: user.email },
+      user: {
+        username: user.username,
+        email: user.email,
+        profileImageUrl: user.profileImageUrl || null, // <-- return profile image
+      },
     });
 
     // Set JWT in HttpOnly cookie
