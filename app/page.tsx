@@ -2,24 +2,24 @@
 
 import MusicCarousel from "@/components/explorerUi/MusicCarousel";
 import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
-import { IconSearch } from "@tabler/icons-react";
+import { IconSearch, IconPlus } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Track } from "@/store/useAudioStore"; // adjust imports if needed
+import { Track } from "@/store/useAudioStore";
 import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
+import { useRouter } from "next/navigation"; // Next.js 13+ client navigation
 
 export default function Home() {
+  const router = useRouter();
   const searchValueRef = useRef(""); 
   const [debouncedQuery, setDebouncedQuery] = useState("");
-
 
   const { data: playlists = [], isLoading: playlistsLoading, error: playlistsError } = useQuery({
     queryKey: ["playlists"],
     queryFn: fetchPlaylists,
   });
 
-  
   const { data: tracks = [], isLoading: tracksLoading, error: tracksError } = useQuery({
     queryKey: ["songs"],
     queryFn: fetchSongs,
@@ -50,29 +50,40 @@ export default function Home() {
       </div>
     );
 
-  return (
-    <div className="p-6 flex flex-col gap-8">
+ return (
+  <div className="p-6 flex flex-col gap-8 relative">
+    {/* Absolute button */}
+    <button
+      onClick={() => router.push("/createHub")}
+      className="absolute top-6 right-12 flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700 transition z-50"
+    >
+      <IconPlus className="w-4 h-4" />
+      New
+    </button>
 
-      <div className="relative max-w-md w-full mx-auto">
-        <input
-          type="text"
-          placeholder="Search for music..."
-          defaultValue=""
-          onChange={handleInputChange}
-          className="w-full rounded-full border border-neutral-300 bg-neutral-100 px-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
-        />
-        <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
-      </div>
-
-  
-      <PlaylistCarousel
-        title="Your Playlists"
-        playlists={playlists} 
+    {/* Search input */}
+    <div className="relative max-w-md w-full mx-auto">
+      <input
+        type="text"
+        placeholder="Search for music..."
+        defaultValue=""
+        onChange={handleInputChange}
+        className="w-full rounded-full border border-neutral-300 bg-neutral-100 px-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
       />
-
-      <div className="relative">
-        <MusicCarousel tracks={filteredTracks} title="Trending" />
-      </div>
+      <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
     </div>
-  );
+
+    {/* Playlists carousel */}
+    <PlaylistCarousel
+      title="Your Playlists"
+      playlists={playlists} 
+    />
+
+    {/* Music carousel */}
+    <div className="relative">
+      <MusicCarousel tracks={filteredTracks} title="Trending" />
+    </div>
+  </div>
+);
+
 }

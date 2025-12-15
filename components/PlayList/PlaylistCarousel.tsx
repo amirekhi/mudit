@@ -51,7 +51,7 @@ export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselP
         className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar"
       >
         {playlists.map((pl) => (
-          <PlaylistCard key={pl.id} playlist={pl} />
+          <PlaylistCard key={pl._id} playlist={pl} />
         ))}
       </div>
     </div>

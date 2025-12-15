@@ -1,12 +1,11 @@
-// lib/auth/useCurrentUser.ts
 import { useQuery } from "@tanstack/react-query";
-import { getCurrentUser } from "../getCurentUser";
+import { getCurrentUser, CurrentUser } from "../getCurentUser";
 
 export function useCurrentUser() {
-  return useQuery({
+  return useQuery<CurrentUser | null>({
     queryKey: ["current-user"],
     queryFn: getCurrentUser,
-    staleTime: Infinity,
-    gcTime: Infinity,
+    staleTime: Infinity, // data stays fresh indefinitely
+    gcTime: Infinity,    // prevents garbage collection
   });
 }

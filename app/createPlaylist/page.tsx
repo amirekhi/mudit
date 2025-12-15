@@ -1,79 +1,115 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, ChangeEvent, DragEvent } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
-
-const dummySongs = [
-  { id: 1, title: "Song A", artist: "Artist 1" },
-  { id: 2, title: "Song B", artist: "Artist 2" },
-  { id: 3, title: "Song C", artist: "Artist 3" },
-  { id: 4, title: "Song D", artist: "Artist 4" },
-  { id: 5, title: "Song E", artist: "Artist 5" },
-];
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { PlaylistDb } from "@/types/playlistTypes";
+import { Track } from "@/store/useAudioStore";
+import { createPlaylist } from "@/lib/TanStackQuery/CreatePlaylist/PlaylistsMutations";
+import { uploadImage } from "@/lib/firebase/uploadImage";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
   const [playlistImage, setPlaylistImage] = useState<File | null>(null);
-  const [selectedSongs, setSelectedSongs] = useState<number[]>([]);
+  const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredSongs, setFilteredSongs] = useState(dummySongs);
+  const [filteredSongs, setFilteredSongs] = useState<Track[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Debounce search
+  // Fetch all songs
+  const { data: songs = [] } = useQuery<Track[], Error>({
+    queryKey: ["songs"],
+    queryFn: async () => {
+      const res = await fetch("/api/songs");
+      if (!res.ok) throw new Error("Failed to fetch songs");
+      return res.json() as Promise<Track[]>;
+    },
+  });
+
+  // Initialize filteredSongs only when songs load
+  useEffect(() => {
+    setFilteredSongs(songs);
+  }, [songs]);
+
+  // Debounced search
   useEffect(() => {
     const handler = setTimeout(() => {
-      if (!searchQuery) {
-        setFilteredSongs(dummySongs);
-      } else {
+      if (!searchQuery) setFilteredSongs(songs);
+      else
         setFilteredSongs(
-          dummySongs.filter((s) => s.title.toLowerCase().includes(searchQuery.toLowerCase()))
+          songs.filter((s) =>
+            s.title.toLowerCase().includes(searchQuery.toLowerCase())
+          )
         );
-      }
     }, 300);
-
     return () => clearTimeout(handler);
-  }, [searchQuery]);
+  }, [searchQuery, songs]);
 
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+  // Mutation for playlist creation
+  const mutation = useMutation<PlaylistDb, Error, PlaylistDb>({
+    mutationFn: createPlaylist,
+    onSuccess: (data) => {
+      alert(`Playlist '${data.title}' created!`);
+      setPlaylistName("");
+      setPlaylistImage(null);
+      setSelectedSongs([]);
+    },
+    onError: (err) => alert(err.message || "Failed to create playlist"),
+  });
+
+  // Drag & drop / file select
+  const handleDrop = (e: DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) setPlaylistImage(file);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) setPlaylistImage(file);
   };
 
-  const handleCreatePlaylist = () => {
-    console.log("Creating playlist:", {
-      name: playlistName,
-      image: playlistImage,
-      songs: selectedSongs,
-    });
-    alert(`Playlist '${playlistName}' created with ${selectedSongs.length} songs!`);
+  // Create playlist
+  const handleCreatePlaylist = async () => {
+    if (!playlistName || selectedSongs.length === 0) return;
+
+    let imageUrl = "";
+    if (playlistImage) {
+      try {
+        imageUrl = await uploadImage(playlistImage);
+      } catch {
+        alert("Failed to upload image");
+        return;
+      }
+    }
+
+    const payload: PlaylistDb = {
+      title: playlistName,
+      description: "",
+      image: imageUrl,
+      trackIds: selectedSongs,
+    };
+
+    mutation.mutate(payload);
   };
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
       <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-        {/* Playlist Details + Image Island */}
+        {/* Left */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6"
         >
           <h1 className="text-2xl font-semibold text-white">Create Playlist</h1>
-
           <input
             placeholder="Playlist Name"
             value={playlistName}
             onChange={(e) => setPlaylistName(e.target.value)}
             className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
           />
-
           <label
             style={{ minHeight: "180px" }}
             onDragEnter={(e) => e.preventDefault()}
@@ -90,7 +126,9 @@ export default function CreatePlaylistPage() {
               onChange={handleFileSelect}
             />
             {!playlistImage ? (
-              <p className="text-neutral-400">Drag & drop playlist image or click to browse</p>
+              <p className="text-neutral-400">
+                Drag & drop playlist image or click to browse
+              </p>
             ) : (
               <img
                 src={URL.createObjectURL(playlistImage)}
@@ -111,17 +149,18 @@ export default function CreatePlaylistPage() {
           <button
             type="button"
             onClick={handleCreatePlaylist}
-            disabled={!playlistName}
+            disabled={!playlistName || selectedSongs.length === 0 || mutation.isPending}
             className={`mt-4 w-full py-3 rounded-lg font-medium text-center transition ${
-              playlistName ? "bg-green-500 hover:bg-green-600 text-white" : "bg-neutral-700 text-neutral-400 pointer-events-none"
+              playlistName && selectedSongs.length > 0
+                ? "bg-green-500 hover:bg-green-600 text-white"
+                : "bg-neutral-700 text-neutral-400 pointer-events-none"
             }`}
           >
-            Create Playlist
+            {mutation.isPending ? "Creating..." : "Create Playlist"}
           </button>
-
         </motion.div>
 
-        {/* Right Side Island - Selected Songs + Options Island */}
+        {/* Right */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -131,7 +170,7 @@ export default function CreatePlaylistPage() {
             <h2 className="text-lg font-semibold text-white mb-4">Selected Songs</h2>
             <ul className="space-y-2">
               {selectedSongs.map((id) => {
-                const song = dummySongs.find((s) => s.id === id);
+                const song = songs.find((s) => s._id === id);
                 if (!song) return null;
                 return (
                   <li key={id} className="text-sm text-white">
@@ -139,11 +178,12 @@ export default function CreatePlaylistPage() {
                   </li>
                 );
               })}
-              {selectedSongs.length === 0 && <p className="text-neutral-400">No songs selected</p>}
+              {selectedSongs.length === 0 && (
+                <p className="text-neutral-400">No songs selected</p>
+              )}
             </ul>
           </div>
 
-          {/* Options Island */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -165,7 +205,7 @@ export default function CreatePlaylistPage() {
           </motion.div>
         </motion.div>
 
-        {/* Modal for searching and adding songs */}
+        {/* Modal */}
         {isModalOpen && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
             <motion.div
@@ -174,6 +214,7 @@ export default function CreatePlaylistPage() {
               className="bg-neutral-900 rounded-2xl p-6 w-full max-w-lg space-y-4"
             >
               <h3 className="text-white font-semibold text-lg">Add Songs</h3>
+
               <input
                 type="text"
                 placeholder="Search songs..."
@@ -184,18 +225,22 @@ export default function CreatePlaylistPage() {
 
               <ul className="max-h-64 overflow-y-auto space-y-2">
                 {filteredSongs.map((song) => {
-                  const checked = selectedSongs.includes(song.id);
+                  const checked = selectedSongs.includes(song._id);
                   return (
                     <li
-                      key={song.id}
+                      key={song._id}
                       className="flex items-center justify-between px-3 py-2 text-sm text-neutral-300 rounded-lg hover:bg-neutral-800 cursor-pointer"
-                      onClick={() => {
+                      onClick={() =>
                         setSelectedSongs((prev) =>
-                          checked ? prev.filter((id) => id !== song.id) : [...prev, song.id]
-                        );
-                      }}
+                          checked
+                            ? prev.filter((id) => id !== song._id)
+                            : [...prev, song._id]
+                        )
+                      }
                     >
-                      <span>{song.title} - {song.artist}</span>
+                      <span>
+                        {song.title} - {song.artist}
+                      </span>
                       {checked && <span className="h-3 w-3 bg-white rounded-full" />}
                     </li>
                   );
@@ -213,7 +258,6 @@ export default function CreatePlaylistPage() {
             </motion.div>
           </div>
         )}
-
       </div>
     </div>
   );

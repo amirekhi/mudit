@@ -11,7 +11,7 @@ export default function PlaylistPlayButton({ playlist }: { playlist: Playlist })
 
   const isPlaylistPlaying = usePlaylistStore((state) => {
     return (
-      state.currentPlaylist === playlist.id &&
+      state.currentPlaylist === playlist._id &&
       state.isPlaying
     );
   });
@@ -23,7 +23,7 @@ export default function PlaylistPlayButton({ playlist }: { playlist: Playlist })
       togglePlay();
     } else {
       setPlaylist(playlist.tracks);
-      usePlaylistStore.setState({ currentPlaylist: playlist.id });
+      usePlaylistStore.setState({ currentPlaylist: playlist._id });
 
       if (playlist.tracks.length > 0) {
         playTrack(0);

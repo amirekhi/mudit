@@ -67,7 +67,7 @@ export default function PlaylistWindow() {
 
             {playlist.map((track, index) => (
               <PlaylistTrack
-                key={track.id}
+                key={track._id}
                 track={track}
                 index={index}
                 removeTrack={removeTrack}

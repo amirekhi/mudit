@@ -50,7 +50,7 @@ export default function MusicCarousel({ tracks  , title }: MusicCarouselProps) {
       >
         {tracks.map((track) => (
           <MusicCard
-            key={track.id}
+            key={track._id}
             track={track}
           />
         ))}

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { Howl } from "howler";
 
 export interface Track {
-  id: string;
+  _id: string;
   title: string;
   artist: string;
   url: string;

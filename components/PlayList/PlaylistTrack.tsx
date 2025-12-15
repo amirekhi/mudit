@@ -14,7 +14,7 @@ interface PlaylistTrackProps {
 export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrackProps) {
   // Selector: this track's playing status
   const isPlaying = useAudioStore(
-    (state) => state.currentTrack?.id === track.id && state.isPlaying
+    (state) => state.currentTrack?._id === track._id && state.isPlaying
   );
 
 
@@ -64,7 +64,7 @@ export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrac
         <button
           onClick={(e) => {
             e.stopPropagation();
-            removeTrack(track.id);
+            removeTrack(track._id);
           }}
           className="p-1 rounded hover:bg-red-700 transition-colors"
         >

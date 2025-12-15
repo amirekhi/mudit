@@ -1,34 +1,115 @@
-import clientPromise from "@/lib/mongo/mongodb";
+
 import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongo/mongodb";
+
+// -------------------- GET Method --------------------
 
 export async function GET() {
-  const client = await clientPromise;
-  const db = client.db(process.env.MONGODB_DB!);
+  try {
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB!);
 
-  // 1️⃣ Fetch all playlists
-  const playlists = await db.collection("playlists").find({}).toArray();
+    const playlists = await db
+      .collection("playlists")
+      .find({})
+      .toArray();
 
-  if (!playlists.length) return Response.json([]);
+    if (!playlists.length) {
+      return new Response(JSON.stringify([]), { status: 200 });
+    }
 
-  // 2️⃣ Collect all track ObjectIds from all playlists
-  const allTrackIds = [
-    ...new Set(playlists.flatMap(p => p.trackIds))
-  ];
+    // Collect unique valid ObjectIds
+    const objectIds = [
+      ...new Set(
+        playlists
+          .flatMap(p => p.trackIds ?? [])
+          .filter(id => ObjectId.isValid(id))
+      ),
+    ].map(id => new ObjectId(id));
 
-  // 3️⃣ Fetch all tracks by _id (ObjectId)
-  const allTracks = await db
-    .collection("songs")
-    .find({ _id: { $in: allTrackIds } })
-    .toArray();
+    const tracks = objectIds.length
+      ? await db
+          .collection("songs")
+          .find({ _id: { $in: objectIds } })
+          .toArray()
+      : [];
 
-  // 4️⃣ Build map for fast lookup
-  const trackMap = new Map(allTracks.map(t => [t._id.toString(), t]));
+    const trackMap = new Map(
+      tracks.map(t => [t._id.toString(), t])
+    );
 
-  // 5️⃣ Hydrate playlists with tracks
-  const hydrated = playlists.map(p => ({
-    ...p,
-    tracks: p.trackIds.map((id: { toString: () => string; }) => trackMap.get(id.toString()) || null)
-  }));
+    const hydrated = playlists.map(p => ({
+      ...p,
+      tracks: (p.trackIds ?? []).map(
+        (id: string) => trackMap.get(id) ?? null
+      ),
+    }));
 
-  return Response.json(hydrated);
+    return new Response(JSON.stringify(hydrated), { status: 200 });
+  } catch (err) {
+    console.error("GET /playlists error:", err);
+    return new Response(
+      JSON.stringify({ message: "Failed to fetch playlists" }),
+      { status: 500 }
+    );
+  }
 }
+
+
+// -------------------- POST Method --------------------
+
+
+export async function POST(req: Request) {
+  try {
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB!);
+
+    const body = await req.json();
+    const { title, description, image, trackIds } = body;
+
+    if (!title) {
+      return new Response(
+        JSON.stringify({ message: "Title is required" }),
+        { status: 400 }
+      );
+    }
+
+    if (!Array.isArray(trackIds)) {
+      return new Response(
+        JSON.stringify({ message: "trackIds must be an array" }),
+        { status: 400 }
+      );
+    }
+
+    // ✅ ONLY allow valid ObjectId strings
+    const normalizedTrackIds = trackIds
+      .map(String)
+      .filter(id => ObjectId.isValid(id));
+
+    const playlistDoc = {
+      title,
+      description: description || "",
+      image: image || "",
+      trackIds: normalizedTrackIds,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await db
+      .collection("playlists")
+      .insertOne(playlistDoc);
+
+    const created = await db
+      .collection("playlists")
+      .findOne({ _id: result.insertedId });
+
+    return new Response(JSON.stringify(created), { status: 201 });
+  } catch (err) {
+    console.error("POST /playlists error:", err);
+    return new Response(
+      JSON.stringify({ message: "Failed to create playlist" }),
+      { status: 500 }
+    );
+  }
+}
+
