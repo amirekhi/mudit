@@ -89,15 +89,16 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
       {/* Progress Bar */}
       {currentTrack && (
         <div className="flex flex-col flex-1 md:flex-none w-full md:w-64 mx-4">
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.001}
-            value={progress}
-            onChange={handleSeek}
-            className="w-full h-1 accent-indigo-500"
-          />
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.001}
+          value={isNaN(progress) ? 0 : progress} // <-- fix
+          onChange={handleSeek}
+          className="w-full h-1 accent-indigo-500"
+        />
+
         </div>
       )}
 

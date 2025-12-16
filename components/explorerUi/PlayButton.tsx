@@ -5,7 +5,7 @@ import { IconPlayerPause, IconPlayerPlay } from "@tabler/icons-react";
 
 export default function PlayButton({ track }: { track: Track }) {
   const isPlaying = useAudioStore(
-    (state) => state.currentTrack?.id === track.id && state.isPlaying
+    (state) => state.currentTrack?._id === track._id && state.isPlaying
   );
   const playTrack = useAudioStore((state) => state.playTrack);
   const togglePlay = useAudioStore((state) => state.togglePlay);

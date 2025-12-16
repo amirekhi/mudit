@@ -1,7 +1,6 @@
 "use client";
 import { motion } from "framer-motion";
 import { Track, useAudioStore } from "@/store/useAudioStore";
-import { IconPlayerPlay, IconPlayerPause } from "@tabler/icons-react";
 import Image from "next/image";
 import PlayButton from "./PlayButton";
 
@@ -20,8 +19,8 @@ export default function MusicCard({ track }: MusicCardProps) {
       className="relative w-60 min-w-[240px] h-60 bg-neutral-900 rounded-xl p-4 flex flex-col justify-between cursor-pointer shadow-lg hover:shadow-2xl"
     >
       <div>
-        <Image
-          src={track.image || "/default-image.jpg"}
+        <img
+          src={track.image || "/test.jpg"}
           width={240}
           height={144}
           alt={track.title}
