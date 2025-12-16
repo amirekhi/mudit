@@ -29,7 +29,7 @@ export async function GET() {
 
     const tracks = objectIds.length
       ? await db
-          .collection("songs")
+          .collection("tracks")
           .find({ _id: { $in: objectIds } })
           .toArray()
       : [];

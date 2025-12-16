@@ -8,12 +8,6 @@ import { uploadSongs } from "@/lib/firebase/uploadSongs";
 import { uploadImage } from "@/lib/firebase/uploadImage";
 import Image from "next/image";
 
-const playlists = [
-  { id: 1, name: "Chill Vibes" },
-  { id: 2, name: "Workout Mix" },
-  { id: 3, name: "Late Night Coding" },
-];
-
 export default function CreateSongPage() {
   const [isDragging, setIsDragging] = useState(false);
   const [file, setFile] = useState<File | null>(null);
@@ -21,7 +15,8 @@ export default function CreateSongPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
-  const [selectedPlaylists, setSelectedPlaylists] = useState<number[]>([]);
+  const [playlists, setPlaylists] = useState<{ _id: string; title: string }[]>([]);
+  const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
 
   const playTrack = useAudioStore((s) => s.playTrack);
   const togglePlay = useAudioStore((s) => s.togglePlay);
@@ -30,7 +25,15 @@ export default function CreateSongPage() {
 
   const queryClient = useQueryClient();
 
-  // TanStack mutation
+  // Fetch playlists from backend
+  useEffect(() => {
+    fetch("/api/playlists")
+      .then((res) => res.json())
+      .then((data) => setPlaylists(data))
+      .catch((err) => console.error("Failed to fetch playlists:", err));
+  }, []);
+
+  // TanStack mutation to create track
   const createTrackMutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("No audio file selected");
@@ -51,8 +54,22 @@ export default function CreateSongPage() {
 
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: async (createdTrack) => {
       queryClient.invalidateQueries({ queryKey: ["tracks"] });
+
+      // Add track to selected playlists
+      if (selectedPlaylists.length) {
+        await fetch("/api/playlists/addTrack", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            trackId: createdTrack._id,
+            playlistIds: selectedPlaylists,
+          }),
+        });
+      }
+
+      // Reset form
       setFile(null);
       setImageFile(null);
       setImagePreview(null);
@@ -65,6 +82,7 @@ export default function CreateSongPage() {
   // Local audio preview
   useEffect(() => {
     if (!file) return;
+
     const objectUrl = URL.createObjectURL(file);
     const track: TrackType = {
       _id: "local-preview",
@@ -72,6 +90,7 @@ export default function CreateSongPage() {
       artist: "Local file",
       url: objectUrl,
     };
+
     playTrack(track);
 
     const { howl } = useAudioStore.getState();
@@ -165,18 +184,20 @@ export default function CreateSongPage() {
             <h2 className="text-lg font-semibold text-white mb-4">Add to Playlists</h2>
             <ul className="space-y-2">
               {playlists.map((playlist) => {
-                const checked = selectedPlaylists.includes(playlist.id);
+                const checked = selectedPlaylists.includes(playlist._id);
                 return (
                   <li
-                    key={playlist.id}
+                    key={playlist._id}
                     className="flex items-center justify-between cursor-pointer rounded-lg px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
                     onClick={() => {
                       setSelectedPlaylists((prev) =>
-                        checked ? prev.filter((id) => id !== playlist.id) : [...prev, playlist.id]
+                        checked
+                          ? prev.filter((id) => id !== playlist._id)
+                          : [...prev, playlist._id]
                       );
                     }}
                   >
-                    <span>{playlist.name}</span>
+                    <span>{playlist.title}</span>
                     <span
                       className={`h-4 w-4 flex items-center justify-center rounded-full border ${
                         checked ? "border-white" : "border-neutral-500"
@@ -214,12 +235,7 @@ export default function CreateSongPage() {
 
               {/* Styled Image Upload */}
               <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-center text-neutral-400 hover:border-white hover:text-white transition">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleImageSelect}
-                />
+                <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
                 {!imagePreview ? (
                   <span>Drag & drop cover image, or click to select</span>
                 ) : (
