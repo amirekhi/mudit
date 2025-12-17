@@ -33,12 +33,12 @@ export default function RootLayout({
       >
           <QueryProvider>
             <div className="flex flex-1 w-full overflow-hidden rounded-md border border-neutral-200 bg-neutral-400 dark:border-neutral-700 dark:bg-neutral-800">  
-            <div className="flex flex-1 overflow-hidden">
-            <SidebarDemo>
-              {children}  
-            </SidebarDemo>
-            </div>
-            <PlaylistWindow  />
+              <div className="flex flex-1 overflow-hidden">
+                <SidebarDemo>
+                  {children}  
+                </SidebarDemo>
+              </div>
+              <PlaylistWindow  />
             </div>
             <MusicPlayer  />
         </QueryProvider>

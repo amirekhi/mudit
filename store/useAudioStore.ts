@@ -3,13 +3,25 @@ import { Howl } from "howler";
 
 export interface Track {
   _id: string;
+
   title: string;
   artist: string;
   url: string;
-  prev?: Track;
-  next?: Track;
   image?: string;
+
+  // ownership
+  ownerId?: string | null;     // null = global/system
+  visibility: "public" | "private";
+
+  // navigation (optional)
+  prev?: string;
+  next?: string;
+
+  createdAt: string;
+  updatedAt: string;
 }
+
+
 
 interface AudioState {
   currentTrack: Track | null;
@@ -39,12 +51,13 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         html5: true,
         volume: get().volume,
         onend: () => {
-        const { currentTrack } = get();
-        if (currentTrack?.next) {
-            get().playTrack(currentTrack.next); // play next track automatically
-        } else {
-            set({ isPlaying: false }); // no next track, just pause
-        }
+        // const { currentTrack } = get();
+        // if (currentTrack?.next) {
+        //     get().playTrack(currentTrack.next); // play next track automatically
+        // } else {
+        //      // no next track, just pause
+        // }
+        set({ isPlaying: false });
         },
     });
 

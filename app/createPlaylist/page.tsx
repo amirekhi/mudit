@@ -8,6 +8,7 @@ import { PlaylistDb } from "@/types/playlistTypes";
 import { Track } from "@/store/useAudioStore";
 import { createPlaylist } from "@/lib/TanStackQuery/CreatePlaylist/PlaylistsMutations";
 import { uploadImage } from "@/lib/firebase/uploadImage";
+import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
@@ -17,12 +18,12 @@ export default function CreatePlaylistPage() {
   const [filteredSongs, setFilteredSongs] = useState<Track[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // Fetch all songs
+  // Fetch user's tracks from /api/tracks/me
   const { data: songs = [] } = useQuery<Track[], Error>({
-    queryKey: ["songs"],
+    queryKey: ["user-tracks"],
     queryFn: async () => {
-      const res = await fetch("/api/songs");
-      if (!res.ok) throw new Error("Failed to fetch songs");
+      const res = await authFetch("/api/tracks/me");
+      if (!res.ok) throw new Error("Failed to fetch user tracks");
       return res.json() as Promise<Track[]>;
     },
   });

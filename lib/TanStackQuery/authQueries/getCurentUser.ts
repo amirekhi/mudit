@@ -1,6 +1,7 @@
 import { authFetch } from "./authFetch";
 
 export interface CurrentUser {
+  _id?: string;
   username: string;
   email: string;
   profileImageUrl?: string | null;
@@ -20,6 +21,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const data = await res.json();
 
   return {
+    _id: data._id,  
     username: data.username,
     email: data.email,
     profileImageUrl: data.profileImageUrl || null,

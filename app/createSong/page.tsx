@@ -7,6 +7,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { uploadSongs } from "@/lib/firebase/uploadSongs";
 import { uploadImage } from "@/lib/firebase/uploadImage";
 import Image from "next/image";
+import { getEmbeddedImage } from "@/lib/Mp3DataParser/embededImage";
+import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 
 export default function CreateSongPage() {
   const [isDragging, setIsDragging] = useState(false);
@@ -15,6 +17,7 @@ export default function CreateSongPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
+  const [visibility, setVisibility] = useState<"public" | "private">("private");
   const [playlists, setPlaylists] = useState<{ _id: string; title: string }[]>([]);
   const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
 
@@ -25,15 +28,44 @@ export default function CreateSongPage() {
 
   const queryClient = useQueryClient();
 
-  // Fetch playlists from backend
+  // Fetch playlists
   useEffect(() => {
-    fetch("/api/playlists")
+    authFetch("/api/playlists")
       .then((res) => res.json())
-      .then((data) => setPlaylists(data))
+      .then(setPlaylists)
       .catch((err) => console.error("Failed to fetch playlists:", err));
   }, []);
 
-  // TanStack mutation to create track
+  // Handle file select / drop
+  const handleFileChange = async (selected: File | null) => {
+    if (!selected) return;
+    setFile(selected);
+
+    if (!imageFile) {
+      const embeddedBlob = await getEmbeddedImage(selected);
+      if (embeddedBlob) {
+        setImagePreview(URL.createObjectURL(embeddedBlob));
+        setImageFile(new File([embeddedBlob], "embedded-image", { type: embeddedBlob.type }));
+      }
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) =>
+    handleFileChange(e.target.files?.[0] || null);
+
+  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    handleFileChange(e.dataTransfer.files?.[0] || null);
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0] || null;
+    setImageFile(selected);
+    if (selected) setImagePreview(URL.createObjectURL(selected));
+  };
+
+  // Mutation to create track
   const createTrackMutation = useMutation({
     mutationFn: async () => {
       if (!file) throw new Error("No audio file selected");
@@ -41,25 +73,19 @@ export default function CreateSongPage() {
       const songUrl = await uploadSongs(file);
       const imageUrl = imageFile ? await uploadImage(imageFile) : undefined;
 
-      const res = await fetch("/api/tracks", {
+      const res = await authFetch("/api/tracks/me", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, url: songUrl, image: imageUrl }),
+        body: JSON.stringify({ title, artist, url: songUrl, image: imageUrl, visibility }),
       });
-
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Failed to create track");
-      }
 
       return res.json();
     },
     onSuccess: async (createdTrack) => {
       queryClient.invalidateQueries({ queryKey: ["tracks"] });
 
-      // Add track to selected playlists
       if (selectedPlaylists.length) {
-        await fetch("/api/playlists/addTrack", {
+        await authFetch("/api/playlists/addTrack", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -76,6 +102,7 @@ export default function CreateSongPage() {
       setTitle("");
       setArtist("");
       setSelectedPlaylists([]);
+      setVisibility("public");
     },
   });
 
@@ -89,6 +116,9 @@ export default function CreateSongPage() {
       title: file.name,
       artist: "Local file",
       url: objectUrl,
+      visibility,
+      createdAt: "",
+      updatedAt: "",
     };
 
     playTrack(track);
@@ -103,35 +133,14 @@ export default function CreateSongPage() {
       stop();
       URL.revokeObjectURL(objectUrl);
     };
-  }, [file, playTrack, stop]);
+  }, [file, playTrack, stop, visibility]);
 
-  // Image preview effect
+  // Clean up image preview URLs
   useEffect(() => {
-    if (!imageFile) {
-      setImagePreview(null);
-      return;
-    }
-    const objectUrl = URL.createObjectURL(imageFile);
-    setImagePreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
-  }, [imageFile]);
-
-  const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-    const droppedFile = e.dataTransfer.files?.[0];
-    if (droppedFile) setFile(droppedFile);
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0];
-    if (selected) setFile(selected);
-  };
-
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = e.target.files?.[0] || null;
-    setImageFile(selected);
-  };
+    return () => {
+      if (imagePreview) URL.revokeObjectURL(imagePreview);
+    };
+  }, [imagePreview]);
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
@@ -216,42 +225,77 @@ export default function CreateSongPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
-            className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6"
+            className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4"
           >
-            <h2 className="text-lg font-semibold text-white mb-4">Song Details</h2>
-            <div className="space-y-3 text-sm">
-              <input
-                placeholder="Song title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
-              />
-              <input
-                placeholder="Artist"
-                value={artist}
-                onChange={(e) => setArtist(e.target.value)}
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
-              />
+            <h2 className="text-lg font-semibold text-white mb-2">Song Details</h2>
+            <input
+              placeholder="Song title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
+            />
+            <input
+              placeholder="Artist"
+              value={artist}
+              onChange={(e) => setArtist(e.target.value)}
+              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
+            />
 
-              {/* Styled Image Upload */}
-              <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-center text-neutral-400 hover:border-white hover:text-white transition">
-                <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-                {!imagePreview ? (
-                  <span>Drag & drop cover image, or click to select</span>
-                ) : (
-                  <div className="flex flex-col items-center space-y-2">
-                    <span>Preview</span>
-                    <Image
-                      src={imagePreview}
-                      alt="Preview"
-                      width={120}
-                      height={120}
-                      className="rounded-lg object-cover"
-                    />
+            {/* Public/Private Toggle */}
+            <div className="mt-4">
+              <span className="text-white mb-2 block">Visibility:</span>
+              <div
+                className="relative w-40 h-10 flex items-center rounded-full bg-neutral-800 cursor-pointer select-none"
+                onClick={() =>
+                  setVisibility(visibility === "public" ? "private" : "public")
+                }
+              >
+                {/* Sliding background */}
+                <div
+                  className={`absolute top-0 left-0 h-full w-1/2 rounded-full bg-white transition-transform duration-300 ${
+                    visibility === "public" ? "translate-x-full" : "translate-x-0"
+                  }`}
+                ></div>
+
+                {/* Labels */}
+                <div className="relative flex w-full text-sm font-medium text-white z-10">
+                  <div
+                    className={`w-1/2 text-center py-2 transition-colors duration-300 ${
+                      visibility === "private" ? "text-neutral-900" : "text-white"
+                    }`}
+                  >
+                    Private
                   </div>
-                )}
-              </label>
+                  <div
+                    className={`w-1/2 text-center py-2 transition-colors duration-300 ${
+                      visibility === "public" ? "text-neutral-900" : "text-white"
+                    }`}
+                  >
+                    Public
+                  </div>
+                </div>
+              </div>
             </div>
+
+
+            {/* Image Upload */}
+            <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-center text-neutral-400 hover:border-white hover:text-white transition mt-4">
+              <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
+              {!imagePreview ? (
+                <span>Drag & drop cover image, or click to select</span>
+              ) : (
+                <div className="flex flex-col items-center space-y-2">
+                  <span>Preview</span>
+                  <Image
+                    src={imagePreview}
+                    alt="Preview"
+                    width={120}
+                    height={120}
+                    className="rounded-lg object-cover"
+                  />
+                </div>
+              )}
+            </label>
           </motion.div>
 
           {/* Create Track Button */}
