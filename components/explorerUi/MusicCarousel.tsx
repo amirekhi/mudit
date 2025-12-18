@@ -3,8 +3,11 @@
 import { useRef } from "react";
 import { dummyTracks } from "@/Data/Tracks"; // your dummy data
 import { Track, useAudioStore } from "@/store/useAudioStore";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconPlus } from "@tabler/icons-react";
 import MusicCard from "./MusicCard";
+import { motion } from "motion/react";
+import router from "next/router";
+import Link from "next/link";
 
 interface MusicCarouselProps {
   title? : String
@@ -47,8 +50,17 @@ export default function MusicCarousel({ tracks  , title }: MusicCarouselProps) {
         <div
         ref={containerRef}
         className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar"
-      >
-        {tracks.map((track) => (
+      >  
+      <Link href="/createSong">
+        <motion.div
+          whileHover={{ scale: 1.05 }}
+          className="flex-shrink-0 w-60 min-w-[240px] h-60 bg-neutral-900 rounded-xl p-4 flex flex-col justify-center items-center  cursor-pointer shadow-lg hover:shadow-2xl  border-2 border-dashed border-neutral-700 hover:border-white text-neutral-500 hover:text-white transition-colors"
+        >
+          <IconPlus className="w-12 h-12 mb-2" />
+          <span className="text-center font-semibold">Add Track</span>
+        </motion.div>
+        </Link>
+           {tracks.map((track) => (
           <MusicCard
             key={track._id}
             track={track}

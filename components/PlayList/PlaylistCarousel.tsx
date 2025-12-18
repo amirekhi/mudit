@@ -1,16 +1,23 @@
 "use client";
 
 import { useRef } from "react";
-import { Playlist } from "./PlaylistCard";
-import PlaylistCard from "./PlaylistCard";
-import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import Link from "next/link";
+import PlaylistCard, { Playlist } from "./PlaylistCard";
+import {
+  IconChevronLeft,
+  IconChevronRight,
+  IconPlus,
+} from "@tabler/icons-react";
 
 interface PlaylistCarouselProps {
   title?: string;
   playlists: Playlist[];
 }
 
-export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselProps) {
+export default function PlaylistCarousel({
+  title,
+  playlists,
+}: PlaylistCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const scroll = (direction: "left" | "right") => {
@@ -44,15 +51,32 @@ export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselP
         <IconChevronRight className="w-5 h-5 text-black dark:text-white" />
       </button>
 
-      <h2 className="px-8 p-3 text-2xl font-bold">{title}</h2>
+      {title && (
+        <h2 className="px-8 p-3 text-2xl font-bold">{title}</h2>
+      )}
 
       <div
         ref={containerRef}
         className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar"
       >
+        
+        {/* CREATE PLAYLIST CARD */}
+        <Link
+          href="/createPlaylist"
+          className=" shrink-0 w-[180px] h-[240px] rounded-xl
+          border-2 border-dashed border-neutral-400/50
+          flex flex-col items-center justify-center
+          text-neutral-500 hover:text-white
+          hover:border-white transition-colors"
+        >
+          <IconPlus className="w-10 h-10 mb-2" />
+          <span className="text-sm font-medium">Create Playlist</span>
+        </Link>
+        {/* Existing playlists */}
         {playlists.map((pl) => (
           <PlaylistCard key={pl._id} playlist={pl} />
         ))}
+
       </div>
     </div>
   );

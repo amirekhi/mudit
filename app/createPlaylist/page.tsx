@@ -18,7 +18,6 @@ export default function CreatePlaylistPage() {
   const [filteredSongs, setFilteredSongs] = useState<Track[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // ✅ NEW — visibility (default private)
   const [visibility, setVisibility] =
     useState<"private" | "public">("private");
 
@@ -77,6 +76,8 @@ export default function CreatePlaylistPage() {
     if (!playlistName || selectedSongs.length === 0) return;
 
     let imageUrl = "";
+
+    // 1. User uploaded image (highest priority)
     if (playlistImage) {
       try {
         imageUrl = await uploadImage(playlistImage);
@@ -85,17 +86,31 @@ export default function CreatePlaylistPage() {
         return;
       }
     }
+    // 2. Fallback to first track image
+    else {
+      const firstTrack = songs.find(
+        (s) => s._id === selectedSongs[0]
+      );
+
+      if (firstTrack?.image) {
+        imageUrl = firstTrack.image;
+      }
+    }
 
     const payload: PlaylistDb = {
       title: playlistName,
       description: "",
       image: imageUrl,
       trackIds: selectedSongs,
-      visibility, // ✅ REQUIRED
+      visibility,
     };
 
     mutation.mutate(payload);
   };
+
+  const firstSelectedTrack = songs.find(
+    (s) => s._id === selectedSongs[0]
+  );
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
@@ -115,7 +130,7 @@ export default function CreatePlaylistPage() {
             className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
           />
 
-        {/* 🔒 VISIBILITY TOGGLE */}
+          {/* VISIBILITY */}
           <div className="flex items-center gap-4">
             <span className="text-white text-sm">Visibility</span>
 
@@ -149,7 +164,7 @@ export default function CreatePlaylistPage() {
             onDragOver={(e) => e.preventDefault()}
             onDrop={handleDrop}
             className={`cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 transition ${
-              playlistImage
+              playlistImage || firstSelectedTrack?.image
                 ? "border-white bg-neutral-800"
                 : "border-neutral-700"
             }`}
@@ -160,16 +175,23 @@ export default function CreatePlaylistPage() {
               className="hidden"
               onChange={handleFileSelect}
             />
-            {!playlistImage ? (
-              <p className="text-neutral-400">
-                Drag & drop playlist image or click to browse
-              </p>
-            ) : (
+
+            {playlistImage ? (
               <img
                 src={URL.createObjectURL(playlistImage)}
                 alt="Preview"
                 className="h-32 w-32 object-cover rounded-lg"
               />
+            ) : firstSelectedTrack?.image ? (
+              <img
+                src={firstSelectedTrack.image}
+                alt="Default playlist preview"
+                className="h-32 w-32 object-cover rounded-lg opacity-80"
+              />
+            ) : (
+              <p className="text-neutral-400">
+                Drag & drop playlist image or click to browse
+              </p>
             )}
           </label>
 
@@ -203,6 +225,7 @@ export default function CreatePlaylistPage() {
             <h2 className="text-lg font-semibold text-white mb-4">
               Selected Songs
             </h2>
+
             {selectedSongs.length === 0 ? (
               <p className="text-neutral-400">No songs selected</p>
             ) : (

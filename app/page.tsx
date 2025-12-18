@@ -1,14 +1,19 @@
 "use client";
 
-import MusicCarousel from "@/components/explorerUi/MusicCarousel";
-import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
-import { IconSearch, IconPlus } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { IconSearch, IconPlus } from "@tabler/icons-react";
+
+import MusicCarousel from "@/components/explorerUi/MusicCarousel";
+import PublicMusicCarousel from "@/components/PlayList/PublicMusicCarousel";
+import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
+import PublicPlaylistCarousel from "@/components/PlayList/PublicPlaylistCarousel";
+
 import { Track } from "@/store/useAudioStore";
+import { Playlist } from "@/components/PlayList/PlaylistCard";
 import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
-import { useRouter } from "next/navigation";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 
 export default function Home() {
@@ -16,60 +21,60 @@ export default function Home() {
   const searchValueRef = useRef("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  /* -------------------- PLAYLIST QUERIES -------------------- */
-
-  // 🔓 Public playlists
+  /* -------------------- PUBLIC PLAYLISTS -------------------- */
   const {
     data: publicPlaylists = [],
     isLoading: publicPlaylistsLoading,
     error: publicPlaylistsError,
-  } = useQuery({
+  } = useQuery<Playlist[], Error>({
     queryKey: ["playlists", "public"],
     queryFn: fetchPlaylists,
   });
 
-  // 🔒 User playlists (private)
+  /* -------------------- USER PLAYLISTS -------------------- */
   const {
     data: userPlaylists = [],
     isLoading: userPlaylistsLoading,
-    error: userPlaylistsError,
-  } = useQuery({
+  } = useQuery<Playlist[], Error>({
     queryKey: ["playlists", "me"],
     queryFn: async () => {
-      const res = await authFetch("/api/playlists/me");
-      if (!res.ok) throw new Error("Failed to fetch user playlists");
-      return res.json();
+      try {
+        const res = await authFetch("/api/playlists/me");
+        if (!res.ok) throw new Error("Failed to fetch user playlists");
+        return res.json() as Promise<Playlist[]>;
+      } catch {
+        return [];
+      }
     },
   });
 
-  /* -------------------- TRACK QUERIES -------------------- */
-
-  // Trending (public tracks)
+  /* -------------------- PUBLIC TRACKS -------------------- */
   const {
     data: tracks = [],
     isLoading: tracksLoading,
-    error: tracksError,
-  } = useQuery({
+  } = useQuery<Track[], Error>({
     queryKey: ["songs"],
     queryFn: fetchSongs,
   });
 
-  // Your taste (user tracks)
+  /* -------------------- USER TRACKS -------------------- */
   const {
     data: userTracks = [],
     isLoading: userTracksLoading,
-    error: userTracksError,
-  } = useQuery({
+  } = useQuery<Track[], Error>({
     queryKey: ["user-tracks"],
     queryFn: async () => {
-      const res = await authFetch("/api/tracks/me");
-      if (!res.ok) throw new Error("Failed to fetch user tracks");
-      return res.json() as Promise<Track[]>;
+      try {
+        const res = await authFetch("/api/tracks/me");
+        if (!res.ok) throw new Error("Failed to fetch user tracks");
+        return res.json() as Promise<Track[]>;
+      } catch {
+        return [];
+      }
     },
   });
 
   /* -------------------- SEARCH -------------------- */
-
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,13 +88,12 @@ export default function Home() {
   };
 
   const filteredTracks = tracks.filter(
-    (track: Track) =>
+    (track) =>
       track.title.toLowerCase().includes(debouncedQuery.toLowerCase()) ||
       track.artist.toLowerCase().includes(debouncedQuery.toLowerCase())
   );
 
-  /* -------------------- STATES -------------------- */
-
+  /* -------------------- LOADING STATE -------------------- */
   if (
     publicPlaylistsLoading ||
     userPlaylistsLoading ||
@@ -101,21 +105,7 @@ export default function Home() {
     );
   }
 
-  if (
-    publicPlaylistsError ||
-    userPlaylistsError ||
-    tracksError ||
-    userTracksError
-  ) {
-    return (
-      <div className="p-6 text-center text-red-500">
-        Failed to load data.
-      </div>
-    );
-  }
-
   /* -------------------- RENDER -------------------- */
-
   return (
     <div className="p-6 flex flex-col gap-8 relative pb-[180px]">
       {/* Create button */}
@@ -138,29 +128,24 @@ export default function Home() {
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
       </div>
 
-      {/* 🔓 Public playlists */}
-      <PlaylistCarousel
+      {/* 🔓 Public Playlists */}
+      <PublicPlaylistCarousel
         title="Hot Playlists"
         playlists={publicPlaylists}
       />
 
-      {/* 🔒 User playlists */}
-      <PlaylistCarousel
-        title="Your Playlists"
-        playlists={userPlaylists}
-      />
+      {/* 🔒 User Playlists (only if available) */}
+      {userPlaylists.length > 0 && (
+        <PlaylistCarousel title="Your Playlists" playlists={userPlaylists} />
+      )}
 
-      {/* Trending tracks */}
-      <MusicCarousel
-        title="Trending"
-        tracks={filteredTracks}
-      />
+      {/* 🔓 Trending / Public Tracks */}
+      <PublicMusicCarousel title="Trending" tracks={filteredTracks} />
 
-      {/* User tracks */}
-      <MusicCarousel
-        title="Your taste"
-        tracks={userTracks}
-      />
+      {/* 🔒 User Tracks (only if available) */}
+      {userTracks.length > 0 && (
+        <MusicCarousel title="Your taste" tracks={userTracks} />
+      )}
     </div>
   );
 }
