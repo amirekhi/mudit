@@ -16,20 +16,50 @@ export default function Home() {
   const searchValueRef = useRef("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
 
-  // Fetch public playlists
-  const { data: playlists = [], isLoading: playlistsLoading, error: playlistsError } = useQuery({
-    queryKey: ["playlists"],
+  /* -------------------- PLAYLIST QUERIES -------------------- */
+
+  // 🔓 Public playlists
+  const {
+    data: publicPlaylists = [],
+    isLoading: publicPlaylistsLoading,
+    error: publicPlaylistsError,
+  } = useQuery({
+    queryKey: ["playlists", "public"],
     queryFn: fetchPlaylists,
   });
 
-  // Fetch all tracks for Trending
-  const { data: tracks = [], isLoading: tracksLoading, error: tracksError } = useQuery({
+  // 🔒 User playlists (private)
+  const {
+    data: userPlaylists = [],
+    isLoading: userPlaylistsLoading,
+    error: userPlaylistsError,
+  } = useQuery({
+    queryKey: ["playlists", "me"],
+    queryFn: async () => {
+      const res = await authFetch("/api/playlists/me");
+      if (!res.ok) throw new Error("Failed to fetch user playlists");
+      return res.json();
+    },
+  });
+
+  /* -------------------- TRACK QUERIES -------------------- */
+
+  // Trending (public tracks)
+  const {
+    data: tracks = [],
+    isLoading: tracksLoading,
+    error: tracksError,
+  } = useQuery({
     queryKey: ["songs"],
     queryFn: fetchSongs,
   });
 
-  // Fetch "Your taste" tracks from /api/tracks/me (no filtering)
-  const { data: userTracks = [], isLoading: userTracksLoading, error: userTracksError } = useQuery({
+  // Your taste (user tracks)
+  const {
+    data: userTracks = [],
+    isLoading: userTracksLoading,
+    error: userTracksError,
+  } = useQuery({
     queryKey: ["user-tracks"],
     queryFn: async () => {
       const res = await authFetch("/api/tracks/me");
@@ -38,11 +68,15 @@ export default function Home() {
     },
   });
 
-  // Debounced search
+  /* -------------------- SEARCH -------------------- */
+
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     searchValueRef.current = e.target.value;
+
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+
     timeoutRef.current = setTimeout(() => {
       setDebouncedQuery(searchValueRef.current);
     }, 600);
@@ -54,19 +88,37 @@ export default function Home() {
       track.artist.toLowerCase().includes(debouncedQuery.toLowerCase())
   );
 
-  if (playlistsLoading || tracksLoading || userTracksLoading)
-    return <div className="p-6 text-center text-neutral-500">Loading...</div>;
+  /* -------------------- STATES -------------------- */
 
-  if (playlistsError || tracksError || userTracksError)
+  if (
+    publicPlaylistsLoading ||
+    userPlaylistsLoading ||
+    tracksLoading ||
+    userTracksLoading
+  ) {
+    return (
+      <div className="p-6 text-center text-neutral-500">Loading...</div>
+    );
+  }
+
+  if (
+    publicPlaylistsError ||
+    userPlaylistsError ||
+    tracksError ||
+    userTracksError
+  ) {
     return (
       <div className="p-6 text-center text-red-500">
         Failed to load data.
       </div>
     );
+  }
+
+  /* -------------------- RENDER -------------------- */
 
   return (
-    <div className="p-6 flex flex-col gap-8 relative">
-      {/* Absolute button */}
+    <div className="p-6 flex flex-col gap-8 relative pb-[180px]">
+      {/* Create button */}
       <button
         onClick={() => router.push("/createHub")}
         className="absolute top-6 right-12 flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700 transition z-50"
@@ -75,30 +127,40 @@ export default function Home() {
         New
       </button>
 
-      {/* Search input */}
+      {/* Search */}
       <div className="relative max-w-md w-full mx-auto">
         <input
           type="text"
           placeholder="Search for music..."
-          defaultValue=""
           onChange={handleInputChange}
           className="w-full rounded-full border border-neutral-300 bg-neutral-100 px-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
         />
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
       </div>
 
-      {/* Playlists carousel */}
-      <PlaylistCarousel title="Your Playlists" playlists={playlists} />
+      {/* 🔓 Public playlists */}
+      <PlaylistCarousel
+        title="Hot Playlists"
+        playlists={publicPlaylists}
+      />
 
-      {/* Trending carousel */}
-      <div className="relative">
-        <MusicCarousel tracks={filteredTracks} title="Trending" />
-      </div>
+      {/* 🔒 User playlists */}
+      <PlaylistCarousel
+        title="Your Playlists"
+        playlists={userPlaylists}
+      />
 
-      {/* Your Taste carousel */}
-      <div className="relative">
-        <MusicCarousel tracks={userTracks} title="Your taste" />
-      </div>
+      {/* Trending tracks */}
+      <MusicCarousel
+        title="Trending"
+        tracks={filteredTracks}
+      />
+
+      {/* User tracks */}
+      <MusicCarousel
+        title="Your taste"
+        tracks={userTracks}
+      />
     </div>
   );
 }

@@ -59,57 +59,56 @@ export async function GET() {
 // -------------------- POST Method --------------------
 
 
+
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+
+
 export async function POST(req: Request) {
-  try {
-    const client = await clientPromise;
-    const db = client.db(process.env.MONGODB_DB!);
-
-    const body = await req.json();
-    const { title, description, image, trackIds } = body;
-
-    if (!title) {
-      return new Response(
-        JSON.stringify({ message: "Title is required" }),
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(trackIds)) {
-      return new Response(
-        JSON.stringify({ message: "trackIds must be an array" }),
-        { status: 400 }
-      );
-    }
-
-    // ✅ ONLY allow valid ObjectId strings
-    const normalizedTrackIds = trackIds
-      .map(String)
-      .filter(id => ObjectId.isValid(id));
-
-    const playlistDoc = {
-      title,
-      description: description || "",
-      image: image || "",
-      trackIds: normalizedTrackIds,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    const result = await db
-      .collection("playlists")
-      .insertOne(playlistDoc);
-
-    const created = await db
-      .collection("playlists")
-      .findOne({ _id: result.insertedId });
-
-    return new Response(JSON.stringify(created), { status: 201 });
-  } catch (err) {
-    console.error("POST /playlists error:", err);
-    return new Response(
-      JSON.stringify({ message: "Failed to create playlist" }),
-      { status: 500 }
-    );
+  const user = await getCurrentUser();
+  if (!user) {
+    return Response.json({ message: "Unauthorized" }, { status: 401 });
   }
+
+  const body = await req.json();
+  const { title, description, image, trackIds, visibility } = body;
+
+  if (!title) {
+    return Response.json({ message: "Title is required" }, { status: 400 });
+  }
+
+  if (!Array.isArray(trackIds)) {
+    return Response.json({ message: "trackIds must be an array" }, { status: 400 });
+  }
+
+  const normalizedTrackIds = trackIds
+    .map(String)
+    .filter(id => ObjectId.isValid(id))
+    .map(id => new ObjectId(id));
+
+  const client = await clientPromise;
+  const db = client.db(process.env.MONGODB_DB!);
+
+  const playlistDoc = {
+    title,
+    description: description || "",
+    image: image || "",
+
+    trackIds: normalizedTrackIds,
+
+    ownerId: new ObjectId(user._id),
+    visibility: visibility === "public" ? "public" : "private",
+
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  const result = await db.collection("playlists").insertOne(playlistDoc);
+
+  const created = await db
+    .collection("playlists")
+    .findOne({ _id: result.insertedId });
+
+  return Response.json(created, { status: 201 });
 }
+
 
