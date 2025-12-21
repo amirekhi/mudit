@@ -5,8 +5,11 @@ import { Sidebar, SidebarBody, SidebarLink } from "../ui/sidebar";
 import {
   IconArrowLeft,
   IconBrandTabler,
+  IconLogout,
+  IconPlaylistAdd,
+  IconPlus,
   IconSettings,
-  IconUserBolt,
+  IconUserCircle,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -21,10 +24,11 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   const [open, setOpen] = useState(false);
 
   const links = [
-    { label: "Dashboard", href: "#", icon: <IconBrandTabler className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Profile", href: "#", icon: <IconUserBolt className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Settings", href: "#", icon: <IconSettings className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Logout", href: "#", icon: <IconArrowLeft className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Home", href: "/", icon: <IconBrandTabler className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Profile", href: "/profile", icon: <IconUserCircle className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Create new playlist", href: "/createPlaylist", icon: <IconPlus className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Add new Tracks", href: "/createSong", icon: <IconPlaylistAdd className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />},
+    { label: "Logout", href: "#", icon: <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (

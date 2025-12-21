@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, ChangeEvent, DragEvent } from "react";
+import { useState, useEffect, ChangeEvent, DragEvent, useMemo } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -9,17 +9,21 @@ import { Track } from "@/store/useAudioStore";
 import { createPlaylist } from "@/lib/TanStackQuery/CreatePlaylist/PlaylistsMutations";
 import { uploadImage } from "@/lib/firebase/uploadImage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
+import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+import { Spinner } from "@/components/basics/Spinner";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
   const [playlistImage, setPlaylistImage] = useState<File | null>(null);
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filteredSongs, setFilteredSongs] = useState<Track[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const [visibility, setVisibility] =
     useState<"private" | "public">("private");
+
+    const { data: currentUser, isLoading } = useCurrentUser();
+    const isAdmin = currentUser?.role === "admin";
 
   // Fetch user's tracks
   const { data: songs = [] } = useQuery<Track[], Error>({
@@ -31,23 +35,15 @@ export default function CreatePlaylistPage() {
     },
   });
 
-  useEffect(() => {
-    setFilteredSongs(songs);
-  }, [songs]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (!searchQuery) setFilteredSongs(songs);
-      else {
-        setFilteredSongs(
-          songs.filter((s) =>
-            s.title.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-        );
-      }
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchQuery, songs]);
+
+const filteredSongs = useMemo(() => {
+  if (!searchQuery) return songs;
+  return songs.filter((s) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+}, [songs, searchQuery]);
+
 
   const mutation = useMutation<PlaylistDb, Error, PlaylistDb>({
     mutationFn: createPlaylist,
@@ -131,9 +127,9 @@ export default function CreatePlaylistPage() {
           />
 
           {/* VISIBILITY */}
+          {!isLoading && isAdmin && (
           <div className="flex items-center gap-4">
             <span className="text-white text-sm">Visibility</span>
-
             <div
               onClick={() =>
                 setVisibility(visibility === "private" ? "public" : "private")
@@ -156,6 +152,8 @@ export default function CreatePlaylistPage() {
               </div>
             </div>
           </div>
+        )}
+
 
           {/* IMAGE */}
           <label
@@ -201,18 +199,29 @@ export default function CreatePlaylistPage() {
           >
             Add Songs to Playlist
           </button>
-
           <button
             onClick={handleCreatePlaylist}
-            disabled={!playlistName || selectedSongs.length === 0}
-            className={`w-full py-3 rounded-lg font-medium transition ${
-              playlistName && selectedSongs.length
+            disabled={
+              mutation.isPending || !playlistName || selectedSongs.length === 0
+            }
+            className={`w-full py-3 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
+              mutation.isPending
+                ? "bg-green-500 text-white cursor-not-allowed"
+                : playlistName && selectedSongs.length
                 ? "bg-green-500 hover:bg-green-600 text-white"
                 : "bg-neutral-700 text-neutral-400 pointer-events-none"
             }`}
           >
-            {mutation.isPending ? "Creating..." : "Create Playlist"}
+            {mutation.isPending ? (
+              <>
+                <Spinner size={18} />
+                Creating...
+              </>
+            ) : (
+              "Create Playlist"
+            )}
           </button>
+
         </motion.div>
 
         {/* RIGHT */}

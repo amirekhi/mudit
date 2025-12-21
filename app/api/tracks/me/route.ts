@@ -65,7 +65,7 @@ export async function POST(req: Request) {
         { message: "title, artist and url are required" },
         { status: 400 }
       );
-    }
+    } 
 
     const track = await Track.create({
       title,
@@ -73,7 +73,7 @@ export async function POST(req: Request) {
       url,
       image,
       ownerId: user._id,
-      visibility: visibility ?? "private",
+      visibility: "private",
     });
 
     return NextResponse.json(track, { status: 201 });

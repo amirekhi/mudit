@@ -33,26 +33,34 @@ export async function GET() {
 }
 
 
+
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
+  const currentUser = await getCurrentUser();
+  console.log("Current User in POST /api/tracks/me:", currentUser);
 
-  if (!user || !user.isAdmin) {
-    return NextResponse.json(
-      { message: "Forbidden" },
-      { status: 403 }
-    );
-  }
+  const { title, artist, url, image, visibility } = await req.json();
 
-  const { title, artist, url, image } = await req.json();
+  // Determine if user is admin
+  const isAdmin = currentUser?.role === "admin";
+  console.log("isAdmin:", isAdmin);
+  console.log("Requested visibility:", visibility);
 
+  // Determine final visibility
+  const finalVisibility =
+    isAdmin && (visibility === "public" || visibility === "private")
+      ? visibility
+      : "private";
+
+  // Create track
   const track = await Track.create({
     title,
     artist,
     url,
     image,
-    ownerId: null,
-    visibility: "public",
+    ownerId: currentUser?._id ?? null,
+    visibility: finalVisibility,
   });
 
   return NextResponse.json(track, { status: 201 });
 }
+

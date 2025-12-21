@@ -21,11 +21,11 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const data = await res.json();
 
   return {
-    _id: data._id,  
-    username: data.username,
-    email: data.email,
-    profileImageUrl: data.profileImageUrl || null,
-    role: data.role,
-    createdAt: data.createdAt,
+    _id: data.user._id,  
+    username: data.user.username,
+    email: data.user.email,
+    profileImageUrl: data.user.profileImageUrl || null,
+    role: data.user.role,
+    createdAt: data.user.createdAt,
   };
 }

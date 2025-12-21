@@ -9,6 +9,9 @@ import { uploadImage } from "@/lib/firebase/uploadImage";
 import Image from "next/image";
 import { getEmbeddedImage } from "@/lib/Mp3DataParser/embededImage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
+import { extractAudioMetadata } from "@/lib/Mp3DataParser/extractAudioMetadata";
+import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+
 
 export default function CreateSongPage() {
   const [isDragging, setIsDragging] = useState(false);
@@ -28,6 +31,12 @@ export default function CreateSongPage() {
 
   const queryClient = useQueryClient();
 
+  //getting the user 
+const { data: currentUser, isLoading } = useCurrentUser();
+const isAdmin = currentUser?.role === "admin";
+
+
+
   // Fetch playlists
   useEffect(() => {
     authFetch("/api/playlists")
@@ -36,19 +45,34 @@ export default function CreateSongPage() {
       .catch((err) => console.error("Failed to fetch playlists:", err));
   }, []);
 
-  // Handle file select / drop
-  const handleFileChange = async (selected: File | null) => {
-    if (!selected) return;
-    setFile(selected);
+// Handle file select / drop
+const handleFileChange = async (selected: File | null) => {
+  if (!selected) return;
+  setFile(selected);
 
-    if (!imageFile) {
-      const embeddedBlob = await getEmbeddedImage(selected);
-      if (embeddedBlob) {
-        setImagePreview(URL.createObjectURL(embeddedBlob));
-        setImageFile(new File([embeddedBlob], "embedded-image", { type: embeddedBlob.type }));
-      }
+  try {
+    // Extract all metadata
+    const metadata = await extractAudioMetadata(selected);
+    if (!metadata) return;
+
+    // Set image if not manually selected
+    if (!imageFile && metadata.image) {
+      setImagePreview(URL.createObjectURL(metadata.image));
+      setImageFile(
+        new File([metadata.image], "embedded-image", { type: metadata.image.type })
+      );
     }
-  };
+
+    // Autofill title / artist only if empty
+    if (!title && metadata.title) setTitle(metadata.title);
+    if (!artist && metadata.artist) setArtist(metadata.artist);
+
+    // Optionally, you can also autofill album, genre, year, etc. if you have inputs for them
+    // e.g., setAlbum(metadata.album)
+  } catch (err) {
+    console.warn("Failed to extract metadata:", err);
+  }
+};
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) =>
     handleFileChange(e.target.files?.[0] || null);
@@ -66,45 +90,62 @@ export default function CreateSongPage() {
   };
 
   // Mutation to create track
-  const createTrackMutation = useMutation({
-    mutationFn: async () => {
-      if (!file) throw new Error("No audio file selected");
+const createTrackMutation = useMutation({
+  mutationFn: async () => {
+    if (!file) throw new Error("No audio file selected");
 
-      const songUrl = await uploadSongs(file);
-      const imageUrl = imageFile ? await uploadImage(imageFile) : undefined;
+    const songUrl = await uploadSongs(file);
+    const imageUrl = imageFile ? await uploadImage(imageFile) : undefined;
 
-      const res = await authFetch("/api/tracks/me", {
-        method: "POST",
+    const res = await authFetch("/api/tracks/public", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, artist, url: songUrl, image: imageUrl, visibility }),
+    });
+
+    if (!res.ok) {
+      // Throw an error with status code for onError
+      const errorData = await res.json().catch(() => ({}));
+      const message =
+        res.status === 403
+          ? "You are not authorized to publish public tracks. Only admins can."
+          : errorData.message || "Failed to create track";
+      throw new Error(message);
+    }
+
+    return res.json();
+  },
+
+  onSuccess: async (createdTrack) => {
+    queryClient.invalidateQueries({ queryKey: ["tracks"] });
+
+    if (selectedPlaylists.length) {
+      await authFetch("/api/playlists/addTrack", {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, artist, url: songUrl, image: imageUrl, visibility }),
+        body: JSON.stringify({
+          trackId: createdTrack._id,
+          playlistIds: selectedPlaylists,
+        }),
       });
+    }
 
-      return res.json();
-    },
-    onSuccess: async (createdTrack) => {
-      queryClient.invalidateQueries({ queryKey: ["tracks"] });
+    // Reset form
+    setFile(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setTitle("");
+    setArtist("");
+    setSelectedPlaylists([]);
+    setVisibility("public");
+  },
 
-      if (selectedPlaylists.length) {
-        await authFetch("/api/playlists/addTrack", {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            trackId: createdTrack._id,
-            playlistIds: selectedPlaylists,
-          }),
-        });
-      }
+  onError: (error: any) => {
+    // Here you can show a toast, alert, or any UI feedback
+    alert(error.message || "Failed to create track");
+  },
+});
 
-      // Reset form
-      setFile(null);
-      setImageFile(null);
-      setImagePreview(null);
-      setTitle("");
-      setArtist("");
-      setSelectedPlaylists([]);
-      setVisibility("public");
-    },
-  });
 
   // Local audio preview
   useEffect(() => {
@@ -242,40 +283,44 @@ export default function CreateSongPage() {
             />
 
             {/* Public/Private Toggle */}
-            <div className="mt-4">
-              <span className="text-white mb-2 block">Visibility:</span>
-              <div
-                className="relative w-40 h-10 flex items-center rounded-full bg-neutral-800 cursor-pointer select-none"
-                onClick={() =>
-                  setVisibility(visibility === "public" ? "private" : "public")
-                }
-              >
-                {/* Sliding background */}
-                <div
-                  className={`absolute top-0 left-0 h-full w-1/2 rounded-full bg-white transition-transform duration-300 ${
-                    visibility === "public" ? "translate-x-full" : "translate-x-0"
-                  }`}
-                ></div>
+           {/* Public/Private Toggle */}
+{!isLoading && isAdmin && (
+  <div className="mt-4">
+    <span className="text-white mb-2 block">Visibility:</span>
+    <div
+      className="relative w-40 h-10 flex items-center rounded-full bg-neutral-800 cursor-pointer select-none"
+      onClick={() =>
+        setVisibility(visibility === "public" ? "private" : "public")
+      }
+    >
+      {/* Sliding background */}
+      <div
+        className={`absolute top-0 left-0 h-full w-1/2 rounded-full bg-white transition-transform duration-300 ${
+          visibility === "public" ? "translate-x-full" : "translate-x-0"
+        }`}
+      ></div>
 
-                {/* Labels */}
-                <div className="relative flex w-full text-sm font-medium text-white z-10">
-                  <div
-                    className={`w-1/2 text-center py-2 transition-colors duration-300 ${
-                      visibility === "private" ? "text-neutral-900" : "text-white"
-                    }`}
-                  >
-                    Private
-                  </div>
-                  <div
-                    className={`w-1/2 text-center py-2 transition-colors duration-300 ${
-                      visibility === "public" ? "text-neutral-900" : "text-white"
-                    }`}
-                  >
-                    Public
-                  </div>
-                </div>
-              </div>
-            </div>
+      {/* Labels */}
+      <div className="relative flex w-full text-sm font-medium text-white z-10">
+        <div
+          className={`w-1/2 text-center py-2 transition-colors duration-300 ${
+            visibility === "private" ? "text-neutral-900" : "text-white"
+          }`}
+        >
+          Private
+        </div>
+        <div
+          className={`w-1/2 text-center py-2 transition-colors duration-300 ${
+            visibility === "public" ? "text-neutral-900" : "text-white"
+          }`}
+        >
+          Public
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
 
 
             {/* Image Upload */}
