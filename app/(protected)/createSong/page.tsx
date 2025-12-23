@@ -7,10 +7,10 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { uploadSongs } from "@/lib/firebase/uploadSongs";
 import { uploadImage } from "@/lib/firebase/uploadImage";
 import Image from "next/image";
-import { getEmbeddedImage } from "@/lib/Mp3DataParser/embededImage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { extractAudioMetadata } from "@/lib/Mp3DataParser/extractAudioMetadata";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+import  { useRouter } from "next/navigation";
 
 
 export default function CreateSongPage() {
@@ -30,6 +30,8 @@ export default function CreateSongPage() {
   const isPlaying = useAudioStore((s) => s.isPlaying);
 
   const queryClient = useQueryClient();
+
+  const router = useRouter();
 
   //getting the user 
 const { data: currentUser, isLoading } = useCurrentUser();
@@ -106,8 +108,16 @@ const createTrackMutation = useMutation({
     if (!res.ok) {
       // Throw an error with status code for onError
       const errorData = await res.json().catch(() => ({}));
+
+            // If 401, redirect immediately
+      if (res.status === 401) {
+        queryClient.setQueryData(["current-user"], null); // clear user cache
+        router.replace("/login");
+        return; // stop further execution
+      }
+
       const message =
-        res.status === 403
+        res.status === 401
           ? "You are not authorized to publish public tracks. Only admins can."
           : errorData.message || "Failed to create track";
       throw new Error(message);

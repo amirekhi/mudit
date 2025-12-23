@@ -11,12 +11,7 @@ export async function authFetch(
   });
 
   if (res.status === 401) {
-    // 🚨 JWT invalid / expired / user logged out
-    queryClient.setQueryData(["current-user"], {
-      loggedIn: false,
-    });
-
-    throw new Error("Unauthorized");
+    queryClient.setQueryData(["current-user"], null);
   }
 
   return res;

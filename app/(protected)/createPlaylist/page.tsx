@@ -11,6 +11,7 @@ import { uploadImage } from "@/lib/firebase/uploadImage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Spinner } from "@/components/basics/Spinner";
+import { useRouter } from "next/navigation";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
@@ -18,6 +19,8 @@ export default function CreatePlaylistPage() {
   const [selectedSongs, setSelectedSongs] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+    const router = useRouter();
 
   const [visibility, setVisibility] =
     useState<"private" | "public">("private");
@@ -54,7 +57,13 @@ const filteredSongs = useMemo(() => {
       setSelectedSongs([]);
       setVisibility("private");
     },
-    onError: (err) => alert(err.message || "Failed to create playlist"),
+    onError: (err: any) => {
+      if (err.status === 401) {
+        router.push("/login");
+        return;
+      }
+      alert(err.message || "Failed to create playlist");
+    }
   });
 
   const handleDrop = (e: DragEvent<HTMLLabelElement>) => {

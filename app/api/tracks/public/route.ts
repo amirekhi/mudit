@@ -37,6 +37,14 @@ export async function GET() {
 export async function POST(req: Request) {
   const currentUser = await getCurrentUser();
   console.log("Current User in POST /api/tracks/me:", currentUser);
+  
+    if (!currentUser) {
+    return NextResponse.json(
+      { message: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
 
   const { title, artist, url, image, visibility } = await req.json();
 
