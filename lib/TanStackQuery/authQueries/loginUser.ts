@@ -17,6 +17,7 @@ export async function loginUser({ email, password }: LoginInput) {
   if (!res.ok) {
     throw new Error(data.error || "Login failed");
   }
+ 
 
   return data;
 }

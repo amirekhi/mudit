@@ -16,6 +16,7 @@ import clsx from "clsx";
 import { useMutation } from "@tanstack/react-query";
 import { signupUser, SignupData } from "@/lib/TanStackQuery/authQueries/signupUser";
 import { uploadImage } from "@/lib/firebase/uploadImage"; // Firebase upload function
+import { queryClient } from "@/lib/TanStackQuery/queryClient";
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -39,19 +40,24 @@ export default function SignupPage() {
 
   const strength = passwordStrength(password);
 
-  const mutation = useMutation({
-    mutationFn: (data: SignupData) => signupUser(data),
-    onSuccess: () => {
-      setSuccessMessage("Account created successfully. You can now log in.");
-      setUsername("");
-      setEmail("");
-      setPassword("");
-      setConfirmPassword("");
-      setProfileImage(null);
-      setProfilePreview(null);
-      setPasswordError(null);
-    },
-  });
+    const mutation = useMutation({
+      mutationFn: (data: SignupData) => signupUser(data),
+
+      onSuccess: (data) => {
+        // 🔥 hydrate current user cache
+        queryClient.setQueryData(["current-user"], data.user);
+
+        setSuccessMessage("Account created successfully.");
+        setUsername("");
+        setEmail("");
+        setPassword("");
+        setConfirmPassword("");
+        setProfileImage(null);
+        setProfilePreview(null);
+        setPasswordError(null);
+      },
+    });
+
 
   const handleSignup = async () => {
     setPasswordError(null);

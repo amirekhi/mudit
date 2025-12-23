@@ -187,3 +187,40 @@ export const SidebarLink = ({
     </Link>
   );
 };
+
+
+export const SidebarAction = ({
+  label,
+  icon,
+  onClick,
+  className,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  className?: string;
+}) => {
+  const { open, animate } = useSidebar();
+
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex w-full items-center justify-start gap-2 group/sidebar py-2 text-left",
+        className
+      )}
+    >
+      {icon}
+
+      <motion.span
+        animate={{
+          display: animate ? (open ? "inline-block" : "none") : "inline-block",
+          opacity: animate ? (open ? 1 : 0) : 1,
+        }}
+        className="text-neutral-700 dark:text-neutral-200 text-sm group-hover/sidebar:translate-x-1 transition duration-150 whitespace-pre"
+      >
+        {label}
+      </motion.span>
+    </button>
+  );
+};

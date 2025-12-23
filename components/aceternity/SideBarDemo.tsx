@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, ReactNode } from "react";
-import { Sidebar, SidebarBody, SidebarLink } from "../ui/sidebar";
+import { Sidebar, SidebarAction, SidebarBody, SidebarLink } from "../ui/sidebar";
 import {
   IconArrowLeft,
   IconBrandTabler,
@@ -14,6 +14,8 @@ import {
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
+import { queryClient } from "@/lib/TanStackQuery/queryClient";
 
 interface SidebarLayoutProps {
   children: ReactNode;
@@ -23,26 +25,41 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   const { data: user } = useCurrentUser(); // user: CurrentUser | null
   const [open, setOpen] = useState(false);
 
+  const handleLogOut = async () => {
+    try {
+      // no need to use authFetch btw
+      authFetch("/api/auth/logout" , {method : "POST"});
+      queryClient.setQueryData(["current-user"], null); 
+    }catch(err){
+      console.log(err);
+    }
+  }
+
   const links = [
     { label: "Home", href: "/", icon: <IconBrandTabler className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Profile", href: "/profile", icon: <IconUserCircle className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Create new playlist", href: "/createPlaylist", icon: <IconPlus className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Add new Tracks", href: "/createSong", icon: <IconPlaylistAdd className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />},
-    { label: "Logout", href: "#", icon: <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (
     <div className={cn("md:flex w-full h-screen overflow-hidden")}>
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
-          <div className="flex flex-1 flex-col overflow-y-auto">
-            {open ? <Logo /> : <LogoIcon />}
-            <div className="mt-8 flex flex-col gap-2">
-              {links.map((link, idx) => (
-                <SidebarLink key={idx} link={link} />
-              ))}
-            </div>
+          <div className="mt-8 flex flex-col gap-2">
+            {links.map((link, idx) => (
+              <SidebarLink key={idx} link={link} />
+            ))}
+
+            <SidebarAction
+              label="Logout"
+              icon={
+                <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
+              }
+              onClick={handleLogOut}
+            />
           </div>
+
 
           {user && (
             <div className="flex flex-col items-center p-2">

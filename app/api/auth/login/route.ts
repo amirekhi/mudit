@@ -34,9 +34,12 @@ export async function POST(req: NextRequest) {
     const response = NextResponse.json({
       message: "Login successful",
       user: {
-        username: user.username,
-        email: user.email,
-        profileImageUrl: user.profileImageUrl || null, // <-- return profile image
+          _id: user._id,  
+          username: user.username,
+          email: user.email,
+          profileImageUrl: user.profileImageUrl || null,
+          role: user.role,
+          createdAt: user.createdAt,
       },
     });
 

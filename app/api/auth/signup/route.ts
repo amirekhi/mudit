@@ -60,8 +60,9 @@ export async function POST(req: NextRequest) {
         id: user._id,
         username: user.username,
         email: user.email,
-        imageUrl: user.profileImageUrl,
+        profileImageUrl: user.profileImageUrl,
         role: user.role,
+        createdAt: user.createdAt,
       },
     });
 

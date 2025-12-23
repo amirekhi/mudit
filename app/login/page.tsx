@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { IconMusic, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { loginUser, LoginInput } from "@/lib/TanStackQuery/authQueries/loginUser";
+import { queryClient } from "@/lib/TanStackQuery/queryClient";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -16,8 +17,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   const { mutate, isPending, isError, isSuccess, error } = useMutation({
-    mutationFn: (input: LoginInput) => loginUser(input),
-  });
+  mutationFn: (input: LoginInput) => loginUser(input),
+
+  onSuccess: (data) => {
+    // data.user comes from your API response
+    queryClient.setQueryData(["current-user"], data.user);
+  },
+});
 
   const handleLogin = () => {
     mutate({ email, password });
