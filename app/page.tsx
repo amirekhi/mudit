@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { IconSearch, IconPlus } from "@tabler/icons-react";
+import { IconSearch, IconPlus, IconEdit } from "@tabler/icons-react";
 
 import MusicCarousel from "@/components/explorerUi/MusicCarousel";
 import PublicMusicCarousel from "@/components/PlayList/PublicMusicCarousel";
@@ -115,6 +115,14 @@ export default function Home() {
       >
         <IconPlus className="w-4 h-4" />
         New
+      </button>
+
+      <button
+        onClick={() => router.push("/edit")}
+        className="absolute top-6 right-40 flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 border border-white text-white font-medium hover:bg-neutral-700 transition z-50"
+      >
+        Edit
+        <IconEdit className="w-4 h-4" />
       </button>
 
       {/* Search */}

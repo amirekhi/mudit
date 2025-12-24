@@ -45,3 +45,17 @@ const TrackSchema = new Schema<TrackDocument>(
 // ✅ THIS LINE IS REQUIRED
 export default mongoose.models.Track ||
   mongoose.model<TrackDocument>("Track", TrackSchema);
+
+
+
+  type DraftTrack = {
+  id: string;
+  file: File;
+  title: string;
+  artist: string;
+  imageFile?: File;
+  imagePreview?: string;
+  visibility: "public" | "private";
+  selected: boolean;
+};
+export type { DraftTrack };

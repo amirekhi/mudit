@@ -7,25 +7,37 @@ export async function PATCH(req: Request) {
     const db = client.db(process.env.MONGODB_DB!);
 
     const body = await req.json();
-    const { trackId, playlistIds } = body;
+    const { trackIds, playlistIds } = body;
 
-    if (!trackId || !Array.isArray(playlistIds)) {
-      return new Response(JSON.stringify({ message: "trackId and playlistIds are required" }), {
-        status: 400,
-      });
+    // Validate input
+    if (!Array.isArray(trackIds) || !trackIds.length || !Array.isArray(playlistIds) || !playlistIds.length) {
+      return new Response(
+        JSON.stringify({ message: "trackIds and playlistIds arrays are required" }),
+        { status: 400 }
+      );
     }
 
-    const validPlaylistIds = playlistIds.filter(id => ObjectId.isValid(id)).map(id => new ObjectId(id));
+    // Validate playlist IDs
+    const validPlaylistIds = playlistIds
+      .filter(id => ObjectId.isValid(id))
+      .map(id => new ObjectId(id));
 
-    // Update playlists: push trackId to trackIds array if not already present
+    if (!validPlaylistIds.length) {
+      return new Response(
+        JSON.stringify({ message: "No valid playlist IDs provided" }),
+        { status: 400 }
+      );
+    }
+
+    // Update playlists: push trackIds to trackIds array, avoid duplicates
     await db.collection("playlists").updateMany(
       { _id: { $in: validPlaylistIds } },
-      { $addToSet: { trackIds: trackId } }
+      { $addToSet: { trackIds: { $each: trackIds } } }
     );
 
-    return new Response(JSON.stringify({ message: "Track added to playlists" }), { status: 200 });
+    return new Response(JSON.stringify({ message: "Tracks added to playlists" }), { status: 200 });
   } catch (err) {
     console.error("PATCH /playlists/addTrack error:", err);
-    return new Response(JSON.stringify({ message: "Failed to add track to playlists" }), { status: 500 });
+    return new Response(JSON.stringify({ message: "Failed to add tracks to playlists" }), { status: 500 });
   }
 }
