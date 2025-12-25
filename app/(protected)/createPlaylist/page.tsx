@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, ChangeEvent, DragEvent, useMemo } from "react";
-import { motion } from "framer-motion";
+import { motion, Reorder } from "framer-motion";
 import Link from "next/link";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { PlaylistDb } from "@/types/playlistTypes";
@@ -247,17 +247,35 @@ const filteredSongs = useMemo(() => {
             {selectedSongs.length === 0 ? (
               <p className="text-neutral-400">No songs selected</p>
             ) : (
-              <ul className="space-y-2">
-                {selectedSongs.map((id) => {
-                  const song = songs.find((s) => s._id === id);
-                  if (!song) return null;
-                  return (
-                    <li key={id} className="text-sm text-white">
-                      {song.title} - {song.artist}
-                    </li>
-                  );
-                })}
-              </ul>
+                <Reorder.Group
+                  axis="y"
+                  values={selectedSongs}
+                  onReorder={setSelectedSongs}
+                  className="space-y-2 max-h-64 overflow-y-auto"
+                >
+                  {selectedSongs.map((id) => {
+                    const song = songs.find((s) => s._id === id);
+                    if (!song) return null;
+                    return (
+                      <Reorder.Item
+                        key={id}
+                        value={id}
+                        className="flex justify-between px-3 py-2 rounded-lg cursor-pointer hover:bg-neutral-800 text-sm text-neutral-300"
+                      >
+                        <span>{song.title} - {song.artist}</span>
+                        <button
+                          onClick={() =>
+                            setSelectedSongs((prev) => prev.filter((sid) => sid !== id))
+                          }
+                          className="text-white font-bold"
+                        >
+                          ✕
+                        </button>
+                      </Reorder.Item>
+                    );
+                  })}
+                </Reorder.Group>
+
             )}
           </div>
 
