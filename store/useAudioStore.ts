@@ -29,6 +29,7 @@ interface AudioState {
   isPlaying: boolean;
   volume: number;
   
+  setTrack: (track: Track) => void; 
   unload: () => void;
   playTrack: (track: Track) => void;
   togglePlay: () => void;
@@ -51,12 +52,7 @@ export const useAudioStore = create<AudioState>((set, get) => ({
         html5: true,
         volume: get().volume,
         onend: () => {
-        // const { currentTrack } = get();
-        // if (currentTrack?.next) {
-        //     get().playTrack(currentTrack.next); // play next track automatically
-        // } else {
-        //      // no next track, just pause
-        // }
+
         set({ isPlaying: false });
         },
     });
@@ -65,6 +61,24 @@ export const useAudioStore = create<AudioState>((set, get) => ({
 
     set({ currentTrack: track, howl: sound, isPlaying: true });
     },
+
+    setTrack: (track: Track) => {
+  const old = get().howl;
+  if (old) old.unload();
+
+  const sound = new Howl({
+    src: [track.url],
+    html5: true,
+    volume: get().volume,
+    onend: () => set({ isPlaying: false }),
+  });
+
+  set({
+    currentTrack: track,
+    howl: sound,
+    isPlaying: false, // 🔴 paused by default
+  });
+},
 
 
   togglePlay: () => {

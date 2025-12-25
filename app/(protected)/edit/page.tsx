@@ -32,7 +32,7 @@ export default function EditHubPage() {
 
           <div className="mt-auto">
             <Link
-              href="/edit/tracks"
+              href="/edit/updateTrack"
               className="block text-center rounded-xl bg-white text-neutral-900 font-medium py-3 hover:bg-neutral-200 transition"
             >
               Edit Tracks
