@@ -62,3 +62,54 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   return NextResponse.json(updatedPlaylist);
 }
+
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { message: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const p =  await params;
+  const playlistId = p.id;
+
+  const client = await clientPromise;
+  const db = client.db(process.env.MONGODB_DB!);
+
+  // Only owner OR admin can delete
+  const playlist = await db.collection("playlists").findOne({
+    _id: new ObjectId(playlistId),
+  });
+
+  if (!playlist) {
+    return NextResponse.json(
+      { message: "Playlist not found" },
+      { status: 404 }
+    );
+  }
+
+  if (
+    playlist.ownerId.toString() !== user._id &&
+    user.role !== "admin"
+  ) {
+    return NextResponse.json(
+      { message: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
+  await db.collection("playlists").deleteOne({
+    _id: new ObjectId(playlistId),
+  });
+
+  return NextResponse.json(
+    { message: "Playlist deleted successfully" },
+    { status: 200 }
+  );
+}

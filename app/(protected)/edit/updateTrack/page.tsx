@@ -9,6 +9,8 @@ import { uploadImage } from "@/lib/firebase/uploadImage";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Track, useAudioStore } from "@/store/useAudioStore";
 
+
+
 /* ---------------- debounce hook ---------------- */
 
 function useDebounce<T>(value: T, delay = 400) {
@@ -49,6 +51,36 @@ export default function UpdateTrackPage() {
   const debouncedSearch = useDebounce(search);
 
   const isDirty = useRef(false);
+
+  //delete mutation
+  const deleteMutation = useMutation({
+  mutationFn: async () => {
+    if (!activeTrack) throw new Error("No track selected");
+
+    const res = await authFetch(`/api/tracks/${activeTrack._id}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) throw new Error("Failed to delete track");
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ["my-tracks"] });
+
+    setActiveTrack(null);
+    setImageFile(null);
+    setImagePreview(null);
+    setSelectedPlaylists([]);
+    isDirty.current = false;
+
+    alert("Track deleted successfully");
+  },
+  onError: (err: any) => {
+    alert(err.message || "Failed to delete track");
+  },
+});
+
+
+
 
   /* ---------------- data ---------------- */
 
@@ -310,6 +342,23 @@ export default function UpdateTrackPage() {
             >
               {updateMutation.isPending ? "Saving..." : "Update Track"}
             </button>
+            {  activeTrack && activeTrack?.visibility !== "public"  && (
+                                
+               <button
+                disabled={!activeTrack || deleteMutation.isPending}
+                onClick={() => {
+                  if (!confirm("Are you sure you want to delete this track?")) return;
+                  deleteMutation.mutate();
+                }}
+                className={`mt-3 w-full rounded-xl py-3 font-medium transition ${
+                  !activeTrack
+                    ? "bg-neutral-700 text-neutral-400"
+                    : "bg-red-600 text-white hover:bg-red-700"
+                }`}
+              >
+                {deleteMutation.isPending ? "Deleting..." : "Delete Track"}
+              </button>)}
+
           </motion.div>
         </div>
       </div>

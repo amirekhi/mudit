@@ -1,7 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Track from "@/models/Track";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
+import clientPromise from "@/lib/mongo/mongodb";
+import { ObjectId } from "mongodb";
 
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
@@ -90,4 +92,64 @@ export async function PATCH(
       { status: 500 }
     );
   }
+}
+
+
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json(
+      { message: "Unauthorized" },
+      { status: 401 }
+    );
+  }
+
+  const p = await params;
+  const trackId = p.id;
+
+  const client = await clientPromise;
+  const db = client.db(process.env.MONGODB_DB!);
+
+  const track = await db.collection("tracks").findOne({
+    _id: new ObjectId(trackId),
+  });
+
+  if (!track) {
+    return NextResponse.json(
+      { message: "Track not found" },
+      { status: 404 }
+    );
+  }
+
+  // 🚫 NEW RULE: public tracks cannot be deleted
+  if (track.visibility === "public") {
+    return NextResponse.json(
+      { message: "Public tracks cannot be deleted" },
+      { status: 403 }
+    );
+  }
+
+  // ✅ Admin OR owner check
+  if (
+    track.ownerId.toString() !== user._id &&
+    user.role !== "admin"
+  ) {
+    return NextResponse.json(
+      { message: "Forbidden" },
+      { status: 403 }
+    );
+  }
+
+  await db.collection("tracks").deleteOne({
+    _id: new ObjectId(trackId),
+  });
+
+  return NextResponse.json(
+    { message: "Track deleted successfully" },
+    { status: 200 }
+  );
 }

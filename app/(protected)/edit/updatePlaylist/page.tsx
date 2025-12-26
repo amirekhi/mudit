@@ -21,6 +21,9 @@ function useDebounce<T>(value: T, delay = 300) {
   return debounced;
 }
 
+
+
+
 export default function UpdatePlaylistPage() {
   const queryClient = useQueryClient();
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
@@ -43,6 +46,34 @@ export default function UpdatePlaylistPage() {
   const debouncedTrackSearch = useDebounce(trackSearch, 300);
 
   const [isDirty, setIsDirty] = useState(false);
+
+
+  //delet mutation 
+  const handleDeletePlaylist = useMutation({
+  mutationFn: async () => {
+    if (!activePlaylist) return;
+
+    const res = await authFetch(`/api/playlists/${activePlaylist._id}`, {
+      method: "DELETE",
+    });
+
+    if (!res.ok) throw new Error("Failed to delete playlist");
+  },
+  onSuccess: () => {
+    setPlaylists(prev =>
+      prev.filter(p => p._id !== activePlaylist?._id)
+    );
+    setActivePlaylist(null);
+    setIsDirty(false);
+
+    queryClient.invalidateQueries({ queryKey: ["user-playlists"] });
+
+    alert("Playlist deleted successfully");
+  },
+  onError: (err: any) => {
+    alert(err.message || "Failed to delete playlist");
+  },
+});
 
   // Fetch playlists
   useEffect(() => {
@@ -284,7 +315,21 @@ export default function UpdatePlaylistPage() {
                 }`}
               >
                 {handleUpdatePlaylist.isPending ? <><Spinner size={18} /> Saving...</> : "Save Playlist"}
+                
               </button>
+              {(!userLoading && (isAdmin)) && (
+
+              <button
+                onClick={() => {
+                  if (!confirm("Are you sure you want to delete this playlist?")) return;
+                  handleDeletePlaylist.mutate();
+                }}
+                disabled={handleDeletePlaylist.isPending}
+                className="w-full py-3 rounded-lg font-medium transition bg-red-600 hover:bg-red-700 text-white"
+              >
+                {handleDeletePlaylist.isPending ? "Deleting..." : "Delete Playlist"}
+              </button>)}
+
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-neutral-400 text-lg">

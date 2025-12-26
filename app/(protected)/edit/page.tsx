@@ -64,7 +64,7 @@ export default function EditHubPage() {
 
           <div className="mt-auto">
             <Link
-              href="/edit/playlists"
+              href="/edit/updatePlaylist"
               className="block text-center rounded-xl border border-neutral-700 text-white font-medium py-3 hover:bg-neutral-800 transition"
             >
               Edit Playlists
