@@ -69,7 +69,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
               <SidebarLink
                 link={{
                   label: user.username,
-                  href: "#",
+                  href: "/profile",
                   icon: (
                     <img
                       src={user.profileImageUrl || "https://assets.aceternity.com/manu.png"}

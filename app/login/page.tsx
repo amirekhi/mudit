@@ -10,11 +10,13 @@ import { IconMusic, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { loginUser, LoginInput } from "@/lib/TanStackQuery/authQueries/loginUser";
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
+import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   const { mutate, isPending, isError, isSuccess, error } = useMutation({
   mutationFn: (input: LoginInput) => loginUser(input),
@@ -22,6 +24,8 @@ export default function LoginPage() {
   onSuccess: (data) => {
     // data.user comes from your API response
     queryClient.setQueryData(["current-user"], data.user);
+  
+    router.push("/");
   },
 });
 
@@ -94,6 +98,16 @@ export default function LoginPage() {
               >
                 {isPending ? "Logging in..." : "Login"}
               </Button>
+              <div className="text-center mt-4 text-sm text-zinc-400">
+                Don’t have an account?{" "}
+                <button
+                  onClick={() => router.push("/signup")}
+                  className="text-purple-400 hover:text-purple-300 font-medium transition"
+                >
+                  Sign up
+                </button>
+              </div>
+
             </div>
           </CardContent>
         </Card>

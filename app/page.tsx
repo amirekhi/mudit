@@ -15,11 +15,14 @@ import { Playlist } from "@/components/PlayList/PlaylistCard";
 import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
+import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 
 export default function Home() {
   const router = useRouter();
   const searchValueRef = useRef("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+
 
   /* -------------------- PUBLIC PLAYLISTS -------------------- */
   const {
@@ -104,26 +107,65 @@ export default function Home() {
       <div className="p-6 text-center text-neutral-500">Loading...</div>
     );
   }
+  
+  const primaryBtn =
+  "relative inline-flex items-center gap-2 h-10 px-5 rounded-full " +
+  "bg-gradient-to-b from-indigo-500 to-indigo-600 " +
+  "text-white font-medium shadow-md shadow-indigo-600/30 " +
+  "hover:from-indigo-400 hover:to-indigo-600 " +
+  "hover:shadow-lg hover:shadow-indigo-600/40 " +
+  "active:scale-[0.98] transition-all";
+
+  const secondaryBtn =
+  "relative inline-flex items-center gap-2 h-10 px-5 rounded-full " +
+  "bg-white/5 backdrop-blur border border-white/10 " +
+  "text-white font-medium " +
+  "hover:bg-white/10 hover:border-white/20 " +
+  "hover:-translate-y-[1px] " +
+  "active:translate-y-0 active:scale-[0.98] transition-all";
+
 
   /* -------------------- RENDER -------------------- */
   return (
     <div className="p-6 flex flex-col gap-8 relative pb-[180px]">
       {/* Create button */}
-      <button
-        onClick={() => router.push("/createHub")}
-        className="absolute top-6 right-12 flex items-center gap-2 rounded-full bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-700 transition z-50"
-      >
-        <IconPlus className="w-4 h-4" />
-        New
-      </button>
+        <div className="absolute top-6 right-6 flex items-center gap-3 z-50">
+          {user ? (
+            <>
+              <button
+                onClick={() => router.push("/createHub")}
+                className={primaryBtn}
+              >
+                <IconPlus className="w-4 h-4" />
+                New
+              </button>
 
-      <button
-        onClick={() => router.push("/edit")}
-        className="absolute top-6 right-40 flex items-center gap-2 rounded-full bg-neutral-900 px-4 py-2 border border-white text-white font-medium hover:bg-neutral-700 transition z-50"
-      >
-        Edit
-        <IconEdit className="w-4 h-4" />
-      </button>
+              <button
+                onClick={() => router.push("/edit")}
+                className={secondaryBtn}
+              >
+                <IconEdit className="w-4 h-4" />
+                Edit
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => router.push("/login")}
+                className={secondaryBtn}
+              >
+                Login
+              </button>
+
+              <button
+                onClick={() => router.push("/signup")}
+                className={primaryBtn}
+              >
+                Sign up
+              </button>
+            </>
+          )}
+        </div>
 
       {/* Search */}
       <div className="relative max-w-md w-full mx-auto">

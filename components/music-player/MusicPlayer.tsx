@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import {
   IconX,
@@ -9,6 +9,7 @@ import {
   IconPlayerSkipBack,
   IconPlayerSkipForward,
   IconVolume,
+  IconVolumeOff,
   IconArrowsShuffle,
 } from "@tabler/icons-react";
 
@@ -26,43 +27,84 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
     unload,
   } = useAudioStore();
 
-  const {currentPlaylist , nextTrack, prevTrack} = usePlaylistStore();
+  const { currentPlaylist, nextTrack, prevTrack } = usePlaylistStore();
 
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
 
-  const handlePrevTrack = () => {
-    prevTrack();
-  }
+  // store last non-zero volume
+  const lastVolumeRef = useRef(0.5);
 
-  const handleNextTrack = () => {
-    nextTrack();
-  }
+  const isMuted = volume === 0;
 
-  // Update progress
+  const handlePrevTrack = () => prevTrack();
+  const handleNextTrack = () => nextTrack();
+
+  const formatTime = (seconds: number) => {
+    if (!seconds || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Update progress & time
   useEffect(() => {
     let interval: NodeJS.Timeout;
+
+    if (howl) {
+      setDuration(howl.duration());
+    }
+
     if (howl && isPlaying) {
       interval = setInterval(() => {
         const current = howl.seek() as number;
-        const duration = howl.duration();
-        setProgress(current / duration);
+        const total = howl.duration();
+
+        setCurrentTime(current);
+        setDuration(total);
+        setProgress(total ? current / total : 0);
       }, 500);
     }
+
     return () => clearInterval(interval);
   }, [howl, isPlaying]);
 
-  const handleClose = () => {
-    unload();
-    if (onClose) onClose();
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!howl) return;
+
+    const value = Number(e.target.value);
+    const newTime = value * duration;
+
+    howl.seek(newTime);
+    setProgress(value);
+    setCurrentTime(newTime);
   };
 
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (howl) {
-      const duration = howl.duration();
-      const newTime = Number(e.target.value) * duration;
-      howl.seek(newTime);
-      setProgress(Number(e.target.value));
+  // 🔇 Toggle mute
+  const handleToggleMute = () => {
+    if (volume === 0) {
+      setVolume(lastVolumeRef.current || 0.5);
+    } else {
+      lastVolumeRef.current = volume;
+      setVolume(0);
     }
+  };
+
+  // 🎚 Volume slider logic
+  const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Number(e.target.value);
+
+    setVolume(value);
+
+    if (value > 0) {
+      lastVolumeRef.current = value;
+    }
+  };
+
+  const handleClose = () => {
+    unload();
+    onClose?.();
   };
 
   return (
@@ -76,49 +118,67 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
       className="overflow-hidden bg-neutral-800 text-white w-full flex rounded-full m-1 flex-col md:flex-row items-center justify-between px-4 md:px-8 shadow-lg"
     >
       {/* Track Info */}
-      <div className="flex flex-row max-md:flex-row max-md:items-center max-md:text-sm max-md:gap-4 justify-start md:flex-1 max-md:pt-2 min-w-0">
-        <div className="flex-col flex">
-        <span className="font-semibold text-lg truncate">{currentTrack?.title ?? "No Track"}</span>
-        {currentTrack?.artist && <span className="text-sm text-gray-400 truncate">{currentTrack.artist}</span>}
+      <div className="flex flex-row items-center gap-4 md:flex-1 min-w-0">
+        <div className="flex flex-col min-w-0">
+          <span className="font-semibold text-lg truncate">
+            {currentTrack?.title ?? "No Track"}
+          </span>
+          {currentTrack?.artist && (
+            <span className="text-sm text-gray-400 truncate">
+              {currentTrack.artist}
+            </span>
+          )}
         </div>
-        <div className="w-16 h-16 ml-12">
-          {currentTrack?.image && <img src={currentTrack.image} alt={currentTrack.title} className="w-full h-full object-cover rounded-md" />}
-        </div>
+
+        {currentTrack?.image && (
+          <div className="w-16 h-16 shrink-0">
+            <img
+              src={currentTrack.image}
+              alt={currentTrack.title}
+              className="w-full h-full object-cover rounded-md"
+            />
+          </div>
+        )}
       </div>
 
-      {/* Progress Bar */}
+      {/* Progress */}
       {currentTrack && (
-        <div className="flex flex-col flex-1 md:flex-none w-full md:w-64 mx-4">
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.001}
-          value={isNaN(progress) ? 0 : progress} // <-- fix
-          onChange={handleSeek}
-          className="w-full h-1 accent-indigo-500"
-        />
-
+        <div className="flex flex-col w-full md:w-64 mx-4">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.001}
+            value={isNaN(progress) ? 0 : progress}
+            onChange={handleSeek}
+            className="w-full h-1 accent-indigo-500"
+          />
+          <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <span>{formatTime(currentTime)}</span>
+            <span>{formatTime(duration)}</span>
+          </div>
         </div>
       )}
 
       {/* Controls */}
-      <div className="flex items-center gap-2 mt-2 md:mt-0 max-md:flex-1">
-        <button className="p-2 hover:bg-neutral-700 rounded-full transition-colors">
+      <div className="flex items-center gap-2 mt-2 md:mt-0">
+        <button className="p-2 hover:bg-neutral-700 rounded-full">
           <IconArrowsShuffle className="w-5 h-5" />
         </button>
 
         <button
           onClick={handlePrevTrack}
           disabled={!currentPlaylist}
-          className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
+          className={`p-2 rounded-full ${
+            currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"
+          }`}
         >
           <IconPlayerSkipBack className="w-5 h-5" />
         </button>
 
         <button
           onClick={togglePlay}
-          className="p-3 bg-neutral-700 hover:bg-neutral-600 rounded-full transition-colors"
+          className="p-3 bg-neutral-700 hover:bg-neutral-600 rounded-full"
         >
           {isPlaying ? <IconPlayerPause className="w-6 h-6" /> : <IconPlayerPlay className="w-6 h-6" />}
         </button>
@@ -126,29 +186,44 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         <button
           onClick={handleNextTrack}
           disabled={!currentPlaylist}
-          className={`p-2 rounded-full transition-colors ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}
+          className={`p-2 rounded-full ${
+            currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"
+          }`}
         >
           <IconPlayerSkipForward className="w-5 h-5" />
         </button>
       </div>
 
       {/* Volume */}
-      <div className="flex items-center gap-2 mt-2 md:mt-0 w-32 md:w-40 max-md:hidden">
-        <IconVolume className="w-5 h-5" />
+      <div className="hidden md:flex items-center gap-2 w-40">
+        <button
+          onClick={handleToggleMute}
+          className="p-1 hover:bg-neutral-700 rounded-full"
+        >
+          {isMuted ? (
+            <IconVolumeOff className="w-5 h-5 text-gray-400" />
+          ) : (
+            <IconVolume className="w-5 h-5" />
+          )}
+        </button>
+
         <input
           type="range"
           min={0}
           max={1}
           step={0.01}
           value={volume}
-          onChange={(e) => setVolume(Number(e.target.value))}
+          onChange={handleVolumeChange}
           className="w-full h-1 accent-indigo-500"
         />
       </div>
 
       {/* Close */}
-      <div className="ml-2 max-md:hidden">
-        <button onClick={handleClose} className="p-2 rounded-full hover:bg-neutral-700 transition-colors">
+      <div className="hidden md:block ml-2">
+        <button
+          onClick={handleClose}
+          className="p-2 rounded-full hover:bg-neutral-700"
+        >
           <IconX className="w-5 h-5" />
         </button>
       </div>

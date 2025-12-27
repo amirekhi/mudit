@@ -21,8 +21,8 @@ const { data: user, isLoading } = useQuery<CurrentUser | null>({
       const json = await res.json();
 
       // Sync verified user into global cache
-      queryClient.setQueryData(["current-user"], json);
-      return json;
+      queryClient.setQueryData(["current-user"], json.user);
+      return json.user;
     } catch {
       // Clear cache if unauthorized
       queryClient.setQueryData(["current-user"], null);
