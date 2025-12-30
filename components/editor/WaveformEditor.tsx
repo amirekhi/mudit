@@ -8,14 +8,23 @@ import type { Region } from "wavesurfer.js/dist/plugins/regions";
 import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "@/lib/firebase/firebase";
 
-import { EditorTrack } from "@/types/editorTypes";
 import { useEditorStore } from "@/store/useEditorStore";
+import { EditorRegion } from "@/types/editorTypes";
 
 interface Props {
-  editorTrack: EditorTrack;
+  trackId: string;
 }
 
-export default function WaveformEditor({ editorTrack }: Props) {
+const getRegionColor = (
+  region: EditorRegion,
+  selectedRegionId: string | null
+) => {
+  if (region.id === selectedRegionId) return "rgba(99,102,241,0.5)";
+  if (region.status === "edited") return "rgba(99,102,241,0.35)";
+  return "rgba(99,102,241,0.2)";
+};
+
+export default function WaveformEditor({ trackId }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
@@ -23,16 +32,26 @@ export default function WaveformEditor({ editorTrack }: Props) {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
+  
+
   const {
-    updateRegion,
-    setTrackDuration,
-    selectRegion,
+    tracks,
     selectedRegionId,
+    updateRegion,
+    selectRegion,
+    setTrackDuration,
+    selectTrack,
   } = useEditorStore();
 
-  // ───────────────────────────────
-  // Initialize WaveSurfer
-  // ───────────────────────────────
+  const track = tracks.find(t => t.id === trackId);
+  if (!track) return null;
+
+  // Select current track
+  useEffect(() => {
+    selectTrack(track.id);
+  }, [track.id, selectTrack]);
+
+  // Initialize waveform
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -40,12 +59,10 @@ export default function WaveformEditor({ editorTrack }: Props) {
     let regions: RegionsPlugin | null = null;
 
     const init = async () => {
+      containerRef.current!.innerHTML = "";
       setLoading(true);
 
-      // Clear previous waveform
-      containerRef.current!.innerHTML = "";
-
-      const url = await getDownloadURL(ref(storage, editorTrack.source.url));
+      const url = await getDownloadURL(ref(storage, track.source.url));
 
       regions = RegionsPlugin.create();
 
@@ -62,7 +79,7 @@ export default function WaveformEditor({ editorTrack }: Props) {
       ws.load(url);
 
       ws.on("ready", () => {
-        setTrackDuration(editorTrack.id, ws!.getDuration());
+        setTrackDuration(track.id, ws!.getDuration());
         setLoading(false);
       });
 
@@ -81,96 +98,104 @@ export default function WaveformEditor({ editorTrack }: Props) {
       wsRef.current = null;
       regionsRef.current = null;
     };
-  }, [editorTrack.id]);
+  }, [track.id, setTrackDuration]);
 
-  // ───────────────────────────────
-  // Sync regions from store → WaveSurfer
-  // ───────────────────────────────
+  // Render regions
   useEffect(() => {
-    const regions = regionsRef.current;
     const ws = wsRef.current;
-    if (!regions || !ws) return;
+    const regions = regionsRef.current;
+    if (!ws || !regions) return;
 
     regions.clearRegions();
 
-    editorTrack.regions.forEach((region) => {
+    track.regions.forEach((region, i) => {
       const r: Region = regions.addRegion({
         id: region.id,
         start: region.start,
         end: region.end,
         drag: true,
         resize: true,
-        color:
-          region.id === selectedRegionId
-            ? "rgba(99,102,241,0.45)"
-            : "rgba(99,102,241,0.25)",
+        color: getRegionColor(region, selectedRegionId),
       });
 
-      // select region
+      if (i === 0 && !selectedRegionId) selectRegion(region.id);
+
       r.on("click", (e) => {
         e.stopPropagation();
+        selectTrack(track.id);
         selectRegion(region.id);
-
-        // auto-play selected region
         ws.stop();
-        ws.play(region.start, region.end);
+        ws.play(r.start, r.end);
       });
 
-      // persist edits
       r.on("update-end", () => {
-        updateRegion(editorTrack.id, region.id, {
+        // 🔹 Reset edits if region is moved
+        const isMoved = r.start !== region.start || r.end !== region.end;
+        const newStatus = isMoved ? "empty" : region.status;
+        const newEdits = isMoved ? {} : region.edits;
+
+        updateRegion(track.id, region.id, {
           start: r.start,
           end: r.end,
+          status: newStatus,
+          edits: newEdits,
         });
 
-        // auto-play after resize
         ws.stop();
         ws.play(r.start, r.end);
       });
     });
-  }, [editorTrack.regions, selectedRegionId]);
+  }, [track.regions, selectedRegionId, selectRegion, selectTrack, updateRegion]);
 
-  // ───────────────────────────────
-  // Controls
-  // ───────────────────────────────
+  // Add new region button
+  const addRegion = () => {
+    const lastRegion = track.regions[track.regions.length - 1];
+    const nextStart = lastRegion ? lastRegion.end : 0;
+    const windowSize = 10; // seconds
+
+    const newRegion: EditorRegion = {
+      id: crypto.randomUUID(),
+      sourceTrackId: track.id,
+      start: nextStart,
+      end: nextStart + windowSize,
+      edits: {},
+      status: "empty",
+    };
+
+    track.regions.push(newRegion);
+    selectRegion(newRegion.id);
+  };
+
   const togglePlay = () => {
     const ws = wsRef.current;
     if (!ws) return;
-
-    if (ws.isPlaying()) {
-      ws.pause();
-      return;
-    }
-
-    const region =
-      selectedRegionId &&
-      editorTrack.regions.find((r) => r.id === selectedRegionId);
-
-    if (region && region.end > region.start) {
-      ws.play(region.start, region.end);
-    } else {
-      ws.play();
-    }
+    ws.isPlaying() ? ws.pause() : ws.play();
   };
 
-  // ───────────────────────────────
-  // Render
-  // ───────────────────────────────
   return (
-    <div className="space-y-3">
+    <div className="space-y-2 border border-neutral-800 rounded p-3">
+      <div className="flex items-center gap-2">
+        <button
+          onClick={togglePlay}
+          disabled={loading}
+          className="px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {isPlaying ? "Pause" : "Play"}
+        </button>
+
+        <button
+          onClick={addRegion}
+          className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
+        >
+          Add Region
+        </button>
+
+        {loading && (
+          <span className="text-xs text-neutral-500">Loading waveform…</span>
+        )}
+      </div>
+
       <div ref={containerRef} />
-
-      {loading && (
-        <p className="text-sm text-neutral-400">Loading waveform…</p>
-      )}
-
-      <button
-        onClick={togglePlay}
-        disabled={loading}
-        className="px-4 py-2 bg-indigo-600 text-white rounded text-sm"
-      >
-        {isPlaying ? "Pause" : "Play"}
-      </button>
     </div>
   );
 }

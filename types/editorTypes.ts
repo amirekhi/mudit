@@ -1,17 +1,25 @@
 import { Track } from "@/store/useAudioStore";
 
+export interface RegionEdits {
+  gain?: number;        // dB
+  playbackRate?: number;
+  pitch?: number;
+}
+
 export interface EditorRegion {
   id: string;
 
-  sourceTrackId: string; // references Track._id
+  sourceTrackId: string;
+
   start: number;
   end: number;
 
-  offset: number;
+  // editor-only
+  edits: RegionEdits;
 
-  playbackRate: number;
-  pitch: number;
+  status: "empty" | "edited" | "locked";
 }
+
 
 export interface EditorTrack {
   id: string;
