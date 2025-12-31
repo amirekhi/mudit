@@ -19,6 +19,7 @@ const getRegionColor = (
   region: EditorRegion,
   selectedRegionId: string | null
 ) => {
+  if (region.meta.color) return region.meta.color;
   if (region.id === selectedRegionId) return "rgba(99,102,241,0.5)";
   if (region.status === "edited") return "rgba(99,102,241,0.35)";
   return "rgba(99,102,241,0.2)";
@@ -32,8 +33,6 @@ export default function WaveformEditor({ trackId }: Props) {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  
-
   const {
     tracks,
     selectedRegionId,
@@ -41,12 +40,12 @@ export default function WaveformEditor({ trackId }: Props) {
     selectRegion,
     setTrackDuration,
     selectTrack,
+    addRegion,
   } = useEditorStore();
 
   const track = tracks.find(t => t.id === trackId);
   if (!track) return null;
 
-  // Select current track
   useEffect(() => {
     selectTrack(track.id);
   }, [track.id, selectTrack]);
@@ -113,12 +112,14 @@ export default function WaveformEditor({ trackId }: Props) {
         id: region.id,
         start: region.start,
         end: region.end,
-        drag: true,
-        resize: true,
+        drag: !region.meta.locked,
+        resize: !region.meta.locked,
         color: getRegionColor(region, selectedRegionId),
       });
 
-      if (i === 0 && !selectedRegionId) selectRegion(region.id);
+      if (i === 0 && !selectedRegionId) {
+        selectRegion(region.id);
+      }
 
       r.on("click", (e) => {
         e.stopPropagation();
@@ -129,16 +130,11 @@ export default function WaveformEditor({ trackId }: Props) {
       });
 
       r.on("update-end", () => {
-        // 🔹 Reset edits if region is moved
-        const isMoved = r.start !== region.start || r.end !== region.end;
-        const newStatus = isMoved ? "empty" : region.status;
-        const newEdits = isMoved ? {} : region.edits;
+        if (region.meta.locked) return;
 
         updateRegion(track.id, region.id, {
           start: r.start,
           end: r.end,
-          status: newStatus,
-          edits: newEdits,
         });
 
         ws.stop();
@@ -147,23 +143,10 @@ export default function WaveformEditor({ trackId }: Props) {
     });
   }, [track.regions, selectedRegionId, selectRegion, selectTrack, updateRegion]);
 
-  // Add new region button
-  const addRegion = () => {
-    const lastRegion = track.regions[track.regions.length - 1];
-    const nextStart = lastRegion ? lastRegion.end : 0;
-    const windowSize = 10; // seconds
-
-    const newRegion: EditorRegion = {
-      id: crypto.randomUUID(),
-      sourceTrackId: track.id,
-      start: nextStart,
-      end: nextStart + windowSize,
-      edits: {},
-      status: "empty",
-    };
-
-    track.regions.push(newRegion);
-    selectRegion(newRegion.id);
+  const handleAddRegion = () => {
+    const last = track.regions.at(-1);
+    const start = last ? last.end : 0;
+    addRegion(track.id, start, start + 10);
   };
 
   const togglePlay = () => {
@@ -184,7 +167,7 @@ export default function WaveformEditor({ trackId }: Props) {
         </button>
 
         <button
-          onClick={addRegion}
+          onClick={handleAddRegion}
           className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
         >
           Add Region

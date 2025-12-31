@@ -96,7 +96,7 @@ export default function EditHubPage() {
 
           <div className="mt-auto">
             <Link
-              href="/edit/tracks/advanced"
+              href="/edit/studio/"
               className="block text-center rounded-xl border border-neutral-700 text-white font-medium py-3 hover:bg-neutral-800 transition"
             >
               Advanced Editor
