@@ -1,18 +1,24 @@
 "use client";
 
 import { useEditorStore } from "@/store/useEditorStore";
-import { useState } from "react";
 
 export default function ToolPanel({ disabled }: { disabled: boolean }) {
   const {
     selectedTrackId,
     selectedRegionId,
     tracks,
+
     updateRegion,
     removeRegion,
     splitRegion,
     duplicateRegion,
     lockRegion,
+
+    copyRegion,
+    cutRegion,
+    pasteRegion,
+    clipboard,
+
     undo,
     redo,
   } = useEditorStore();
@@ -22,10 +28,11 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     (r) => r.id === selectedRegionId
   );
 
-  const canEdit = !!selectedTrackId && !!selectedRegionId && !disabled;
+  const canEdit =
+    !!selectedTrackId && !!selectedRegionId && !disabled;
 
   /* ========================
-     EDIT TOOLS
+     EDIT HELPERS
      ======================== */
 
   const applyGain = (value: number) => {
@@ -50,7 +57,8 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     if (!canEdit) return;
     updateRegion(selectedTrackId!, selectedRegionId!, {
       edits: {
-        playbackRate: (selectedRegion!.edits.playbackRate ?? 1) * value,
+        playbackRate:
+          (selectedRegion!.edits.playbackRate ?? 1) * value,
       },
     });
   };
@@ -77,7 +85,10 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     if (!canEdit) return;
     updateRegion(selectedTrackId!, selectedRegionId!, {
       edits: {
-        fadeIn: Math.max(0, (selectedRegion!.edits.fadeIn ?? 0) + value),
+        fadeIn: Math.max(
+          0,
+          (selectedRegion!.edits.fadeIn ?? 0) + value
+        ),
       },
     });
   };
@@ -86,7 +97,10 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     if (!canEdit) return;
     updateRegion(selectedTrackId!, selectedRegionId!, {
       edits: {
-        fadeOut: Math.max(0, (selectedRegion!.edits.fadeOut ?? 0) + value),
+        fadeOut: Math.max(
+          0,
+          (selectedRegion!.edits.fadeOut ?? 0) + value
+        ),
       },
     });
   };
@@ -101,12 +115,13 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
   };
 
   /* ========================
-     STRUCTURAL TOOLS
+     STRUCTURAL OPS
      ======================== */
 
   const splitAtMiddle = () => {
     if (!canEdit) return;
-    const at = (selectedRegion!.start + selectedRegion!.end) / 2;
+    const at =
+      (selectedRegion!.start + selectedRegion!.end) / 2;
     splitRegion(selectedTrackId!, selectedRegionId!, at);
   };
 
@@ -122,7 +137,37 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
 
   const toggleLock = () => {
     if (!canEdit) return;
-    lockRegion(selectedTrackId!, selectedRegionId!, !selectedRegion!.meta.locked);
+    lockRegion(
+      selectedTrackId!,
+      selectedRegionId!,
+      !selectedRegion!.meta.locked
+    );
+  };
+
+  /* ========================
+     CLIPBOARD OPS
+     ======================== */
+
+  const copy = () => {
+    if (!canEdit) return;
+    copyRegion(selectedTrackId!, selectedRegionId!);
+  };
+
+  const cut = () => {
+    if (!canEdit) return;
+    cutRegion(selectedTrackId!, selectedRegionId!);
+  };
+
+  const paste = () => {
+    if (!selectedTrackId || !clipboard) return;
+
+    // paste at end of selected region or at 0
+    const at =
+      selectedRegion?.end ??
+      selectedTrack?.regions.at(-1)?.end ??
+      0;
+
+    pasteRegion(selectedTrackId, at);
   };
 
   /* ========================
@@ -132,6 +177,36 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
   return (
     <aside className="w-64 border-l border-neutral-800 p-4 space-y-4">
       <h3 className="text-sm font-semibold">Tools</h3>
+
+      {/* ===== Clipboard ===== */}
+      <div className="space-y-2">
+        <p className="text-xs text-neutral-500">Clipboard</p>
+
+        <div className="flex gap-2">
+          <button
+            disabled={!canEdit}
+            onClick={copy}
+            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
+          >
+            Copy
+          </button>
+          <button
+            disabled={!canEdit}
+            onClick={cut}
+            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
+          >
+            Cut
+          </button>
+        </div>
+
+        <button
+          disabled={!clipboard || disabled}
+          onClick={paste}
+          className="w-full px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm disabled:opacity-50"
+        >
+          Paste
+        </button>
+      </div>
 
       {/* ===== Gain ===== */}
       <div className="space-y-2">
@@ -175,9 +250,10 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
         </div>
       </div>
 
-      {/* ===== Playback Rate & Pitch ===== */}
+      {/* ===== Playback / Pitch ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">Playback / Pitch</p>
+
         <div className="flex gap-2">
           <button
             disabled={!canEdit}
@@ -194,7 +270,8 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
             −10% Speed
           </button>
         </div>
-        <div className="flex gap-2 mt-1">
+
+        <div className="flex gap-2">
           <button
             disabled={!canEdit}
             onClick={() => applyPitch(1)}
@@ -212,44 +289,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
         </div>
       </div>
 
-      {/* ===== Reverse, Fade & Mute ===== */}
-      <div className="space-y-2">
-        <p className="text-xs text-neutral-500">Misc</p>
-        <button
-          disabled={!canEdit}
-          onClick={toggleReverse}
-          className="w-full px-3 py-2 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-        >
-          {selectedRegion?.edits.reverse ? "Unreverse" : "Reverse"}
-        </button>
-
-        <div className="flex gap-2 mt-1">
-          <button
-            disabled={!canEdit}
-            onClick={() => applyFadeIn(0.5)}
-            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-          >
-            Fade In +
-          </button>
-          <button
-            disabled={!canEdit}
-            onClick={() => applyFadeOut(0.5)}
-            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-          >
-            Fade Out +
-          </button>
-        </div>
-
-        <button
-          disabled={!canEdit}
-          onClick={toggleMute}
-          className="w-full px-3 py-2 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-        >
-          {selectedRegion?.edits.mute ? "Unmute" : "Mute"}
-        </button>
-      </div>
-
-      {/* ===== Region Ops ===== */}
+      {/* ===== Region ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">Region</p>
 
@@ -286,7 +326,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
         </button>
       </div>
 
-      {/* ===== Undo / Redo ===== */}
+      {/* ===== History ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">History</p>
         <div className="flex gap-2">
