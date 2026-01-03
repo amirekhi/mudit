@@ -1,11 +1,16 @@
 "use client";
 
+import BackButton from "@/components/basics/BackButton";
 import { motion } from "framer-motion";
 import Link from "next/link";
 
 export default function CreateHubPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-neutral-950 via-neutral-900 to-neutral-950 px-6">
+    <div className="absolute top-4 right-4 z-50">
+      <BackButton/>
+    </div>
+      
       <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-5xl w-full">
 
         {/* Song Card */}

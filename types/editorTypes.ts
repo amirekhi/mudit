@@ -34,7 +34,7 @@ export interface EditorRegion {
   edits: RegionEdits;
 
   status: "empty" | "edited" | "locked";
-
+  parentRegionId?: string | null;
   meta: RegionMeta;
 }
 

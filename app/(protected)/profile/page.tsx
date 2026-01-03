@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { motion } from "framer-motion";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import BackButton from "@/components/basics/BackButton";
 
 export default function ProfilePage() {
   const { data: user, isLoading } = useCurrentUser();
@@ -27,6 +28,10 @@ export default function ProfilePage() {
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center">
+          <div className="absolute top-4 right-4 z-50">
+            <BackButton/>
+          </div>
+            
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}

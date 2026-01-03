@@ -12,6 +12,7 @@ import { extractAudioMetadata } from "@/lib/Mp3DataParser/extractAudioMetadata";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import  { useRouter } from "next/navigation";
 import { DraftTrack } from "@/models/Track";
+import BackButton from "@/components/basics/BackButton";
 
 
 export default function CreateSongPage() {
@@ -210,6 +211,10 @@ const handleSelectTrack = (track: DraftTrack) => {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
+          <div className="absolute top-4 right-4 z-50">
+            <BackButton/>
+          </div>
+            
       <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Upload Audio */}
        <motion.div

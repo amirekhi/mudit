@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrent
 import { Track } from "@/store/useAudioStore";
 import { Spinner } from "@/components/basics/Spinner";
 import { PlaylistDb } from "@/types/playlistTypes";
+import BackButton from "@/components/basics/BackButton";
 
 // Simple debounce hook
 function useDebounce<T>(value: T, delay = 300) {
@@ -172,6 +173,10 @@ export default function UpdatePlaylistPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center justify-center py-8">
+          <div className="absolute top-4 right-4 z-50">
+            <BackButton/>
+          </div>
+            
       <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
 
         {/* --- Playlist selection --- */}
