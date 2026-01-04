@@ -33,18 +33,51 @@ export default function WaveformEditor({ trackId }: Props) {
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const {
-    tracks,
-    selectedRegionId,
-    updateRegion,
-    selectRegion,
-    setTrackDuration,
-    selectTrack,
-    addRegion,
-  } = useEditorStore();
+const {
+  tracks,
+  selectedRegionId,
+  updateRegion,
+  selectRegion,
+  setTrackDuration,
+  selectTrack,
+  addRegion,
+  createChildRegion, // 👈 NEW
+} = useEditorStore();
+
 
   const track = tracks.find(t => t.id === trackId);
   if (!track) return null;
+
+  
+  const selectedRegion = track.regions.find(
+    r => r.id === selectedRegionId
+  );
+
+  const handleAddParentRegion = () => {
+  const topLevel = track.regions.filter(r => !r.parentRegionId);
+  const last = topLevel.at(-1);
+
+  const start = last ? last.end : 0;
+  addRegion(track.id, start, start + 10);
+};
+
+const handleAddChildRegion = () => {
+  if (!selectedRegion) return;
+
+  const parent = selectedRegion;
+
+  const length = (parent.end - parent.start) * 0.25;
+  const start = parent.start + length * 0.5;
+  const end = Math.min(start + length, parent.end);
+
+  createChildRegion(
+    track.id,
+    parent.id,
+    start,
+    end
+  );
+};
+
 
   useEffect(() => {
     selectTrack(track.id);
@@ -131,6 +164,19 @@ export default function WaveformEditor({ trackId }: Props) {
 
       r.on("update-end", () => {
         if (region.meta.locked) return;
+        if (region.parentRegionId) {
+          const parent = track.regions.find(r => r.id === region.parentRegionId);
+          if (!parent) return;
+
+          if (r.start < parent.start || r.end > parent.end) {
+            updateRegion(track.id, region.id, {
+              start: region.start,
+              end: region.end,
+            });
+            return;
+          }
+        }
+
 
         updateRegion(track.id, region.id, {
           start: r.start,
@@ -167,11 +213,20 @@ export default function WaveformEditor({ trackId }: Props) {
         </button>
 
         <button
-          onClick={handleAddRegion}
+          onClick={handleAddParentRegion}
           className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
         >
           Add Region
         </button>
+
+        <button
+          onClick={handleAddChildRegion}
+          disabled={!selectedRegion}
+          className="px-3 py-1 text-sm rounded bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40"
+        >
+          Add Inside
+        </button>
+
 
         {loading && (
           <span className="text-xs text-neutral-500">Loading waveform…</span>

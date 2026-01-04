@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { EditorTrack, EditorRegion } from "@/types/editorTypes";
 import { createRegion } from "@/lib/editor/createRegion";
 import { RegionClipboard } from "@/types/clipboard";
+import { collectRegionTree } from "@/lib/editor/collectRegionTree";
 
 interface EditorState {
   tracks: EditorTrack[];
@@ -20,6 +21,12 @@ interface EditorState {
   selectTrack(id: string): void;
   toggleArmTrack(id: string): void;
   selectRegion(regionId: string | null): void;
+  createChildRegion(
+  trackId: string,
+  parentRegionId: string,
+  start: number,
+  end: number
+): void;  
 
   setTrackDuration(trackId: string, duration: number): void;
 
@@ -189,29 +196,45 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
-  splitRegion: (trackId, regionId, at) => {
-    get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) => {
-        if (track.id !== trackId) return track;
+splitRegion: (trackId, regionId, at) => {
+  get()._pushPast();
 
-        const regions: EditorRegion[] = [];
-        for (const r of track.regions) {
-          if (r.id !== regionId || at <= r.start || at >= r.end) {
-            regions.push(r);
-            continue;
-          }
+  set(state => ({
+    tracks: state.tracks.map(track => {
+      if (track.id !== trackId) return track;
 
-          regions.push(
-            { ...r, end: at, meta: { ...r.meta, updatedAt: Date.now() } },
-            createRegion(trackId, at, r.end, r.id)
-          );
-        }
+      const parent = track.regions.find(r => r.id === regionId);
+      if (!parent) return track;
 
-        return { ...track, regions };
-      }),
-    }));
-  },
+      if (at <= parent.start || at >= parent.end) return track;
+
+      const left = createRegion(
+        trackId,
+        parent.start,
+        at,
+        regionId
+      );
+
+      const right = createRegion(
+        trackId,
+        at,
+        parent.end,
+        regionId
+      );
+
+      return {
+        ...track,
+        regions: [
+          ...track.regions.filter(r => r.id !== regionId),
+          parent,   // parent remains
+          left,
+          right,
+        ],
+      };
+    }),
+  }));
+},
+
 
   duplicateRegion: (trackId, regionId) => {
     get()._pushPast();
@@ -261,75 +284,125 @@ export const useEditorStore = create<EditorState>((set, get) => ({
      CLIPBOARD
      ======================== */
 
-  copyRegion: (trackId, regionId) => {
-    const track = get().tracks.find((t) => t.id === trackId);
-    const region = track?.regions.find((r) => r.id === regionId);
-    if (!region) return;
+copyRegion: (trackId, regionId) => {
+  const track = get().tracks.find(t => t.id === trackId);
+  if (!track) return;
 
-    set({
-      clipboard: {
-        mode: "copy",
-        regions: [JSON.parse(JSON.stringify(region))],
-      },
-    });
-  },
+  const regions = collectRegionTree(track.regions, regionId);
+  if (regions.length === 0) return;
 
-  cutRegion: (trackId, regionId) => {
-    const track = get().tracks.find((t) => t.id === trackId);
-    const region = track?.regions.find((r) => r.id === regionId);
-    if (!region) return;
+  set({
+    clipboard: {
+      mode: "copy",
+      regions: JSON.parse(JSON.stringify(regions)),
+    },
+  });
+},
 
-    get()._pushPast();
+cutRegion: (trackId, regionId) => {
+  const track = get().tracks.find(t => t.id === trackId);
+  if (!track) return;
 
-    set((state) => ({
-      clipboard: {
-        mode: "cut",
-        regions: [JSON.parse(JSON.stringify(region))],
-      },
-      tracks: state.tracks.map((t) =>
-        t.id === trackId
-          ? { ...t, regions: t.regions.filter((r) => r.id !== regionId) }
-          : t
-      ),
-      selectedRegionId: null,
-    }));
-  },
+  const regionsToCut = collectRegionTree(track.regions, regionId);
+  if (regionsToCut.length === 0) return;
 
-  pasteRegion: (targetTrackId, at) => {
-    const { clipboard } = get();
-    if (!clipboard) return;
+  const ids = new Set(regionsToCut.map(r => r.id));
 
-    get()._pushPast();
+  get()._pushPast();
 
-    set((state) => ({
-      tracks: state.tracks.map((track) => {
-        if (track.id !== targetTrackId) return track;
+  set(state => ({
+    clipboard: {
+      mode: "cut",
+      regions: JSON.parse(JSON.stringify(regionsToCut)),
+    },
+    tracks: state.tracks.map(t =>
+      t.id === trackId
+        ? { ...t, regions: t.regions.filter(r => !ids.has(r.id)) }
+        : t
+    ),
+    selectedRegionId: null,
+  }));
+},
 
-        const pasted = clipboard.regions.map((r) => {
-          const length = r.end - r.start;
 
-          const newRegion = createRegion(
-            targetTrackId,
-            at,
-            at + length,
-            r.id
-          );
+pasteRegion: (targetTrackId, at) => {
+  const { clipboard } = get();
+  if (!clipboard) return;
 
-          return {
-            ...newRegion,
-            edits: { ...r.edits },
-            sourceTrackId: r.sourceTrackId, // 🔧 FIX: preserve audio source
-          };
-        });
+  get()._pushPast();
+
+  set(state => ({
+    tracks: state.tracks.map(track => {
+      if (track.id !== targetTrackId) return track;
+
+      const idMap = new Map<string, string>();
+
+      // find root region (the one without parent inside clipboard)
+      const root = clipboard.regions.find(
+        r => !clipboard.regions.some(x => x.id === r.parentRegionId)
+      );
+      if (!root) return track;
+
+      const offset = at - root.start;
+
+      const pasted = clipboard.regions.map(r => {
+        const newId = crypto.randomUUID();
+        idMap.set(r.id, newId);
 
         return {
-          ...track,
-          regions: [...track.regions, ...pasted],
+          ...r,
+          id: newId,
+          start: r.start + offset,
+          end: r.end + offset,
+          parentRegionId: r.parentRegionId
+            ? idMap.get(r.parentRegionId) ?? null
+            : null,
+          sourceTrackId: r.sourceTrackId,
+          meta: {
+            ...r.meta,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          },
         };
-      }),
-      clipboard: clipboard.mode === "cut" ? null : clipboard,
-    }));
-  },
+      });
+
+      return {
+        ...track,
+        regions: [...track.regions, ...pasted],
+      };
+    }),
+    clipboard: clipboard.mode === "cut" ? null : clipboard,
+  }));
+},
+createChildRegion: (trackId, parentRegionId, start, end) => {
+  get()._pushPast();
+
+  set(state => ({
+    tracks: state.tracks.map(track => {
+      if (track.id !== trackId) return track;
+
+      const parent = track.regions.find(r => r.id === parentRegionId);
+      if (!parent) return track;
+
+      // enforce containment
+      if (start < parent.start || end > parent.end) return track;
+
+      const child = createRegion(
+        trackId,
+        start,
+        end,
+        parentRegionId // 👈 REAL nesting
+      );
+
+      return {
+        ...track,
+        regions: [...track.regions, child],
+      };
+    }),
+  }));
+},
+
+
 
   clearClipboard: () => set({ clipboard: null }),
 }));

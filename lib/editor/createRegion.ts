@@ -4,6 +4,7 @@ export const createRegion = (
   trackId: string,
   start: number,
   end: number,
+  parentRegionId: string | null = null,
   originRegionId?: string
 ): EditorRegion => {
   const now = Date.now();
@@ -11,14 +12,19 @@ export const createRegion = (
   return {
     id: crypto.randomUUID(),
     sourceTrackId: trackId,
+
     start,
     end,
+
+    parentRegionId,        // ✅ THIS IS WHAT YOU ARE MISSING
+
     edits: {},
     status: "empty",
+
     meta: {
       createdAt: now,
       updatedAt: now,
-      originRegionId,
+      originRegionId,      // lineage only
     },
   };
 };
