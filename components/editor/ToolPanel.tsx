@@ -1,6 +1,7 @@
 "use client";
 
 import { useEditorStore } from "@/store/useEditorStore";
+import { shallow } from "zustand/shallow";
 
 export default function ToolPanel({ disabled }: { disabled: boolean }) {
   const {
@@ -22,6 +23,20 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     undo,
     redo,
   } = useEditorStore();
+
+
+
+
+const masterVolume = useEditorStore((state) => state.master.volume);
+const masterMuted = useEditorStore((state) => state.master.muted);
+const limiterEnabled = useEditorStore((state) => state.master.limiter.enabled);
+const limiterCeiling = useEditorStore((state) => state.master.limiter.ceiling);
+
+const setMasterVolume = useEditorStore((state) => state.setMasterVolume);
+const toggleMasterMute = useEditorStore((state) => state.toggleMasterMute);
+const setLimiterEnabled = useEditorStore((state) => state.setLimiterEnabled);
+const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
+
 
   const selectedTrack = tracks.find((t) => t.id === selectedTrackId);
   const selectedRegion = selectedTrack?.regions.find(
@@ -325,6 +340,64 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           Delete
         </button>
       </div>
+      {/* ===== Master Volume ===== */}
+      <div className="space-y-2">
+        <p className="text-xs text-neutral-500">Master</p>
+
+        {/* Volume Slider */}
+        <div className="flex items-center gap-2">
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={masterVolume}
+            onChange={(e) => setMasterVolume(Number(e.target.value))}
+            disabled={disabled}
+            className="flex-1"
+          />
+          <span className="text-sm w-12 text-right">{Math.round(masterVolume * 100)}%</span>
+        </div>
+
+        {/* Mute Button */}
+        <button
+          disabled={disabled}
+          onClick={toggleMasterMute}
+          className="w-full px-3 py-2 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
+        >
+          {masterMuted ? "Unmute" : "Mute"}
+        </button>
+
+        {/* Limiter Enabled */}
+        <div className="flex gap-2 items-center mt-1">
+          <label className="text-xs text-neutral-500">Limiter</label>
+          <input
+            type="checkbox"
+            checked={limiterEnabled}
+            onChange={(e) => setLimiterEnabled(e.target.checked)}
+            disabled={disabled}
+            className="ml-auto"
+          />
+        </div>
+
+        {/* Limiter Ceiling */}
+        <div className="flex gap-2 items-center">
+          <span className="text-xs text-neutral-500">Ceiling</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={limiterCeiling}
+            onChange={(e) => setLimiterCeiling(Number(e.target.value))}
+            disabled={disabled}
+            className="flex-1"
+          />
+          <span className="text-xs w-12 text-right">{Math.round(limiterCeiling * 100)}%</span>
+        </div>
+      </div>
+
+
 
       {/* ===== History ===== */}
       <div className="space-y-2">

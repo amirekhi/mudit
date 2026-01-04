@@ -5,6 +5,7 @@ import { EditorTrack, EditorRegion } from "@/types/editorTypes";
 import { createRegion } from "@/lib/editor/createRegion";
 import { RegionClipboard } from "@/types/clipboard";
 import { collectRegionTree } from "@/lib/editor/collectRegionTree";
+import { MasterChannel } from "@/types/MasterChannel";
 
 interface EditorState {
   tracks: EditorTrack[];
@@ -46,6 +47,17 @@ interface EditorState {
   pasteRegion(targetTrackId: string, at: number): void;
   clearClipboard(): void;
 
+  /* ========================
+     MASTER CHANNEL
+     ======================== */
+
+  master: MasterChannel;
+
+  setMasterVolume: (value: number) => void;
+  toggleMasterMute: () => void;
+  setLimiterEnabled: (enabled: boolean) => void;
+  setLimiterCeiling: (value: number) => void;
+
   undo(): void;
   redo(): void;
 
@@ -62,6 +74,54 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedRegionId: null,
 
   clipboard: null,
+
+
+   master: {
+    volume: 1,
+    muted: false,
+    limiter: {
+      enabled: false,
+      ceiling: 0.98,
+    },
+  },
+
+  setMasterVolume: (value) =>
+    set((state) => ({
+      master: {
+        ...state.master,
+        volume: Math.max(0, Math.min(1, value)),
+      },
+    })),
+
+  toggleMasterMute: () =>
+    set((state) => ({
+      master: {
+        ...state.master,
+        muted: !state.master.muted,
+      },
+    })),
+
+  setLimiterEnabled: (enabled) =>
+    set((state) => ({
+      master: {
+        ...state.master,
+        limiter: {
+          ...state.master.limiter,
+          enabled,
+        },
+      },
+    })),
+
+  setLimiterCeiling: (value) =>
+    set((state) => ({
+      master: {
+        ...state.master,
+        limiter: {
+          ...state.master.limiter,
+          ceiling: Math.max(0.5, Math.min(1, value)),
+        },
+      },
+    })),
 
   /* ========================
      BASIC STATE

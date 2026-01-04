@@ -10,6 +10,7 @@ import { storage } from "@/lib/firebase/firebase";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { EditorRegion } from "@/types/editorTypes";
+import { MasterChannel } from "@/types/MasterChannel";
 
 interface Props {
   trackId: string;
@@ -32,6 +33,8 @@ export default function WaveformEditor({ trackId }: Props) {
 
   const [loading, setLoading] = useState(true);
   const [isPlaying, setIsPlaying] = useState(false);
+
+  const master = useEditorStore((state) => state.master);
 
 const {
   tracks,
@@ -77,6 +80,28 @@ const handleAddChildRegion = () => {
     end
   );
 };
+
+
+
+useEffect(() => {
+  const ws = wsRef.current;
+  if (!ws) return;
+
+  const effectiveVolume = master.muted ? 0 : master.volume;
+  const finalVolume = master.limiter.enabled
+    ? Math.min(effectiveVolume, master.limiter.ceiling)
+    : effectiveVolume;
+
+  ws.setVolume(finalVolume);
+}, [master]);
+
+
+
+
+
+
+
+
 
 
   useEffect(() => {
