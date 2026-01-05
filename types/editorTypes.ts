@@ -42,6 +42,8 @@ export interface EditorTrack {
   id: string;
   source: Track;
 
+  duration: number; 
+
   regions: EditorRegion[];
 
   gain: number;
@@ -49,6 +51,7 @@ export interface EditorTrack {
   muted: boolean;
   solo?: boolean;
 }
+
 
 export interface EditorProject {
   id: string;

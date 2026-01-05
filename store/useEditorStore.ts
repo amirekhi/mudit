@@ -6,6 +6,7 @@ import { createRegion } from "@/lib/editor/createRegion";
 import { RegionClipboard } from "@/types/clipboard";
 import { collectRegionTree } from "@/lib/editor/collectRegionTree";
 import { MasterChannel } from "@/types/MasterChannel";
+import { TransportState } from "@/types/transport";
 
 interface EditorState {
   tracks: EditorTrack[];
@@ -17,7 +18,15 @@ interface EditorState {
   selectedRegionId: string | null;
 
   clipboard: RegionClipboard | null;
+  transport: TransportState;
 
+  play(): void;
+  pause(): void;
+  seek(time: number): void;
+  setTransportDuration(duration: number): void;
+  _tick(dt: number): void;
+  toggleTrackSync: (trackId: string) => void;
+    
   setTracks(tracks: EditorTrack[]): void;
   selectTrack(id: string): void;
   toggleArmTrack(id: string): void;
@@ -85,6 +94,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     },
   },
 
+     transport: {
+      time: 0,
+      isPlaying: false,
+      rate: 1,
+      pxPerSecond: 100,
+      syncedTrackIds: new Set<string>(),
+      duration: 0,
+    },
+
   setMasterVolume: (value) =>
     set((state) => ({
       master: {
@@ -144,18 +162,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
      TRACK INIT
      ======================== */
 
-  setTrackDuration: (trackId, duration) =>
-    set((state) => ({
-      tracks: state.tracks.map((track) => {
-        if (track.id !== trackId) return track;
-        if (track.regions.length > 0) return track;
+    setTrackDuration: (trackId, duration) =>
+      set(state => {
+        const tracks = state.tracks.map(track =>
+          track.id === trackId && track.regions.length === 0
+            ? { ...track , duration , regions: [createRegion(trackId, 0, duration)] }
+            : track
+        );
 
         return {
-          ...track,
-          regions: [createRegion(trackId, 0, duration)],
+          tracks,
+          transport: {
+            ...state.transport,
+            duration: Math.max(state.transport.duration, duration),
+          },
         };
       }),
-    })),
+
 
   /* ========================
      HISTORY
@@ -461,6 +484,75 @@ createChildRegion: (trackId, parentRegionId, start, end) => {
     }),
   }));
 },
+
+toggleTrackSync: (trackId) =>
+  set((state) => {
+    const next = new Set(state.transport.syncedTrackIds);
+    if (next.has(trackId)) next.delete(trackId);
+    else next.add(trackId);
+
+    const tracks = state.tracks.map((track) => {
+      if (track.id !== trackId) return track;
+
+      if (next.has(trackId)) {
+        // extend duration to match transport
+        const padEnd = state.transport.duration - track.duration;
+        if (padEnd > 0) {
+          track.regions.push(createRegion(track.id, track.duration, state.transport.duration));
+          track.duration = state.transport.duration;
+        }
+      }
+
+      return track;
+    });
+
+    return {
+      transport: { ...state.transport, syncedTrackIds: next },
+      tracks,
+    };
+  }),
+
+
+    play: () =>
+      set(state => ({
+        transport: { ...state.transport, isPlaying: true },
+      })),
+
+    pause: () =>
+      set(state => ({
+        transport: { ...state.transport, isPlaying: false },
+      })),
+
+    seek: (time) =>
+      set(state => ({
+        transport: {
+          ...state.transport,
+          time: Math.max(0, Math.min(state.transport.duration, time)),
+        },
+      })),
+
+    setTransportDuration: (duration) =>
+      set(state => ({
+        transport: {
+          ...state.transport,
+          duration: Math.max(state.transport.duration, duration),
+        },
+      })),
+
+    _tick: (dt) =>
+      set(state => {
+        if (!state.transport.isPlaying) return state;
+
+        const next = state.transport.time + dt * state.transport.rate;
+
+        return {
+          transport: {
+            ...state.transport,
+            time: Math.min(next, state.transport.duration),
+            isPlaying: next < state.transport.duration,
+          },
+        };
+  }),
 
 
 
