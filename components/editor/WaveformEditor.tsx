@@ -36,6 +36,9 @@ export default function WaveformEditor({ trackId }: Props) {
 
   const master = useEditorStore((state) => state.master);
 
+  
+
+
 const {
   tracks,
   selectedRegionId,
@@ -45,13 +48,15 @@ const {
   selectTrack,
   addRegion,
   createChildRegion, // 👈 NEW
+  transport
 } = useEditorStore();
 
 
   const track = tracks.find(t => t.id === trackId);
   if (!track) return null;
 
-  
+  const trackWidthPercent = (track.duration / transport.duration) * 100;
+
   const selectedRegion = track.regions.find(
     r => r.id === selectedRegionId
   );
@@ -131,6 +136,7 @@ useEffect(() => {
         height: 140,
         normalize: true,
         plugins: [regions],
+     
       });
 
       ws.load(url);
@@ -228,7 +234,7 @@ useEffect(() => {
 
   return (
     <div className="space-y-2 border border-neutral-800 rounded p-3">
-      <div className="flex items-center gap-2">
+      <div className="flex  items-center gap-2">
         <button
           onClick={togglePlay}
           disabled={loading}
@@ -258,7 +264,11 @@ useEffect(() => {
         )}
       </div>
 
-      <div ref={containerRef} />
+      <div
+        ref={containerRef}
+        style={{ width: `${trackWidthPercent}%` }}
+      />
+
     </div>
   );
 }

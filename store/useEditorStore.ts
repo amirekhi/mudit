@@ -25,7 +25,7 @@ interface EditorState {
   seek(time: number): void;
   setTransportDuration(duration: number): void;
   _tick(dt: number): void;
-  toggleTrackSync: (trackId: string) => void;
+  
     
   setTracks(tracks: EditorTrack[]): void;
   selectTrack(id: string): void;
@@ -485,32 +485,7 @@ createChildRegion: (trackId, parentRegionId, start, end) => {
   }));
 },
 
-toggleTrackSync: (trackId) =>
-  set((state) => {
-    const next = new Set(state.transport.syncedTrackIds);
-    if (next.has(trackId)) next.delete(trackId);
-    else next.add(trackId);
 
-    const tracks = state.tracks.map((track) => {
-      if (track.id !== trackId) return track;
-
-      if (next.has(trackId)) {
-        // extend duration to match transport
-        const padEnd = state.transport.duration - track.duration;
-        if (padEnd > 0) {
-          track.regions.push(createRegion(track.id, track.duration, state.transport.duration));
-          track.duration = state.transport.duration;
-        }
-      }
-
-      return track;
-    });
-
-    return {
-      transport: { ...state.transport, syncedTrackIds: next },
-      tracks,
-    };
-  }),
 
 
     play: () =>
