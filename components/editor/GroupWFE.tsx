@@ -10,6 +10,7 @@ import { storage } from "@/lib/firebase/firebase";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { EditorRegion } from "@/types/editorTypes";
+import { MasterChannel } from "@/types/MasterChannel";
 
 interface Props {
   trackId: string;
@@ -25,7 +26,7 @@ const getRegionColor = (
   return "rgba(99,102,241,0.2)";
 };
 
-export default function WaveformEditor({ trackId }: Props) {
+export default function GroupWFE({ trackId }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
@@ -35,86 +36,59 @@ export default function WaveformEditor({ trackId }: Props) {
 
   const master = useEditorStore((state) => state.master);
 
-  
+  const {
+    tracks,
+    selectedRegionId,
+    updateRegion,
+    selectRegion,
+    setTrackDuration,
+    selectTrack,
+    addRegion,
+    createChildRegion,
+    transport,
+    projectTracks,
+    addTrackToProject,
+    removeTrackFromProject,
+    setTransportDurationIfLonger,
+  } = useEditorStore();
 
-
-const {
-  tracks,
-  selectedRegionId,
-  updateRegion,
-  selectRegion,
-  setTrackDuration,
-  selectTrack,
-  addRegion,
-  createChildRegion, // 👈 NEW
-  addTrackToProject,
-  removeTrackFromProject,
-  transport,
-  projectTracks,
-
-} = useEditorStore();
-
-
-  const track = tracks.find(t => t.id === trackId);
+  const track = tracks.find((t) => t.id === trackId);
   if (!track) return null;
 
-
+  const trackWidthPercent = (track.duration / transport.duration) * 100;
 
   const selectedRegion = track.regions.find(
-    r => r.id === selectedRegionId
+    (r) => r.id === selectedRegionId
   );
 
   const handleAddParentRegion = () => {
-  const topLevel = track.regions.filter(r => !r.parentRegionId);
-  const last = topLevel.at(-1);
+    const topLevel = track.regions.filter((r) => !r.parentRegionId);
+    const last = topLevel.at(-1);
+    const start = last ? last.end : 0;
+    addRegion(track.id, start, start + 10);
+  };
 
-  const start = last ? last.end : 0;
-  addRegion(track.id, start, start + 10);
-};
+  const handleAddChildRegion = () => {
+    if (!selectedRegion) return;
+    const parent = selectedRegion;
+    const length = (parent.end - parent.start) * 0.25;
+    const start = parent.start + length * 0.5;
+    const end = Math.min(start + length, parent.end);
+    createChildRegion(track.id, parent.id, start, end);
+  };
 
-const handleAddChildRegion = () => {
-  if (!selectedRegion) return;
+ const isInProject = projectTracks.includes(track.id);
 
-  const parent = selectedRegion;
-
-  const length = (parent.end - parent.start) * 0.25;
-  const start = parent.start + length * 0.5;
-  const end = Math.min(start + length, parent.end);
-
-  createChildRegion(
-    track.id,
-    parent.id,
-    start,
-    end
-  );
-};
-
-const isInProject = projectTracks.includes(track.id);
-
-
-
-
-
-useEffect(() => {
-  const ws = wsRef.current;
-  if (!ws) return;
-
-  const effectiveVolume = master.muted ? 0 : master.volume;
-  const finalVolume = master.limiter.enabled
-    ? Math.min(effectiveVolume, master.limiter.ceiling)
-    : effectiveVolume;
-
-  ws.setVolume(finalVolume);
-}, [master]);
-
-
-
-
-
-
-
-
-
+  // Update volume when master changes
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws) return;
+    const effectiveVolume = master.muted ? 0 : master.volume;
+    const finalVolume = master.limiter.enabled
+      ? Math.min(effectiveVolume, master.limiter.ceiling)
+      : effectiveVolume;
+    ws.setVolume(finalVolume);
+  }, [master]);
 
   useEffect(() => {
     selectTrack(track.id);
@@ -130,11 +104,8 @@ useEffect(() => {
     const init = async () => {
       containerRef.current!.innerHTML = "";
       setLoading(true);
-
       const url = await getDownloadURL(ref(storage, track.source.url));
-
       regions = RegionsPlugin.create();
-
       ws = WaveSurfer.create({
         container: containerRef.current!,
         waveColor: "#444",
@@ -143,16 +114,12 @@ useEffect(() => {
         height: 140,
         normalize: true,
         plugins: [regions],
-     
       });
-
       ws.load(url);
-
       ws.on("ready", () => {
-        setTrackDuration(track.id, ws!.getDuration());
+        setTransportDurationIfLonger(track.id, ws!.getDuration());
         setLoading(false);
       });
-
       ws.on("play", () => setIsPlaying(true));
       ws.on("pause", () => setIsPlaying(false));
       ws.on("finish", () => setIsPlaying(false));
@@ -177,7 +144,6 @@ useEffect(() => {
     if (!ws || !regions) return;
 
     regions.clearRegions();
-
     track.regions.forEach((region, i) => {
       const r: Region = regions.addRegion({
         id: region.id,
@@ -203,31 +169,19 @@ useEffect(() => {
       r.on("update-end", () => {
         if (region.meta.locked) return;
         if (region.parentRegionId) {
-          const parent = track.regions.find(r => r.id === region.parentRegionId);
+          const parent = track.regions.find((r) => r.id === region.parentRegionId);
           if (!parent) return;
-
           if (r.start < parent.start || r.end > parent.end) {
-            updateRegion(track.id, region.id, {
-              start: region.start,
-              end: region.end,
-            });
+            updateRegion(track.id, region.id, { start: region.start, end: region.end });
             return;
           }
         }
-
-
-        updateRegion(track.id, region.id, {
-          start: r.start,
-          end: r.end,
-        });
-
+        updateRegion(track.id, region.id, { start: r.start, end: r.end });
         ws.stop();
         ws.play(r.start, r.end);
       });
     });
   }, [track.regions, selectedRegionId, selectRegion, selectTrack, updateRegion]);
-
-
 
   const togglePlay = () => {
     const ws = wsRef.current;
@@ -235,54 +189,50 @@ useEffect(() => {
     ws.isPlaying() ? ws.pause() : ws.play();
   };
 
-
-
   return (
     <div className="space-y-2 border border-neutral-800 rounded p-3">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2">
+        {/* Project Checkbox */}
         <label className="flex items-center gap-1 text-xs text-neutral-400">
-          <input
+        <input
             type="checkbox"
             checked={isInProject}
             onChange={(e) => {
-              if (e.target.checked) addTrackToProject(track.id);
-              else removeTrackFromProject(track.id);
+            if (e.target.checked) addTrackToProject(track.id);
+            else removeTrackFromProject(track.id);
             }}
             className="accent-indigo-500"
-          />
-          Project
+        />
+        Project
         </label>
 
+        <button
+          onClick={togglePlay}
+          disabled={loading}
+          className="px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50"
+        >
+          {isPlaying ? "Pause" : "Play"}
+        </button>
 
-          <button
-            onClick={togglePlay}
-            disabled={loading}
-            className="px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50"
-          >
-            {isPlaying ? "Pause" : "Play"}
-          </button>
+        <button
+          onClick={handleAddParentRegion}
+          className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
+        >
+          Add Region
+        </button>
 
-          <button
-            onClick={handleAddParentRegion}
-            className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
-          >
-            Add Region
-          </button>
+        <button
+          onClick={handleAddChildRegion}
+          disabled={!selectedRegion}
+          className="px-3 py-1 text-sm rounded bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40"
+        >
+          Add Inside
+        </button>
 
-          <button
-            onClick={handleAddChildRegion}
-            disabled={!selectedRegion}
-            className="px-3 py-1 text-sm rounded bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40"
-          >
-            Add Inside
-          </button>
-        </div>
+        {loading && <span className="text-xs text-neutral-500">Loading waveform…</span>}
+      </div>
 
-      <div
-        ref={containerRef}
-
-      />
-
+      <div ref={containerRef} style={{ width: `${trackWidthPercent}%` }} />
     </div>
   );
 }

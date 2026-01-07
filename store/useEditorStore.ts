@@ -20,13 +20,19 @@ interface EditorState {
   clipboard: RegionClipboard | null;
   transport: TransportState;
 
+  projectTracks: string[];
+
+
   play(): void;
   pause(): void;
   seek(time: number): void;
   setTransportDuration(duration: number): void;
   _tick(dt: number): void;
   
-    
+  addTrackToProject(trackId: string): void;
+  removeTrackFromProject(trackId: string): void; 
+  setTransportDurationIfLonger(trackId: string, duration: number): void;
+
   setTracks(tracks: EditorTrack[]): void;
   selectTrack(id: string): void;
   toggleArmTrack(id: string): void;
@@ -103,6 +109,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       duration: 0,
     },
 
+
+  // store/editorStore.ts
+  projectTracks: [] as string[], // just the track IDs
+
   setMasterVolume: (value) =>
     set((state) => ({
       master: {
@@ -162,22 +172,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
      TRACK INIT
      ======================== */
 
-    setTrackDuration: (trackId, duration) =>
-      set(state => {
-        const tracks = state.tracks.map(track =>
-          track.id === trackId && track.regions.length === 0
-            ? { ...track , duration , regions: [createRegion(trackId, 0, duration)] }
-            : track
-        );
+setTrackDuration: (trackId: string, duration: number) =>
+  set(state => {
+    const tracks = state.tracks.map(track =>
+      track.id === trackId && track.regions.length === 0
+        ? { ...track, duration, regions: [createRegion(trackId, 0, duration)] }
+        : track
+    );
 
-        return {
-          tracks,
-          transport: {
-            ...state.transport,
-            duration: Math.max(state.transport.duration, duration),
-          },
-        };
-      }),
+    return { tracks };
+  }),
+
+
+
+
+
 
 
   /* ========================
@@ -527,6 +536,56 @@ createChildRegion: (trackId, parentRegionId, start, end) => {
             isPlaying: next < state.transport.duration,
           },
         };
+  }),
+
+     
+
+
+addTrackToProject(trackId: string) {
+  set(state => ({
+    projectTracks: [...state.projectTracks, trackId],
+  }));
+},
+
+removeTrackFromProject: (trackId: string) =>
+  set(state => {
+    const removedTrack = state.tracks.find(t => t.id === trackId);
+    if (!removedTrack) return state;
+
+    // EARLY EXIT: If this track duration is less than transport, just remove
+    if (removedTrack.duration < state.transport.duration) {
+      return {
+        projectTracks: state.projectTracks.filter(id => id !== trackId),
+      };
+    }
+
+    // Otherwise, we need to recalc transport (only if removed track had max duration)
+    const newProjectIds = state.projectTracks.filter(id => id !== trackId);
+    const remainingDurations = state.tracks
+      .filter(t => newProjectIds.includes(t.id))
+      .map(t => t.duration);
+
+    return {
+      projectTracks: newProjectIds,
+      transport: {
+        ...state.transport,
+        duration: remainingDurations.length > 0 ? Math.max(...remainingDurations) : 0,
+      },
+    };
+  }),
+
+
+  setTransportDurationIfLonger: (trackId: string, duration: number) =>
+  set(state => {
+    // Early exit: if the duration is not bigger than current transport, do nothing
+    if (duration <= state.transport.duration) return state;
+
+    return {
+      transport: {
+        ...state.transport,
+        duration: duration,
+      },
+    };
   }),
 
 
