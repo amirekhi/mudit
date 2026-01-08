@@ -127,9 +127,9 @@ export default function Home() {
 
   /* -------------------- RENDER -------------------- */
   return (
-    <div className="p-6 flex flex-col gap-8 relative pb-[180px]">
+    <div className="p-6 max-md:p-1 max-md:pb-[90px] flex flex-col gap-8 relative pb-[180px]">
       {/* Create button */}
-        <div className="absolute top-6 right-6 flex items-center gap-3 z-50">
+        <div className="absolute max-md:hidden top-6 right-6 flex items-center max-md:left-2  max-md:top-2 gap-3 z-50">
           {user ? (
             <>
               <button
@@ -168,12 +168,12 @@ export default function Home() {
         </div>
 
       {/* Search */}
-      <div className="relative max-w-md w-full mx-auto ">
+      <div className="relative max-w-md max-md:w-[50%] w-full mx-auto ">
         <input
           type="text"
           placeholder="Search for music..."
           onChange={handleInputChange}
-          className="w-full rounded-full border border-neutral-300 bg-neutral-100 px-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
+          className="w-full  mx-auto rounded-full border border-neutral-300 bg-neutral-100 px-12 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-400 dark:border-neutral-700 dark:bg-neutral-800 dark:text-white"
         />
         <IconSearch className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-500 dark:text-neutral-300" />
       </div>
