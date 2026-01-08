@@ -10,7 +10,6 @@ import { storage } from "@/lib/firebase/firebase";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { EditorRegion } from "@/types/editorTypes";
-import { MasterChannel } from "@/types/MasterChannel";
 
 interface Props {
   trackId: string;
@@ -31,62 +30,75 @@ export default function GroupWFE({ trackId }: Props) {
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
 
-  const [loading, setLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
+  // 🔒 feedback-loop protection
+  const isUserSeekingRef = useRef(false);
 
-  const master = useEditorStore((state) => state.master);
+  const [loading, setLoading] = useState(true);
 
   const {
     tracks,
     selectedRegionId,
     updateRegion,
     selectRegion,
-    setTrackDuration,
     selectTrack,
     addRegion,
     createChildRegion,
-    transport,
     projectTracks,
     addTrackToProject,
     removeTrackFromProject,
     setTransportDurationIfLonger,
+    transport,
+    play,
+    pause,
+    seek,
+    master,
   } = useEditorStore();
 
-  const track = tracks.find((t) => t.id === trackId);
+  const track = tracks.find(t => t.id === trackId);
   if (!track) return null;
 
-  const trackWidthPercent = (track.duration / transport.duration) * 100;
+  const isInProject = projectTracks.includes(track.id);
+
+  const trackWidthPercent =
+    transport.duration > 0
+      ? (track.duration / transport.duration) * 100
+      : 100;
 
   const selectedRegion = track.regions.find(
-    (r) => r.id === selectedRegionId
+    r => r.id === selectedRegionId
   );
 
-  const handleAddParentRegion = () => {
-    const topLevel = track.regions.filter((r) => !r.parentRegionId);
-    const last = topLevel.at(-1);
-    const start = last ? last.end : 0;
-    addRegion(track.id, start, start + 10);
-  };
+  /* =========================
+     Pointer lifecycle
+     ========================= */
+  useEffect(() => {
+    const stopSeeking = () => {
+      isUserSeekingRef.current = false;
+    };
 
-  const handleAddChildRegion = () => {
-    if (!selectedRegion) return;
-    const parent = selectedRegion;
-    const length = (parent.end - parent.start) * 0.25;
-    const start = parent.start + length * 0.5;
-    const end = Math.min(start + length, parent.end);
-    createChildRegion(track.id, parent.id, start, end);
-  };
+    window.addEventListener("pointerup", stopSeeking);
+    window.addEventListener("mouseup", stopSeeking);
+    window.addEventListener("touchend", stopSeeking);
 
- const isInProject = projectTracks.includes(track.id);
+    return () => {
+      window.removeEventListener("pointerup", stopSeeking);
+      window.removeEventListener("mouseup", stopSeeking);
+      window.removeEventListener("touchend", stopSeeking);
+    };
+  }, []);
 
-  // Update volume when master changes
+  /* =========================
+     Master volume sync
+     ========================= */
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws) return;
+
     const effectiveVolume = master.muted ? 0 : master.volume;
     const finalVolume = master.limiter.enabled
       ? Math.min(effectiveVolume, master.limiter.ceiling)
       : effectiveVolume;
+
     ws.setVolume(finalVolume);
   }, [master]);
 
@@ -94,7 +106,9 @@ export default function GroupWFE({ trackId }: Props) {
     selectTrack(track.id);
   }, [track.id, selectTrack]);
 
-  // Initialize waveform
+  /* =========================
+     Initialize WaveSurfer
+     ========================= */
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -104,8 +118,11 @@ export default function GroupWFE({ trackId }: Props) {
     const init = async () => {
       containerRef.current!.innerHTML = "";
       setLoading(true);
+
       const url = await getDownloadURL(ref(storage, track.source.url));
+
       regions = RegionsPlugin.create();
+
       ws = WaveSurfer.create({
         container: containerRef.current!,
         waveColor: "#444",
@@ -115,14 +132,31 @@ export default function GroupWFE({ trackId }: Props) {
         normalize: true,
         plugins: [regions],
       });
+
       ws.load(url);
+
       ws.on("ready", () => {
         setTransportDurationIfLonger(track.id, ws!.getDuration());
         setLoading(false);
       });
-      ws.on("play", () => setIsPlaying(true));
-      ws.on("pause", () => setIsPlaying(false));
-      ws.on("finish", () => setIsPlaying(false));
+
+      /* USER → TRANSPORT */
+      ws.on("interaction", () => {
+        isUserSeekingRef.current = true;
+      });
+
+      ws.on("seek" as any, (progress: number) => {
+        const duration = ws!.getDuration();
+        if (!duration) return;
+        seek(progress * duration);
+      });
+
+      /* WS → TRANSPORT */
+      ws.on("timeupdate", (time) => {
+        if (!isUserSeekingRef.current) {
+          seek(time);
+        }
+      });
 
       wsRef.current = ws;
       regionsRef.current = regions;
@@ -135,15 +169,42 @@ export default function GroupWFE({ trackId }: Props) {
       wsRef.current = null;
       regionsRef.current = null;
     };
-  }, [track.id, setTrackDuration]);
+  }, [track.id, seek, setTransportDurationIfLonger]);
 
-  // Render regions
+  /* =========================
+     TRANSPORT → PLAY / PAUSE
+     ========================= */
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || loading) return;
+
+    if (transport.isPlaying && !ws.isPlaying()) ws.play();
+    if (!transport.isPlaying && ws.isPlaying()) ws.pause();
+  }, [transport.isPlaying, loading]);
+
+  /* =========================
+     TRANSPORT → SEEK
+     ========================= */
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (!ws || loading || isUserSeekingRef.current) return;
+
+    const diff = Math.abs(ws.getCurrentTime() - transport.time);
+    if (diff > 0.05) {
+      ws.setTime(transport.time);
+    }
+  }, [transport.time, loading]);
+
+  /* =========================
+     Render regions
+     ========================= */
   useEffect(() => {
     const ws = wsRef.current;
     const regions = regionsRef.current;
     if (!ws || !regions) return;
 
     regions.clearRegions();
+
     track.regions.forEach((region, i) => {
       const r: Region = regions.addRegion({
         id: region.id,
@@ -158,52 +219,77 @@ export default function GroupWFE({ trackId }: Props) {
         selectRegion(region.id);
       }
 
-      r.on("click", (e) => {
+      r.on("click", e => {
         e.stopPropagation();
         selectTrack(track.id);
         selectRegion(region.id);
-        ws.stop();
-        ws.play(r.start, r.end);
+        seek(region.start);
+        play();
       });
 
       r.on("update-end", () => {
         if (region.meta.locked) return;
-        if (region.parentRegionId) {
-          const parent = track.regions.find((r) => r.id === region.parentRegionId);
-          if (!parent) return;
-          if (r.start < parent.start || r.end > parent.end) {
-            updateRegion(track.id, region.id, { start: region.start, end: region.end });
-            return;
-          }
-        }
-        updateRegion(track.id, region.id, { start: r.start, end: r.end });
-        ws.stop();
-        ws.play(r.start, r.end);
+
+        updateRegion(track.id, region.id, {
+          start: r.start,
+          end: r.end,
+        });
+
+        seek(r.start);
+        play();
       });
     });
-  }, [track.regions, selectedRegionId, selectRegion, selectTrack, updateRegion]);
+  }, [
+    track.regions,
+    selectedRegionId,
+    selectRegion,
+    selectTrack,
+    updateRegion,
+    seek,
+    play,
+  ]);
 
+  /* =========================
+     Controls
+     ========================= */
   const togglePlay = () => {
-    const ws = wsRef.current;
-    if (!ws) return;
-    ws.isPlaying() ? ws.pause() : ws.play();
+    transport.isPlaying ? pause() : play();
+  };
+
+  const handleAddRegion = () => {
+    const topLevel = track.regions.filter(r => !r.parentRegionId);
+    const last = topLevel.at(-1);
+    const start = last ? last.end : 0;
+    addRegion(track.id, start, start + 10);
+  };
+
+  const handleAddInside = () => {
+    if (!selectedRegion) return;
+    const len = (selectedRegion.end - selectedRegion.start) * 0.25;
+    const start = selectedRegion.start + len * 0.5;
+    createChildRegion(
+      track.id,
+      selectedRegion.id,
+      start,
+      Math.min(start + len, selectedRegion.end)
+    );
   };
 
   return (
     <div className="space-y-2 border border-neutral-800 rounded p-3">
       <div className="flex items-center gap-2">
-        {/* Project Checkbox */}
         <label className="flex items-center gap-1 text-xs text-neutral-400">
-        <input
+          <input
             type="checkbox"
             checked={isInProject}
-            onChange={(e) => {
-            if (e.target.checked) addTrackToProject(track.id);
-            else removeTrackFromProject(track.id);
-            }}
+            onChange={e =>
+              e.target.checked
+                ? addTrackToProject(track.id)
+                : removeTrackFromProject(track.id)
+            }
             className="accent-indigo-500"
-        />
-        Project
+          />
+          Project
         </label>
 
         <button
@@ -211,25 +297,29 @@ export default function GroupWFE({ trackId }: Props) {
           disabled={loading}
           className="px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50"
         >
-          {isPlaying ? "Pause" : "Play"}
+          {transport.isPlaying ? "Pause" : "Play"}
         </button>
 
         <button
-          onClick={handleAddParentRegion}
+          onClick={handleAddRegion}
           className="px-3 py-1 text-sm rounded bg-indigo-600 hover:bg-indigo-500"
         >
           Add Region
         </button>
 
         <button
-          onClick={handleAddChildRegion}
+          onClick={handleAddInside}
           disabled={!selectedRegion}
           className="px-3 py-1 text-sm rounded bg-indigo-500 hover:bg-indigo-400 disabled:opacity-40"
         >
           Add Inside
         </button>
 
-        {loading && <span className="text-xs text-neutral-500">Loading waveform…</span>}
+        {loading && (
+          <span className="text-xs text-neutral-500">
+            Loading waveform…
+          </span>
+        )}
       </div>
 
       <div ref={containerRef} style={{ width: `${trackWidthPercent}%` }} />

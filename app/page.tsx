@@ -168,7 +168,7 @@ export default function Home() {
         </div>
 
       {/* Search */}
-      <div className="relative max-w-md w-full mx-auto">
+      <div className="relative max-w-md w-full mx-auto ">
         <input
           type="text"
           placeholder="Search for music..."

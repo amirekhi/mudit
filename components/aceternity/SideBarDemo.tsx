@@ -46,7 +46,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   ];
 
   return (
-    <div className={cn("md:flex w-full h-screen overflow-hidden")}>
+    <div className={cn("md:flex w-full h-screen  ")}>
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
           <div className="mt-8 flex flex-col gap-2">

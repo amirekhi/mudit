@@ -68,12 +68,12 @@ export default function RootLayout({
         <meta name="theme-color" content="#000000" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} flex flex-col justify-center items-center antialiased h-screen w-full dark p-1`}
+        className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full dark p-1`}
       >
         <QueryProvider>
           <TopBanner />
           <div className="flex flex-1 w-full overflow-hidden rounded-md border border-neutral-200 bg-neutral-400 dark:border-neutral-700 relative z-50 dark:bg-neutral-800">
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
               <SidebarDemo>
                 {children}
               </SidebarDemo>
