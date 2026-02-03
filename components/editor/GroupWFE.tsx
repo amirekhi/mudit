@@ -10,6 +10,7 @@ import { storage } from "@/lib/firebase/firebase";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { EditorRegion } from "@/types/editorTypes";
+import { useEngineStore } from "@/store/useEngineStore";
 
 interface Props {
   trackId: string;
@@ -30,6 +31,8 @@ export default function GroupWFE({ trackId }: Props) {
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
 
+
+  const playRegionEngine = useEngineStore(state => state.playRegion);
   // 🔒 feedback-loop protection
   const isUserSeekingRef = useRef(false);
 
@@ -48,8 +51,6 @@ export default function GroupWFE({ trackId }: Props) {
     removeTrackFromProject,
     setTransportDurationIfLonger,
     transport,
-    play,
-    pause,
     seek,
     master,
   } = useEditorStore();
@@ -70,7 +71,7 @@ export default function GroupWFE({ trackId }: Props) {
 
   /* =========================
      Pointer lifecycle
-     ========================= */
+  ========================= */
   useEffect(() => {
     const stopSeeking = () => {
       isUserSeekingRef.current = false;
@@ -89,7 +90,7 @@ export default function GroupWFE({ trackId }: Props) {
 
   /* =========================
      Master volume sync
-     ========================= */
+  ========================= */
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws) return;
@@ -108,7 +109,7 @@ export default function GroupWFE({ trackId }: Props) {
 
   /* =========================
      Initialize WaveSurfer
-     ========================= */
+  ========================= */
   useEffect(() => {
     if (!containerRef.current) return;
 
@@ -119,7 +120,7 @@ export default function GroupWFE({ trackId }: Props) {
       containerRef.current!.innerHTML = "";
       setLoading(true);
 
-      const url = await getDownloadURL(ref(storage, track.source.url));
+      
 
       regions = RegionsPlugin.create();
 
@@ -132,8 +133,17 @@ export default function GroupWFE({ trackId }: Props) {
         normalize: true,
         plugins: [regions],
       });
+      
+if (track.peaks && track.duration) {
+  // ✅ reuse cached peaks (no download)
+  ws.load(track.source.url, [track.peaks], track.duration);
+} else {
+  // ❌ fallback (first time only)
+  const url = await getDownloadURL(ref(storage, track.source.url));
+  ws.load(url);
+}
 
-      ws.load(url);
+
 
       ws.on("ready", () => {
         setTransportDurationIfLonger(track.id, ws!.getDuration());
@@ -172,19 +182,8 @@ export default function GroupWFE({ trackId }: Props) {
   }, [track.id, seek, setTransportDurationIfLonger]);
 
   /* =========================
-     TRANSPORT → PLAY / PAUSE
-     ========================= */
-  useEffect(() => {
-    const ws = wsRef.current;
-    if (!ws || loading) return;
-
-    if (transport.isPlaying && !ws.isPlaying()) ws.play();
-    if (!transport.isPlaying && ws.isPlaying()) ws.pause();
-  }, [transport.isPlaying, loading]);
-
-  /* =========================
-     TRANSPORT → SEEK
-     ========================= */
+     TRANSPORT → SEEK (visual sync)
+  ========================= */
   useEffect(() => {
     const ws = wsRef.current;
     if (!ws || loading || isUserSeekingRef.current) return;
@@ -197,7 +196,7 @@ export default function GroupWFE({ trackId }: Props) {
 
   /* =========================
      Render regions
-     ========================= */
+  ========================= */
   useEffect(() => {
     const ws = wsRef.current;
     const regions = regionsRef.current;
@@ -219,25 +218,36 @@ export default function GroupWFE({ trackId }: Props) {
         selectRegion(region.id);
       }
 
-      r.on("click", e => {
-        e.stopPropagation();
-        selectTrack(track.id);
-        selectRegion(region.id);
-        seek(region.start);
-        play();
-      });
+          r.on("click", e => {
+            e.stopPropagation();
+            selectTrack(track.id);
+            selectRegion(region.id);
 
-      r.on("update-end", () => {
-        if (region.meta.locked) return;
+            // Tell the engine to play starting from this region
+            playRegionEngine({
+              
+              
+              start: region.start,
+              end: region.end,
+            });
+          });
 
-        updateRegion(track.id, region.id, {
-          start: r.start,
-          end: r.end,
-        });
+        r.on("update-end", () => {
+          if (region.meta.locked) return;
 
-        seek(r.start);
-        play();
-      });
+          updateRegion(track.id, region.id, {
+            start: r.start,
+            end: r.end,
+          });
+
+          // Also use engine here
+          playRegionEngine({
+            
+     
+            start: r.start,
+            end: r.end,
+          });
+        }); 
     });
   }, [
     track.regions,
@@ -246,16 +256,11 @@ export default function GroupWFE({ trackId }: Props) {
     selectTrack,
     updateRegion,
     seek,
-    play,
   ]);
 
   /* =========================
      Controls
-     ========================= */
-  const togglePlay = () => {
-    transport.isPlaying ? pause() : play();
-  };
-
+  ========================= */
   const handleAddRegion = () => {
     const topLevel = track.regions.filter(r => !r.parentRegionId);
     const last = topLevel.at(-1);
@@ -291,14 +296,6 @@ export default function GroupWFE({ trackId }: Props) {
           />
           Project
         </label>
-
-        <button
-          onClick={togglePlay}
-          disabled={loading}
-          className="px-3 py-1 text-sm rounded bg-neutral-800 hover:bg-neutral-700 disabled:opacity-50"
-        >
-          {transport.isPlaying ? "Pause" : "Play"}
-        </button>
 
         <button
           onClick={handleAddRegion}

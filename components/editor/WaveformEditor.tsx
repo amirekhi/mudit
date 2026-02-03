@@ -149,9 +149,32 @@ useEffect(() => {
       ws.load(url);
 
       ws.on("ready", () => {
-        setTrackDuration(track.id, ws!.getDuration());
+        const wsInstance = ws!;
+
+        // 1️⃣ decoded audio → ENGINE
+        const audioBuffer = wsInstance.getDecodedData();
+
+        // 2️⃣ peaks → WAVEFORM
+        const exported = wsInstance.exportPeaks({
+          channels: 1,
+          precision: 10000, // choose once, keep stable
+        });
+
+        const peaks = exported[0]; // mono
+
+        // 3️⃣ duration
+        const duration = wsInstance.getDuration();
+
+        // 4️⃣ store everything on EditorTrack
+        const editor = useEditorStore.getState();
+
+        editor.setTrackDuration(track.id, duration);
+        editor.setTrackAudioBuffer(track.id, audioBuffer);
+        editor.setTrackPeaks(track.id, peaks);
+
         setLoading(false);
       });
+
 
       ws.on("play", () => setIsPlaying(true));
       ws.on("pause", () => setIsPlaying(false));

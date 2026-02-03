@@ -21,7 +21,9 @@ interface EditorState {
   transport: TransportState;
 
   projectTracks: string[];
-
+ 
+  setTrackAudioBuffer(trackId: string, buffer: AudioBuffer | null): void;
+  setTrackPeaks(trackId: string, peaks: number[]): void;
 
   play(): void;
   pause(): void;
@@ -150,6 +152,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
       },
     })),
+
+
+    //audio buffer setter
+    setTrackAudioBuffer: (trackId, buffer) =>
+  set(state => ({
+    tracks: state.tracks.map(t =>
+      t.id === trackId
+        ? { ...t, audioBuffer: buffer }
+        : t
+    ),
+  })),
+
+  setTrackPeaks: (trackId: string, peaks: number[]) =>
+  set(state => ({
+    tracks: state.tracks.map(t =>
+      t.id === trackId ? { ...t, peaks } : t
+    ),
+  })),
 
   /* ========================
      BASIC STATE

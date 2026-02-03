@@ -42,15 +42,20 @@ export interface EditorTrack {
   id: string;
   source: Track;
 
-  duration: number; 
-
+  duration: number;
   regions: EditorRegion[];
 
   gain: number;
   pan: number;
   muted: boolean;
   solo?: boolean;
+
+  // caching
+  peaks: number[] | null;  // for WaveSurfer
+  audioBuffer?: AudioBuffer | null; // for Engine
 }
+
+
 
 
 export interface EditorProject {

@@ -9,7 +9,6 @@ import TrackHeader from "@/components/editor/TrackHeader";
 import { Track } from "@/store/useAudioStore";
 import { useEditorStore } from "@/store/useEditorStore";
 import { trackToEditorTrack } from "@/lib/editor/trackToEditorTrack";
-import GroupWFE from "@/components/editor/GroupWFE";
 import ProjectWFE from "@/components/editor/ProjectWFE";
 
 export default function EditorPage() {
