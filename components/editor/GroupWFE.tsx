@@ -9,8 +9,8 @@ import { getDownloadURL, ref } from "firebase/storage";
 import { storage } from "@/lib/firebase/firebase";
 
 import { useEditorStore } from "@/store/useEditorStore";
-import { EditorRegion } from "@/types/editorTypes";
 import { useEngineStore } from "@/store/useEngineStore";
+import { EditorRegion } from "@/types/editorTypes";
 
 interface Props {
   trackId: string;
@@ -31,12 +31,12 @@ export default function GroupWFE({ trackId }: Props) {
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
 
-
-  const playRegionEngine = useEngineStore(state => state.playRegion);
-  // 🔒 feedback-loop protection
   const isUserSeekingRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+
+  const playRegionEngine = useEngineStore(s => s.playRegion);
 
   const {
     tracks,
@@ -103,10 +103,6 @@ export default function GroupWFE({ trackId }: Props) {
     ws.setVolume(finalVolume);
   }, [master]);
 
-  useEffect(() => {
-    selectTrack(track.id);
-  }, [track.id, selectTrack]);
-
   /* =========================
      Initialize WaveSurfer
   ========================= */
@@ -119,8 +115,7 @@ export default function GroupWFE({ trackId }: Props) {
     const init = async () => {
       containerRef.current!.innerHTML = "";
       setLoading(true);
-
-      
+      setIsReady(false);
 
       regions = RegionsPlugin.create();
 
@@ -133,24 +128,20 @@ export default function GroupWFE({ trackId }: Props) {
         normalize: true,
         plugins: [regions],
       });
-      
-if (track.peaks && track.duration) {
-  // ✅ reuse cached peaks (no download)
-  ws.load(track.source.url, [track.peaks], track.duration);
-} else {
-  // ❌ fallback (first time only)
-  const url = await getDownloadURL(ref(storage, track.source.url));
-  ws.load(url);
-}
 
-
+      if (track.peaks && track.duration) {
+        ws.load(track.source.url, [track.peaks], track.duration);
+      } else {
+        const url = await getDownloadURL(ref(storage, track.source.url));
+        ws.load(url);
+      }
 
       ws.on("ready", () => {
         setTransportDurationIfLonger(track.id, ws!.getDuration());
         setLoading(false);
+        setIsReady(true);
       });
 
-      /* USER → TRANSPORT */
       ws.on("interaction", () => {
         isUserSeekingRef.current = true;
       });
@@ -161,8 +152,7 @@ if (track.peaks && track.duration) {
         seek(progress * duration);
       });
 
-      /* WS → TRANSPORT */
-      ws.on("timeupdate", (time) => {
+      ws.on("timeupdate", time => {
         if (!isUserSeekingRef.current) {
           seek(time);
         }
@@ -186,21 +176,22 @@ if (track.peaks && track.duration) {
   ========================= */
   useEffect(() => {
     const ws = wsRef.current;
-    if (!ws || loading || isUserSeekingRef.current) return;
+    if (!ws || !isReady || isUserSeekingRef.current) return;
 
     const diff = Math.abs(ws.getCurrentTime() - transport.time);
     if (diff > 0.05) {
       ws.setTime(transport.time);
     }
-  }, [transport.time, loading]);
+  }, [transport.time, isReady]);
 
   /* =========================
-     Render regions
+     Render regions (SAFE)
   ========================= */
   useEffect(() => {
-    const ws = wsRef.current;
+    if (!isReady) return;
+
     const regions = regionsRef.current;
-    if (!ws || !regions) return;
+    if (!regions) return;
 
     regions.clearRegions();
 
@@ -218,44 +209,39 @@ if (track.peaks && track.duration) {
         selectRegion(region.id);
       }
 
-          r.on("click", e => {
-            e.stopPropagation();
-            selectTrack(track.id);
-            selectRegion(region.id);
+      r.on("click", e => {
+        e.stopPropagation();
+        selectTrack(track.id);
+        selectRegion(region.id);
 
-            // Tell the engine to play starting from this region
-            playRegionEngine({
-              
-              
-              start: region.start,
-              end: region.end,
-            });
-          });
+        playRegionEngine({
+          start: region.start,
+          end: region.end,
+        });
+      });
 
-        r.on("update-end", () => {
-          if (region.meta.locked) return;
+      r.on("update-end", () => {
+        if (region.meta.locked) return;
 
-          updateRegion(track.id, region.id, {
-            start: r.start,
-            end: r.end,
-          });
+        updateRegion(track.id, region.id, {
+          start: r.start,
+          end: r.end,
+        });
 
-          // Also use engine here
-          playRegionEngine({
-            
-     
-            start: r.start,
-            end: r.end,
-          });
-        }); 
+        playRegionEngine({
+          start: r.start,
+          end: r.end,
+        });
+      });
     });
   }, [
+    isReady,
     track.regions,
     selectedRegionId,
     selectRegion,
     selectTrack,
     updateRegion,
-    seek,
+    playRegionEngine,
   ]);
 
   /* =========================
