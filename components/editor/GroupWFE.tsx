@@ -30,13 +30,15 @@ export default function GroupWFE({ trackId }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<RegionsPlugin | null>(null);
-
   const isUserSeekingRef = useRef(false);
 
   const [loading, setLoading] = useState(true);
   const [isReady, setIsReady] = useState(false);
 
-  const playRegionEngine = useEngineStore(s => s.playRegion);
+  const playWindow = useEngineStore(s => s.playWindow);
+  const setPlayWindow = useEngineStore(s => s.setPlayWindow);
+  const play = useEngineStore(s => s.play);
+  const playRegion = useEngineStore(s => s.playRegion);
 
   const {
     tracks,
@@ -172,7 +174,7 @@ export default function GroupWFE({ trackId }: Props) {
   }, [track.id, seek, setTransportDurationIfLonger]);
 
   /* =========================
-     TRANSPORT → SEEK (visual sync)
+     TRANSPORT → SEEK
   ========================= */
   useEffect(() => {
     const ws = wsRef.current;
@@ -185,7 +187,7 @@ export default function GroupWFE({ trackId }: Props) {
   }, [transport.time, isReady]);
 
   /* =========================
-     Render regions (SAFE)
+     Render regions
   ========================= */
   useEffect(() => {
     if (!isReady) return;
@@ -195,6 +197,26 @@ export default function GroupWFE({ trackId }: Props) {
 
     regions.clearRegions();
 
+    // 🟢 PLAY WINDOW (EDIT ONLY)
+    if (playWindow) {
+      const pw = regions.addRegion({
+        id: "__play_window__",
+        start: playWindow.start,
+        end: playWindow.end,
+        drag: true,
+        resize: true,
+        color: "rgba(34,197,94,0.25)",
+      });
+
+      pw.on("update-end", () => {
+        setPlayWindow({
+          start: pw.start,
+          end: pw.end,
+        });
+      });
+    }
+
+    // 🔵 TRACK REGIONS
     track.regions.forEach((region, i) => {
       const r: Region = regions.addRegion({
         id: region.id,
@@ -214,21 +236,23 @@ export default function GroupWFE({ trackId }: Props) {
         selectTrack(track.id);
         selectRegion(region.id);
 
-        playRegionEngine({
-          start: region.start,
-          end: region.end,
+        playRegion({
+          start: r.start,
+          end: r.end,
         });
       });
 
       r.on("update-end", () => {
         if (region.meta.locked) return;
 
+        
+
         updateRegion(track.id, region.id, {
           start: r.start,
           end: r.end,
         });
 
-        playRegionEngine({
+         playRegion({
           start: r.start,
           end: r.end,
         });
@@ -238,10 +262,12 @@ export default function GroupWFE({ trackId }: Props) {
     isReady,
     track.regions,
     selectedRegionId,
+    playWindow,
     selectRegion,
     selectTrack,
     updateRegion,
-    playRegionEngine,
+    setPlayWindow,
+    play,
   ]);
 
   /* =========================
@@ -305,6 +331,7 @@ export default function GroupWFE({ trackId }: Props) {
         )}
       </div>
 
+      {/* WIDTH SYNC — UNTOUCHED */}
       <div ref={containerRef} style={{ width: `${trackWidthPercent}%` }} />
     </div>
   );
