@@ -34,7 +34,7 @@ export default function ProjectWFE() {
           {/* Reset */}
           <button
             onClick={reset}
-            className="px-4 py-1.5 bg-red-600 hover:bg-red-500"
+            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500"
           >
             Reset
           </button>

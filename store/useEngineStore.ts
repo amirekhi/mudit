@@ -2,6 +2,9 @@
 
 import { create } from "zustand";
 import { useEditorStore } from "@/store/useEditorStore";
+import { compileRegions } from "@/util/compileRegions";
+import { EditorProject } from "@/types/editorTypes";
+
 
 interface PlayWindow {
   start: number;
@@ -14,7 +17,7 @@ interface EngineState {
   isPlaying: boolean;
 
   ctxStartTime: number;
-  transportOffset: number; // <- the offset of transport at pause
+  transportOffset: number;
 
   playWindow: PlayWindow | null;
 
@@ -52,55 +55,98 @@ export const useEngineStore = create<EngineState>((set, get) => {
     requestAnimationFrame(tick);
   };
 
-  const scheduleSources = async (win: PlayWindow) => {
-    const editor = useEditorStore.getState();
-    let ctx = get().ctx;
+  const scheduleCompiled = async (win: PlayWindow) => {
+  const editor = useEditorStore.getState();
+  let ctx = get().ctx;
 
-    if (!ctx) {
-      ctx = new AudioContext();
-      set({ ctx });
-    }
+  if (!ctx) {
+    ctx = new AudioContext();
+    set({ ctx });
+  }
 
-    if (ctx.state === "suspended") await ctx.resume();
+  if (ctx.state === "suspended") {
+    await ctx.resume();
+  }
 
-    const ctxNow = ctx.currentTime;
-    const scheduled: AudioBufferSourceNode[] = [];
-
-    for (const track of editor.tracks) {
-      if (!track.audioBuffer) continue;
-
-      for (const region of track.regions) {
-        if (region.end <= win.start || region.start >= win.end) continue;
-
-        const playStart = Math.max(region.start, win.start);
-        const playEnd = Math.min(region.end, win.end);
-        const duration = playEnd - playStart;
-        if (duration <= 0) continue;
-
-        const source = ctx.createBufferSource();
-        source.buffer = track.audioBuffer;
-        source.connect(ctx.destination);
-
-        const when = ctxNow + (playStart - win.start);
-        const offset = playStart;
-
-        source.start(when, offset, duration);
-        scheduled.push(source);
-      }
-    }
-
-    set({
-      sources: scheduled,
-      ctxStartTime: ctxNow,
-      transportOffset: win.start,
-      isPlaying: true,
-    });
-
-    editor.seek(win.start);
-    editor.play();
-
-    startTick();
+  // -----------------------------
+  // Build a temporary project object
+  // -----------------------------
+  const project: EditorProject = {
+    id: "temp-project",
+    ownerId: "temp-owner",
+    bpm: 120,
+    sampleRate: 44100,
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
+    duration: 0, // will calculate below
+    tracks: editor.projectTracks
+      .map(trackId => editor.tracks.find(t => t.id === trackId))
+      .filter((t): t is NonNullable<typeof t> => !!t), // filter out undefined
   };
+
+  // Update project duration based on max track duration
+  project.duration = project.tracks.length
+    ? Math.max(...project.tracks.map(t => t.duration))
+    : 0;
+
+  // -----------------------------
+  // Now compile regions using this project
+  // -----------------------------
+  const compiled = compileRegions(project, win);
+  const ctxNow = ctx.currentTime;
+
+  const scheduled: AudioBufferSourceNode[] = [];
+
+  for (const r of compiled) {
+    const source = ctx.createBufferSource();
+    source.buffer = r.buffer;
+    source.playbackRate.value = r.playbackRate;
+
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = r.gain;
+
+    const panNode = ctx.createStereoPanner();
+    panNode.pan.value = r.pan;
+
+    source
+      .connect(gainNode)
+      .connect(panNode)
+      .connect(ctx.destination);
+
+    if (r.fadeIn && r.fadeIn > 0) {
+      gainNode.gain.setValueAtTime(0, ctxNow + r.when);
+      gainNode.gain.linearRampToValueAtTime(
+        r.gain,
+        ctxNow + r.when + r.fadeIn
+      );
+    }
+
+    if (r.fadeOut && r.fadeOut > 0) {
+      gainNode.gain.setValueAtTime(
+        r.gain,
+        ctxNow + r.when + r.duration - r.fadeOut
+      );
+      gainNode.gain.linearRampToValueAtTime(
+        0,
+        ctxNow + r.when + r.duration
+      );
+    }
+
+    source.start(ctxNow + r.when, r.offset, r.duration);
+    scheduled.push(source);
+  }
+
+  set({
+    sources: scheduled,
+    ctxStartTime: ctxNow,
+    transportOffset: win.start,
+    isPlaying: true,
+  });
+
+  editor.seek(win.start);
+  editor.play();
+  startTick();
+};
 
   return {
     ctx: null,
@@ -119,20 +165,22 @@ export const useEngineStore = create<EngineState>((set, get) => {
       if (!win) return;
 
       get().reset();
-      await scheduleSources(win);
+      await scheduleCompiled(win);
     },
 
     async playRegion(win) {
       set({ playWindow: win });
       get().reset();
-      await scheduleSources(win);
+      await scheduleCompiled(win);
     },
 
     async pause() {
       const ctx = get().ctx;
       if (!ctx || ctx.state !== "running") return;
 
-      const pausedOffset = get().transportOffset + (ctx.currentTime - get().ctxStartTime);
+      const pausedOffset =
+        get().transportOffset +
+        (ctx.currentTime - get().ctxStartTime);
 
       await ctx.suspend();
 
@@ -148,18 +196,14 @@ export const useEngineStore = create<EngineState>((set, get) => {
       const ctx = get().ctx;
       if (!ctx || get().isPlaying) return;
 
-      const offset = get().transportOffset;
-
       await ctx.resume();
 
       set({
         isPlaying: true,
-        ctxStartTime: ctx.currentTime, // <-- only update ctxStartTime
-        transportOffset: offset,       // <-- keep paused offset
+        ctxStartTime: ctx.currentTime,
       });
 
       useEditorStore.getState().play();
-
       startTick();
     },
 
