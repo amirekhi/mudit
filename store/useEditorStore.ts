@@ -7,6 +7,7 @@ import { RegionClipboard } from "@/types/clipboard";
 import { collectRegionTree } from "@/lib/editor/collectRegionTree";
 import { MasterChannel } from "@/types/MasterChannel";
 import { TransportState } from "@/types/transport";
+import { useEngineStore } from "./useEngineStore";
 
 interface EditorState {
   tracks: EditorTrack[];
@@ -264,38 +265,43 @@ setTrackDuration: (trackId: string, duration: number) =>
   },
 
   updateRegion: (trackId, regionId, patch) => {
-    get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) => {
-        if (track.id !== trackId) return track;
+  get()._pushPast();
 
-        return {
-          ...track,
-          regions: track.regions.map((region) => {
-            if (region.id !== regionId) return region;
-            if (region.meta.locked) return region;
+  set((state) => ({
+    tracks: state.tracks.map((track) => {
+      if (track.id !== trackId) return track;
 
-            const isMoved =
-              ("start" in patch && patch.start !== region.start) ||
-              ("end" in patch && patch.end !== region.end);
+      return {
+        ...track,
+        regions: track.regions.map((region) => {
+          if (region.id !== regionId) return region;
+          if (region.meta.locked) return region;
 
-            const edits = isMoved
-              ? {}
-              : patch.edits
-              ? { ...region.edits, ...patch.edits }
-              : region.edits;
+          const isMoved =
+            ("start" in patch && patch.start !== region.start) ||
+            ("end" in patch && patch.end !== region.end);
 
-            return {
-              ...region,
-              ...patch,
-              edits,
-              meta: { ...region.meta, updatedAt: Date.now() },
-            };
-          }),
-        };
-      }),
-    }));
-  },
+          const edits = isMoved
+            ? {}
+            : patch.edits
+            ? { ...region.edits, ...patch.edits }
+            : region.edits;
+
+          return {
+            ...region,
+            ...patch,
+            edits,
+            meta: { ...region.meta, updatedAt: Date.now() },
+          };
+        }),
+      };
+    }),
+  }));
+
+  // ✅ Sync with engine after update
+  const engine = useEngineStore.getState();
+  engine?.play?.();
+},
 
   removeRegion: (trackId, regionId) => {
     get()._pushPast();

@@ -226,6 +226,7 @@ const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
       {/* ===== Gain ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">Gain</p>
+        <p className="text-xs">{selectedRegion?.edits.gain ?? 0} dB</p>
         <div className="flex gap-2">
           <button
             disabled={!canEdit}
@@ -247,6 +248,7 @@ const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
       {/* ===== Pan ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">Pan</p>
+        <p className="text-xs">{selectedRegion?.edits.pan} pan</p>
         <div className="flex gap-2">
           <button
             disabled={!canEdit}
@@ -268,7 +270,7 @@ const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
       {/* ===== Playback / Pitch ===== */}
       <div className="space-y-2">
         <p className="text-xs text-neutral-500">Playback / Pitch</p>
-
+        <p className="text-xs">{selectedRegion?.edits.playbackRate ?? 1}x</p>
         <div className="flex gap-2">
           <button
             disabled={!canEdit}
@@ -286,21 +288,25 @@ const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
           </button>
         </div>
 
-        <div className="flex gap-2">
-          <button
-            disabled={!canEdit}
-            onClick={() => applyPitch(1)}
-            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-          >
-            +1 Semitone
+        <div className="flex flex-col gap-2 mt-4">
+          <p className="text-xs">{selectedRegion?.edits.pitch ?? 0} semitones</p>
+          <div className="flex gap-2">
+             <button
+              disabled={!canEdit}
+              onClick={() => applyPitch(1)}
+              className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
+            >
+              +1 Semitone
+            </button>
+            <button
+              disabled={!canEdit}
+              onClick={() => applyPitch(-1)}
+              className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
+            >
+              −1 Semitone
           </button>
-          <button
-            disabled={!canEdit}
-            onClick={() => applyPitch(-1)}
-            className="flex-1 px-2 py-1 rounded bg-neutral-900 border border-neutral-800 text-sm disabled:opacity-50"
-          >
-            −1 Semitone
-          </button>
+          </div>
+
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import MusicPlayer from "@/components/music-player/MusicPlayer";
 import QueryProvider from "@/lib/TanStackQuery/QueryProvider";
 import PlaylistWindow from "@/components/PlayList/PlaylistWindow";
 import { TopBanner } from "@/components/notification/TopBanner";
+import { NotificationsWindow } from "@/components/basics/NotificationsWindow";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -81,6 +82,9 @@ export default function RootLayout({
             <PlaylistWindow />
           </div>
           <MusicPlayer />
+          <div className="absolute right-0 bottom-0 m-4 z-50">
+            <NotificationsWindow />
+          </div>
         </QueryProvider>
       </body>
     </html>
