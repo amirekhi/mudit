@@ -1,6 +1,7 @@
 "use client";
 
-import { useEditorStore } from "@/store/useEditorStore";
+import { useEditorStore,  } from "@/store/useEditorStore";
+import { useEngineStore } from "@/store/useEngineStore";
 import { shallow } from "zustand/shallow";
 
 export default function ToolPanel({ disabled }: { disabled: boolean }) {
@@ -9,6 +10,8 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
     selectedRegionId,
     tracks,
 
+    updateRegionVisuals,
+    updateRegionPlaybackRate,
     updateRegion,
     removeRegion,
     splitRegion,
@@ -68,15 +71,20 @@ const setLimiterCeiling = useEditorStore((state) => state.setLimiterCeiling);
     });
   };
 
-  const applyPlaybackRate = (value: number) => {
-    if (!canEdit) return;
-    updateRegion(selectedTrackId!, selectedRegionId!, {
-      edits: {
-        playbackRate:
-          (selectedRegion!.edits.playbackRate ?? 1) * value,
-      },
-    });
-  };
+const applyPlaybackRate = (value: number) => {
+  if (!canEdit) return;
+  if (!selectedTrackId || !selectedRegionId) return;
+
+  updateRegionPlaybackRate(
+    selectedTrackId,
+    selectedRegionId,
+    value
+  );
+
+  updateRegionVisuals(selectedTrackId);
+};
+
+  
 
   const applyPitch = (value: number) => {
     if (!canEdit) return;

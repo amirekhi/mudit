@@ -14,6 +14,12 @@ interface EditorState {
   past: EditorTrack[][];
   future: EditorTrack[][];
 
+  setPreviewPeaks(trackId: string, peaks: Float32Array): void;
+  updateRegionVisuals(trackId: string): void;
+  updateRegionWindow(trackId: string, regionId: string, start: number, end: number): void;
+  updateRegionPlaybackRate(trackId: string, regionId: string, value: number): void;
+
+
   selectedTrackId: string | null;
   armedTrackIds: string[];
   selectedRegionId: string | null;
@@ -115,6 +121,68 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   // store/editorStore.ts
   projectTracks: [] as string[], // just the track IDs
+
+  updateRegionVisuals: (trackId: string) => {
+  const state = get();
+
+  const track = state.tracks.find(t => t.id === trackId);
+  if (!track) return;
+
+  let shift = 0; // cumulative delta for cascading regions
+
+  const newRegions = track.regions.map(r => {
+    const originalDuration = r.sourceEnd - r.sourceStart;
+    const playbackRate = r.edits.playbackRate ?? 1;
+
+    // Visual duration = actual audio duration divided by playbackRate
+    const visualDuration = originalDuration / playbackRate;
+
+    const newStart = r.start + shift;
+    const newEnd = newStart + visualDuration;
+
+    const delta = (r.end - r.start) - visualDuration; // old visual - new visual
+    shift -= delta; // cascade to next regions
+
+    return {
+      ...r,
+      start: newStart,
+      end: newEnd,
+      // ⚠️ do NOT touch sourceStart/sourceEnd
+    };
+  });
+
+  // Apply updated regions to the track immutably
+  set(state => ({
+    tracks: state.tracks.map(t =>
+      t.id === trackId ? { ...t, regions: newRegions } : t
+    ),
+  }));
+
+  // Trigger audio scheduling / re-render
+  useEngineStore.getState().compileTrackPreview(trackId);
+},
+
+
+
+  setPreviewPeaks(trackId, peaks) {
+  set(state => {
+    const index = state.tracks.findIndex(t => t.id === trackId);
+    if (index === -1) return state;
+
+    const updatedTracks = [...state.tracks];
+
+    updatedTracks[index] = {
+      ...updatedTracks[index],
+      previewPeaks: peaks,
+    };
+
+    return {
+      ...state,
+      tracks: updatedTracks,
+    };
+  });
+},
+
 
   setMasterVolume: (value) =>
     set((state) => ({
@@ -250,69 +318,184 @@ setTrackDuration: (trackId: string, duration: number) =>
      REGION OPS
      ======================== */
 
-  addRegion: (trackId, start, end) => {
-    get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) =>
-        track.id === trackId
-          ? {
-              ...track,
-              regions: [...track.regions, createRegion(trackId, start, end)],
-            }
-          : track
-      ),
-    }));
-  },
+addRegion(trackId: string, start: number, end: number) {
+  set(state => {
+    const track = state.tracks.find(t => t.id === trackId);
+    if (!track) return state;
 
-  updateRegion: (trackId, regionId, patch) => {
+    const newRegion: EditorRegion = {
+      id: crypto.randomUUID(),
+
+      start,
+      end,
+
+      // 🔥 FIX HERE
+      sourceStart: start,
+      sourceEnd: end,
+
+      sourceTrackId: trackId,
+
+      edits: {},
+      status: "empty",
+
+      parentRegionId: null,
+
+      meta: {
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      },
+    };
+
+    track.regions.push(newRegion);
+
+    return { tracks: [...state.tracks] };
+  });
+},
+
+
+updateRegionWindow: (
+  trackId: string,
+  regionId: string,
+  start: number,
+  end: number
+) => {
   get()._pushPast();
 
-  set((state) => ({
-    tracks: state.tracks.map((track) => {
+  set(state => ({
+    tracks: state.tracks.map(track => {
       if (track.id !== trackId) return track;
 
       return {
         ...track,
-        regions: track.regions.map((region) => {
+        regions: track.regions.map(region => {
           if (region.id !== regionId) return region;
           if (region.meta.locked) return region;
 
-          const isMoved =
-            ("start" in patch && patch.start !== region.start) ||
-            ("end" in patch && patch.end !== region.end);
+          return {
+            ...region,
+            start,
+            end,
+            sourceStart: start,
+            sourceEnd: end,
+            meta: {
+              ...region.meta,
+              updatedAt: Date.now(),
+            },
+          };
+        }),
+      };
+    }),
+  }));
+},
 
-          const edits = isMoved
-            ? {}
-            : patch.edits
-            ? { ...region.edits, ...patch.edits }
-            : region.edits;
+// store/useEditorStore.ts
+updateRegionPlaybackRate: (trackId: string, regionId: string, value: number) => {
+  get()._pushPast();
+
+  set(state => ({
+    tracks: state.tracks.map(track => {
+      if (track.id !== trackId) return track;
+
+      return {
+        ...track,
+        regions: track.regions.map(region => {
+          if (region.id !== regionId) return region;
+          if (region.meta.locked) return region;
 
           return {
             ...region,
-            ...patch,
-            edits,
-            meta: { ...region.meta, updatedAt: Date.now() },
+            edits: {
+              ...region.edits,
+              playbackRate: (region.edits.playbackRate ?? 1) * value,
+            },
+            meta: {
+              ...region.meta,
+              updatedAt: Date.now(),
+            },
           };
         }),
       };
     }),
   }));
 
-  // ✅ Sync with engine after update
+    const engine = useEngineStore.getState();
+  engine?.play?.();
+},
+
+
+ updateRegion: (trackId, regionId, patch) => {
+  get()._pushPast();
+
+  set(state => ({
+    tracks: state.tracks.map(track => {
+      if (track.id !== trackId) return track;
+
+      return {
+        ...track,
+        regions: track.regions.map(region => {
+          if (region.id !== regionId) return region;
+          if (region.meta.locked) return region;
+
+          const oldStart = region.start;
+          const oldEnd = region.end;
+
+          const newStart = patch.start ?? oldStart;
+          const newEnd = patch.end ?? oldEnd;
+
+          const moved = newStart !== oldStart;
+          const resized = newEnd !== oldEnd;
+
+          let newSourceStart = region.sourceStart;
+          let newSourceEnd = region.sourceEnd;
+
+          // 🔥 MOVE → shift audio slice
+          if (moved) {
+            const delta = newStart - oldStart;
+            newSourceStart += delta;
+            newSourceEnd += delta;
+          }
+
+          // 🔥 RESIZE RIGHT EDGE
+          if (resized) {
+            const newDuration = newEnd - newStart;
+            newSourceEnd = newSourceStart + newDuration;
+          }
+
+          return {
+            ...region,
+            ...patch,
+            sourceStart: newSourceStart,
+            sourceEnd: newSourceEnd,
+            meta: {
+              ...region.meta,
+              updatedAt: Date.now(),
+            },
+          };
+        }),
+      };
+    }),
+  }));
+
   const engine = useEngineStore.getState();
   engine?.play?.();
 },
 
-  removeRegion: (trackId, regionId) => {
-    get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) =>
-        track.id === trackId
-          ? { ...track, regions: track.regions.filter((r) => r.id !== regionId) }
-          : track
-      ),
-    }));
-  },
+
+removeRegion: (trackId, regionId) => {
+  get()._pushPast();
+
+  set(state => ({
+    tracks: state.tracks.map(track =>
+      track.id === trackId
+        ? {
+            ...track,
+            regions: track.regions.filter(r => r.id !== regionId),
+          }
+        : track
+    ),
+  }));
+},
+
 
 splitRegion: (trackId, regionId, at) => {
   get()._pushPast();
@@ -323,28 +506,26 @@ splitRegion: (trackId, regionId, at) => {
 
       const parent = track.regions.find(r => r.id === regionId);
       if (!parent) return track;
-
       if (at <= parent.start || at >= parent.end) return track;
 
-      const left = createRegion(
-        trackId,
-        parent.start,
-        at,
-        regionId
-      );
+      const splitOffset = at - parent.start;
 
-      const right = createRegion(
-        trackId,
-        at,
-        parent.end,
-        regionId
-      );
+      const left: EditorRegion = {
+        ...createRegion(trackId, parent.start, at, regionId),
+        sourceStart: parent.sourceStart,
+        sourceEnd: parent.sourceStart + splitOffset,
+      };
+
+      const right: EditorRegion = {
+        ...createRegion(trackId, at, parent.end, regionId),
+        sourceStart: parent.sourceStart + splitOffset,
+        sourceEnd: parent.sourceEnd,
+      };
 
       return {
         ...track,
         regions: [
           ...track.regions.filter(r => r.id !== regionId),
-          parent,   // parent remains
           left,
           right,
         ],
@@ -352,6 +533,7 @@ splitRegion: (trackId, regionId, at) => {
     }),
   }));
 },
+
 
 
   duplicateRegion: (trackId, regionId) => {

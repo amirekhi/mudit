@@ -39,7 +39,7 @@ export default function WaveformEditor({ trackId }: Props) {
   const {
     tracks,
     selectedRegionId,
-    updateRegion,
+    updateRegionWindow,
     selectRegion,
     setTrackDuration,
     selectTrack,
@@ -191,18 +191,12 @@ export default function WaveformEditor({ trackId }: Props) {
             parent &&
             (r.start < parent.start || r.end > parent.end)
           ) {
-            updateRegion(track.id, region.id, {
-              start: region.start,
-              end: region.end,
-            });
+            updateRegionWindow(track.id, region.id, region.start, region.end);
             return;
           }
         }
 
-        updateRegion(track.id, region.id, {
-          start: r.start,
-          end: r.end,
-        });
+        updateRegionWindow(track.id, region.id, r.start, r.end);
 
         ws.stop();
         ws.play(r.start, r.end);
@@ -214,7 +208,6 @@ export default function WaveformEditor({ trackId }: Props) {
     selectedRegionId,
     selectRegion,
     selectTrack,
-    updateRegion,
   ]);
 
   /* =========================

@@ -1,6 +1,12 @@
-import { EditorProject, EditorRegion, EditorTrack } from "../types/editorTypes";
+import {
+  EditorProject,
+  EditorTrack,
+  EditorRegion,
+} from "../types/editorTypes";
 
-/** utils */
+/* ================================
+   Utils
+================================ */
 
 const clamp = (v: number, min: number, max: number) =>
   Math.min(max, Math.max(min, v));
@@ -8,7 +14,9 @@ const clamp = (v: number, min: number, max: number) =>
 const dbToLinear = (db: number) =>
   Math.pow(10, db / 20);
 
-/** compiled output */
+/* ================================
+   Compiled Output
+================================ */
 
 export interface CompiledRegion {
   trackId: string;
@@ -16,9 +24,9 @@ export interface CompiledRegion {
 
   buffer: AudioBuffer;
 
-  when: number;     // seconds from playWindow.start
-  offset: number;   // seconds into buffer
-  duration: number;
+  when: number;     // timeline seconds from playWindow.start
+  offset: number;   // source seconds inside AudioBuffer
+  duration: number; // source seconds
 
   gain: number;     // linear
   pan: number;      // -1..1
@@ -30,7 +38,9 @@ export interface CompiledRegion {
   reverse: boolean;
 }
 
-/** compiler */
+/* ================================
+   Compiler
+================================ */
 
 export function compileRegions(
   project: EditorProject,
@@ -46,6 +56,7 @@ export function compileRegions(
       if (region.status === "locked") continue;
       if (region.edits?.mute) continue;
 
+      // Skip regions outside play window
       if (
         region.end <= playWindow.start ||
         region.start >= playWindow.end
@@ -53,16 +64,29 @@ export function compileRegions(
         continue;
       }
 
+      const regionEdits = region.edits ?? {};
+      const playbackRate = regionEdits.playbackRate ?? 1;
+
+      // --- Timeline clipping ---
       const playStart = Math.max(region.start, playWindow.start);
       const playEnd = Math.min(region.end, playWindow.end);
-      const duration = playEnd - playStart;
 
-      if (duration <= 0) continue;
+      const timelineDuration = playEnd - playStart;
+      if (timelineDuration <= 0) continue;
 
-      const offset = playStart - region.start;
-      const when = playStart - playWindow.start;
+      const timelineOffset = playStart - region.start;
 
-      const regionEdits = region.edits ?? {};
+      // --- 🔥 KEY FIX ---
+      // Convert timeline space → source space
+      const offset =
+        region.sourceStart +
+        timelineOffset * playbackRate;
+
+      const duration =
+        timelineDuration * playbackRate;
+
+      const when =
+        playStart - playWindow.start;
 
       const gain =
         dbToLinear(track.gain ?? 0) *
@@ -73,8 +97,6 @@ export function compileRegions(
         -1,
         1
       );
-
-      const playbackRate = regionEdits.playbackRate ?? 1;
 
       compiled.push({
         trackId: track.id,

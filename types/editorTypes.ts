@@ -31,6 +31,10 @@ export interface EditorRegion {
   start: number;
   end: number;
 
+    // SOURCE slice (immutable)
+  sourceStart: number;
+  sourceEnd: number;
+
   edits: RegionEdits;
 
   status: "empty" | "edited" | "locked";
@@ -52,6 +56,7 @@ export interface EditorTrack {
 
   // caching
   peaks: number[] | null;  // for WaveSurfer
+  previewPeaks: Float32Array<ArrayBufferLike> | null; // for Editor preview
   audioBuffer?: AudioBuffer | null; // for Engine
 }
 

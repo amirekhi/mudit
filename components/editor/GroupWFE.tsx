@@ -43,7 +43,6 @@ export default function GroupWFE({ trackId }: Props) {
   const {
     tracks,
     selectedRegionId,
-    updateRegion,
     selectRegion,
     selectTrack,
     addRegion,
@@ -55,6 +54,7 @@ export default function GroupWFE({ trackId }: Props) {
     transport,
     seek,
     master,
+    updateRegionWindow,
   } = useEditorStore();
 
   const track = tracks.find(t => t.id === trackId);
@@ -105,73 +105,87 @@ export default function GroupWFE({ trackId }: Props) {
     ws.setVolume(finalVolume);
   }, [master]);
 
+
+  
+
   /* =========================
      Initialize WaveSurfer
   ========================= */
   useEffect(() => {
-    if (!containerRef.current) return;
+  if (!containerRef.current || wsRef.current) return;
 
-    let ws: WaveSurfer | null = null;
-    let regions: RegionsPlugin | null = null;
+  const regions = RegionsPlugin.create();
 
-    const init = async () => {
-      containerRef.current!.innerHTML = "";
-      setLoading(true);
-      setIsReady(false);
+  const ws = WaveSurfer.create({
+    container: containerRef.current,
+    waveColor: "#444",
+    progressColor: "#6366f1",
+    cursorColor: "#fff",
+    height: 140,
+    normalize: true,
+    plugins: [regions],
+  });
 
-      regions = RegionsPlugin.create();
+  ws.on("ready", () => {
+    setTransportDurationIfLonger(track.id, ws.getDuration());
+    setLoading(false);
+    setIsReady(true);
+  });
 
-      ws = WaveSurfer.create({
-        container: containerRef.current!,
-        waveColor: "#444",
-        progressColor: "#6366f1",
-        cursorColor: "#fff",
-        height: 140,
-        normalize: true,
-        plugins: [regions],
-      });
+  ws.on("interaction", () => {
+    isUserSeekingRef.current = true;
+  });
 
-      if (track.peaks && track.duration) {
-        ws.load(track.source.url, [track.peaks], track.duration);
-      } else {
-        const url = await getDownloadURL(ref(storage, track.source.url));
-        ws.load(url);
-      }
+  ws.on("seek" as any, (progress: number) => {
+    const duration = ws.getDuration();
+    if (!duration) return;
+    seek(progress * duration);
+  });
 
-      ws.on("ready", () => {
-        setTransportDurationIfLonger(track.id, ws!.getDuration());
-        setLoading(false);
-        setIsReady(true);
-      });
+  ws.on("timeupdate", time => {
+    if (!isUserSeekingRef.current) {
+      seek(time);
+    }
+  });
 
-      ws.on("interaction", () => {
-        isUserSeekingRef.current = true;
-      });
+  wsRef.current = ws;
+  regionsRef.current = regions;
 
-      ws.on("seek" as any, (progress: number) => {
-        const duration = ws!.getDuration();
-        if (!duration) return;
-        seek(progress * duration);
-      });
+  return () => {
+    ws.destroy();
+    wsRef.current = null;
+    regionsRef.current = null;
+  };
+}, []);
 
-      ws.on("timeupdate", time => {
-        if (!isUserSeekingRef.current) {
-          seek(time);
-        }
-      });
+/// optimization: if peaks are already available, load them immediately without waiting for "ready"
 
-      wsRef.current = ws;
-      regionsRef.current = regions;
-    };
+useEffect(() => {
+  const ws = wsRef.current;
+  if (!ws) return;
 
-    init();
+  const peaksToUse = track.previewPeaks ?? track.peaks;
 
-    return () => {
-      ws?.destroy();
-      wsRef.current = null;
-      regionsRef.current = null;
-    };
-  }, [track.id, seek, setTransportDurationIfLonger]);
+  const loadWaveform = async () => {
+    setLoading(true);
+    setIsReady(false);
+
+    if (peaksToUse && track.duration) {
+      ws.load(track.source.url, [peaksToUse], track.duration);
+    } else {
+      const url = await getDownloadURL(ref(storage, track.source.url));
+      ws.load(url);
+    }
+  };
+
+  loadWaveform();
+}, [
+  track.previewPeaks,
+  track.peaks,
+  track.duration,
+  track.source.url
+]);
+
 
   /* =========================
      TRANSPORT → SEEK
@@ -247,10 +261,7 @@ export default function GroupWFE({ trackId }: Props) {
 
         
 
-        updateRegion(track.id, region.id, {
-          start: r.start,
-          end: r.end,
-        });
+        updateRegionWindow(track.id, region.id, r.start, r.end);
 
          playRegion({
           start: r.start,
@@ -265,7 +276,6 @@ export default function GroupWFE({ trackId }: Props) {
     playWindow,
     selectRegion,
     selectTrack,
-    updateRegion,
     setPlayWindow,
     play,
   ]);

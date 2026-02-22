@@ -8,15 +8,21 @@ export const createRegion = (
   originRegionId?: string
 ): EditorRegion => {
   const now = Date.now();
+  const duration = end - start;
 
   return {
     id: crypto.randomUUID(),
     sourceTrackId: trackId,
 
+    // Timeline placement
     start,
     end,
 
-    parentRegionId,        // ✅ THIS IS WHAT YOU ARE MISSING
+    // 🔥 Immutable source slice
+    sourceStart: 0,
+    sourceEnd: duration,
+
+    parentRegionId,
 
     edits: {},
     status: "empty",
@@ -24,7 +30,7 @@ export const createRegion = (
     meta: {
       createdAt: now,
       updatedAt: now,
-      originRegionId,      // lineage only
+      originRegionId,
     },
   };
 };

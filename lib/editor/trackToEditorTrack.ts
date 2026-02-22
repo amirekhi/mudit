@@ -6,9 +6,11 @@ export function trackToEditorTrack(track: Track): EditorTrack {
     id: track._id,
     source: track,
     peaks: null,
+    previewPeaks: null,
     // editor-owned runtime state
     duration: 0,
     audioBuffer: null,
+
 
     regions: [],
 
