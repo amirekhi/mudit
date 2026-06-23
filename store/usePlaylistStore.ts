@@ -31,7 +31,7 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   setPlaylist: (tracks) => set({ playlist: tracks }),
   addTrack: (track) => set((s) => ({ playlist: [...s.playlist, track] })),
   removeTrack: (id) =>
-    set((s) => ({ playlist: s.playlist.filter((t) => t.id !== id) })),
+    set((s) => ({ playlist: s.playlist.filter((t) => t._id !== id) })),
   clearPlaylist: () =>
     set({ playlist: [], currentTrackIndex: null, isPlaying: false }),
 
