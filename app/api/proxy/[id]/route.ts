@@ -14,24 +14,21 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  try {
-    const p =  await params;
-    const trackId = p.id;
-    
-    const track = await Track.findById(trackId).lean();
 
-    if (!track) return NextResponse.json({ message: "Track not found" }, { status: 404 });
+  const track = await Track.findById(id).lean();
 
-    const res = await fetch(track.url);
-    const arrayBuffer = await res.arrayBuffer();
+  if (!track)
+    return NextResponse.json(
+      { message: "Track not found" },
+      { status: 404 }
+    );
 
-    return new NextResponse(arrayBuffer, {
-      headers: {
-        "Content-Type": "audio/mpeg",
-      },
-    });
-  } catch (error) {
-    console.error("Proxy error:", error);
-    return NextResponse.json({ message: "Failed to fetch track" }, { status: 500 });
-  }
+  const res = await fetch(track.url);
+  const arrayBuffer = await res.arrayBuffer();
+
+  return new NextResponse(arrayBuffer, {
+    headers: {
+      "Content-Type": "audio/mpeg",
+    },
+  });
 }
