@@ -115,7 +115,7 @@ export default function Home() {
             ) : (
               <>
                 <button onClick={() => router.push("/login")} className={secondaryBtn}>Login</button>
-                <button onClick={() => router.push("/signup")} className={primaryBtn}>Sign up</button>
+                <button onClick={() => router.push("/Signup")} className={primaryBtn}>Sign up</button>
               </>
             )
           )}
