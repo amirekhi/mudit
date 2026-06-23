@@ -11,11 +11,12 @@ if (mongoose.connection.readyState === 0) {
 
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ trackId: string }> }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id } = await params;
   try {
     const p =  await params;
-    const trackId = p.trackId;
+    const trackId = p.id;
     
     const track = await Track.findById(trackId).lean();
 
