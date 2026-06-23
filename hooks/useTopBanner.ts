@@ -1,16 +1,16 @@
-
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
-import { useTopBannerStore } from "@/store/useTopBannerStore";
+import { useBannerStore } from "@/store/useTopBannerStore";
 
 export function useTopBanner() {
   const { data: user, isLoading } = useCurrentUser();
-  const dismissed = useTopBannerStore((s) => s.dismissed);
+  const dismissedIds = useBannerStore((s) => s.dismissedIds);
 
-  if (isLoading || dismissed) {
+  const SALE_BANNER_ID = "sale-2026";
+
+  if (isLoading || dismissedIds.includes(SALE_BANNER_ID)) {
     return { type: null };
   }
 
-  // Example: hardcoded sale for now
   const hasActiveSale = true;
 
   if (hasActiveSale) {
