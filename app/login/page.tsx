@@ -4,13 +4,13 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { IconMusic, IconEye, IconEyeOff } from "@tabler/icons-react";
 import { useMutation } from "@tanstack/react-query";
 import { loginUser, LoginInput } from "@/lib/TanStackQuery/authQueries/loginUser";
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,99 +18,92 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
 
-  const { mutate, isPending, isError, isSuccess, error } = useMutation({
-  mutationFn: (input: LoginInput) => loginUser(input),
-
-  onSuccess: (data) => {
-    // data.user comes from your API response
-    queryClient.setQueryData(["current-user"], data.user);
-  
-    router.push("/");
-  },
-});
-
-  const handleLogin = () => {
-    mutate({ email, password });
-  };
+  const { mutate, isPending, isError, error } = useMutation({
+    mutationFn: (input: LoginInput) => loginUser(input),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["current-user"], data.user);
+      router.push("/");
+    },
+  });
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-black to-zinc-900 text-white p-4">
+    <div className="min-h-full overflow-x-hidden flex items-center justify-center
+      bg-gradient-to-b from-black to-zinc-900 px-4 py-10">
       <motion.div
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4 }}
-        className="w-full max-w-md"
+        transition={{ duration: 0.35 }}
+        className="w-full max-w-sm"
       >
-        <Card className="bg-zinc-950/60 backdrop-blur-xl border border-zinc-800 rounded-2xl shadow-xl p-2">
-          <CardContent className="space-y-6 p-6">
-            <div className="flex items-center gap-3 justify-center mb-2">
-              <IconMusic className="w-8 h-8 text-purple-400" />
-              <h1 className="text-2xl font-semibold">MyApplicationMuted</h1>
+        <div className="bg-zinc-950/60 backdrop-blur-xl border border-zinc-800
+          rounded-2xl shadow-xl p-6 sm:p-8 space-y-5">
+
+          {/* Header */}
+          <div className="flex flex-col items-center gap-1.5">
+            <div className="flex items-center gap-2">
+              <IconMusic className="w-7 h-7 text-purple-400" />
+              <h1 className="text-xl font-semibold text-white">Mudit</h1>
+            </div>
+            <h2 className="text-sm text-zinc-400">Sign in to your account</h2>
+          </div>
+
+          {/* Error */}
+          {isError && (
+            <p className="text-red-400 text-sm text-center">{(error as Error).message}</p>
+          )}
+
+          {/* Form */}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-zinc-400 text-xs mb-1 block">Email</Label>
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="your@email.com"
+                className="bg-zinc-900/60 border-zinc-700 rounded-xl h-10 text-sm"
+              />
             </div>
 
-            <h2 className="text-xl font-medium text-center text-zinc-200">
-              Login to Your Account
-            </h2>
-
-            <div className="space-y-4 mt-4">
-              {isError && (
-                <p className="text-red-500 text-sm">
-                  {(error as Error).message}
-                </p>
-              )}
-              {isSuccess && (
-                <p className="text-green-500 text-sm">Login successful!</p>
-              )}
-
-              <div>
-                <Label className="text-sm mb-1 text-zinc-400">Email</Label>
-                <Input
-                  className="bg-zinc-900/60 border-zinc-700 focus:ring-purple-500"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="your@email.com"
-                  type="email"
-                />
-              </div>
-
+            <div>
+              <Label className="text-zinc-400 text-xs mb-1 block">Password</Label>
               <div className="relative">
-                <Label className="text-sm mb-1 text-zinc-400">Password</Label>
                 <Input
-                  className="bg-zinc-900/60 border-zinc-700 pr-10 focus:ring-purple-500"
+                  type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  type={showPassword ? "text" : "password"}
+                  className="bg-zinc-900/60 border-zinc-700 pr-10 rounded-xl h-10 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-9 text-zinc-400 hover:text-zinc-200"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
                 >
-                  {showPassword ? <IconEyeOff size={18} /> : <IconEye size={18} />}
+                  {showPassword
+                    ? <IconEyeOff className="w-4 h-4" />
+                    : <IconEye className="w-4 h-4" />}
                 </button>
               </div>
-
-              <Button
-                className="w-full mt-2 bg-purple-600 hover:bg-purple-700 text-white rounded-xl py-2 text-base"
-                onClick={handleLogin}
-                disabled={isPending}
-              >
-                {isPending ? "Logging in..." : "Login"}
-              </Button>
-              <div className="text-center mt-4 text-sm text-zinc-400">
-                Don’t have an account?{" "}
-                <button
-                  onClick={() => router.push("/signup")}
-                  className="text-purple-400 hover:text-purple-300 font-medium transition"
-                >
-                  Sign up
-                </button>
-              </div>
-
             </div>
-          </CardContent>
-        </Card>
+
+            <Button
+              className="w-full mt-1 bg-purple-600 hover:bg-purple-700 text-white
+                rounded-xl h-11 text-sm transition"
+              onClick={() => mutate({ email, password })}
+              disabled={isPending}
+            >
+              {isPending ? "Signing in…" : "Login"}
+            </Button>
+
+            <p className="text-sm text-center text-zinc-400">
+              No account?{" "}
+              <Link href="/signup" className="text-purple-400 hover:text-purple-300 font-medium">
+                Sign up
+              </Link>
+            </p>
+          </div>
+        </div>
       </motion.div>
     </div>
   );

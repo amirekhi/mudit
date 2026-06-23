@@ -1,802 +1,784 @@
 "use client";
 
 import { create } from "zustand";
-import { EditorTrack, EditorRegion } from "@/types/editorTypes";
-import { createRegion } from "@/lib/editor/createRegion";
+import { Slate, SlateRegion, RegionClip, ClipEdits } from "@/types/slateTypes";
 import { RegionClipboard } from "@/types/clipboard";
-import { collectRegionTree } from "@/lib/editor/collectRegionTree";
 import { MasterChannel } from "@/types/MasterChannel";
 import { TransportState } from "@/types/transport";
+import type { Track } from "@/store/useAudioStore";
 import { useEngineStore } from "./useEngineStore";
 
+function cloneClip(clip: RegionClip): RegionClip {
+  return { ...clip, edits: { ...clip.edits } };
+}
+function cloneRegion(region: SlateRegion): SlateRegion {
+  return { ...region, clips: region.clips.map(cloneClip), meta: { ...region.meta } };
+}
+function cloneSlate(slate: Slate): Slate {
+  return { ...slate, regions: slate.regions.map(cloneRegion), meta: { ...slate.meta } };
+}
+function cloneSlates(slates: Slate[]): Slate[] {
+  return slates.map(cloneSlate);
+}
+
 interface EditorState {
-  tracks: EditorTrack[];
-  past: EditorTrack[][];
-  future: EditorTrack[][];
+  library: Track[];
+  setLibrary(tracks: Track[]): void;
 
-  setPreviewPeaks(trackId: string, peaks: Float32Array): void;
-  updateRegionVisuals(trackId: string): void;
-  updateRegionWindow(trackId: string, regionId: string, start: number, end: number): void;
-  updateRegionPlaybackRate(trackId: string, regionId: string, value: number): void;
+  slates: Slate[];
+  past: Slate[][];
+  future: Slate[][];
 
-
-  selectedTrackId: string | null;
-  armedTrackIds: string[];
+  selectedSlateId: string | null;
+  armedSlateIds: string[];
   selectedRegionId: string | null;
+  selectedClipId: string | null;
 
   clipboard: RegionClipboard | null;
   transport: TransportState;
+  master: MasterChannel;
 
-  projectTracks: string[];
- 
-  setTrackAudioBuffer(trackId: string, buffer: AudioBuffer | null): void;
-  setTrackPeaks(trackId: string, peaks: number[]): void;
+  loadTrackAsSlate(track: Track, buffer: AudioBuffer, peaks: number[]): string;
+  addSlate(name?: string, kind?: "single" | "project"): string;
+  removeSlate(slateId: string): void;
+  renameSlate(slateId: string, name: string): void;
+  selectSlate(id: string | null): void;
+  toggleArmSlate(id: string): void;
+  selectRegion(regionId: string | null): void;
+  selectClip(clipId: string | null): void;
+  setSlatePreviewPeaks(slateId: string, peaks: Float32Array): void;
+  setSlateLength(slateId: string, length: number): void;
+  setSlateGain(slateId: string, value: number): void;
+  setSlatePan(slateId: string, value: number): void;
+  toggleSlateMute(slateId: string): void;
+
+  createRegionFromSelection(
+    sourceSlateId: string,
+    selStart: number,
+    selEnd: number,
+    targetSlateId: string,
+    placeAt: number
+  ): string | undefined;
+  splitRegion(slateId: string, regionId: string, at: number): void;
+  duplicateRegion(slateId: string, regionId: string): void;
+  removeRegion(slateId: string, regionId: string): void;
+  lockRegion(slateId: string, regionId: string, locked: boolean): void;
+  moveRegion(slateId: string, regionId: string, newStart: number): void;
+  copyRegionToSlate(sourceSlateId: string, regionId: string, targetSlateId: string, at: number): void;
+
+  applyToRegionClips(slateId: string, regionId: string, fn: (clip: RegionClip) => RegionClip): void;
+  applyRegionGain(slateId: string, regionId: string, deltaDb: number): void;
+  applyRegionPan(slateId: string, regionId: string, delta: number): void;
+  applyRegionPlaybackRate(slateId: string, regionId: string, factor: number): void;
+  applyRegionPitch(slateId: string, regionId: string, deltaSemi: number): void;
+  applyRegionFadeIn(slateId: string, regionId: string, delta: number): void;
+  applyRegionFadeOut(slateId: string, regionId: string, delta: number): void;
+  toggleRegionReverse(slateId: string, regionId: string): void;
+  toggleRegionMute(slateId: string, regionId: string): void;
+
+  removeClipFromRegion(slateId: string, regionId: string, clipId: string): void;
+  updateClipEdits(slateId: string, regionId: string, clipId: string, patch: Partial<ClipEdits>): void;
+  updateClipPlaybackRate(slateId: string, regionId: string, clipId: string, value: number): void;
+
+  copyRegion(slateId: string, regionId: string): void;
+  cutRegion(slateId: string, regionId: string): void;
+  pasteRegion(targetSlateId: string, at: number): void;
+  clearClipboard(): void;
+
+  setMasterVolume(value: number): void;
+  toggleMasterMute(): void;
+  setLimiterEnabled(enabled: boolean): void;
+  setLimiterCeiling(value: number): void;
 
   play(): void;
   pause(): void;
   seek(time: number): void;
-  setTransportDuration(duration: number): void;
+  setProjectDuration(duration: number): void;
   _tick(dt: number): void;
-  
-  addTrackToProject(trackId: string): void;
-  removeTrackFromProject(trackId: string): void; 
-  setTransportDurationIfLonger(trackId: string, duration: number): void;
-
-  setTracks(tracks: EditorTrack[]): void;
-  selectTrack(id: string): void;
-  toggleArmTrack(id: string): void;
-  selectRegion(regionId: string | null): void;
-  createChildRegion(
-  trackId: string,
-  parentRegionId: string,
-  start: number,
-  end: number
-): void;  
-
-  setTrackDuration(trackId: string, duration: number): void;
-
-  addRegion(trackId: string, start: number, end: number): void;
-  updateRegion(
-    trackId: string,
-    regionId: string,
-    patch: Partial<Pick<EditorRegion, "start" | "end" | "edits">>
-  ): void;
-  removeRegion(trackId: string, regionId: string): void;
-  splitRegion(trackId: string, regionId: string, at: number): void;
-  duplicateRegion(trackId: string, regionId: string): void;
-  lockRegion(trackId: string, regionId: string, locked: boolean): void;
-
-  copyRegion(trackId: string, regionId: string): void;
-  cutRegion(trackId: string, regionId: string): void;
-  pasteRegion(targetTrackId: string, at: number): void;
-  clearClipboard(): void;
-
-  /* ========================
-     MASTER CHANNEL
-     ======================== */
-
-  master: MasterChannel;
-
-  setMasterVolume: (value: number) => void;
-  toggleMasterMute: () => void;
-  setLimiterEnabled: (enabled: boolean) => void;
-  setLimiterCeiling: (value: number) => void;
 
   undo(): void;
   redo(): void;
-
   _pushPast(): void;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  tracks: [],
+  library: [],
+  setLibrary: (tracks) => set({ library: tracks }),
+
+  slates: [],
   past: [],
   future: [],
 
-  selectedTrackId: null,
-  armedTrackIds: [],
+  selectedSlateId: null,
+  armedSlateIds: [],
   selectedRegionId: null,
+  selectedClipId: null,
 
   clipboard: null,
 
-
-   master: {
+  master: {
     volume: 1,
     muted: false,
-    limiter: {
-      enabled: false,
-      ceiling: 0.98,
-    },
+    limiter: { enabled: false, ceiling: 0.98 },
   },
 
-     transport: {
-      time: 0,
-      isPlaying: false,
-      rate: 1,
-      pxPerSecond: 100,
-      syncedTrackIds: new Set<string>(),
-      duration: 0,
-    },
+  transport: {
+    time: 0,
+    isPlaying: false,
+    rate: 1,
+    pxPerSecond: 100,
+    syncedTrackIds: new Set<string>(),
+    duration: 0,
+  },
 
+  /* ======================== SLATE LIFECYCLE ======================== */
 
-  // store/editorStore.ts
-  projectTracks: [] as string[], // just the track IDs
+  loadTrackAsSlate: (track, buffer, peaks) => {
+    const slateId = crypto.randomUUID();
+    const duration = buffer.duration;
 
-  updateRegionVisuals: (trackId: string) => {
-  const state = get();
-
-  const track = state.tracks.find(t => t.id === trackId);
-  if (!track) return;
-
-  let shift = 0; // cumulative delta for cascading regions
-
-  const newRegions = track.regions.map(r => {
-    const originalDuration = r.sourceEnd - r.sourceStart;
-    const playbackRate = r.edits.playbackRate ?? 1;
-
-    // Visual duration = actual audio duration divided by playbackRate
-    const visualDuration = originalDuration / playbackRate;
-
-    const newStart = r.start + shift;
-    const newEnd = newStart + visualDuration;
-
-    const delta = (r.end - r.start) - visualDuration; // old visual - new visual
-    shift -= delta; // cascade to next regions
-
-    return {
-      ...r,
-      start: newStart,
-      end: newEnd,
-      // ⚠️ do NOT touch sourceStart/sourceEnd
-    };
-  });
-
-  // Apply updated regions to the track immutably
-  set(state => ({
-    tracks: state.tracks.map(t =>
-      t.id === trackId ? { ...t, regions: newRegions } : t
-    ),
-  }));
-
-  // Trigger audio scheduling / re-render
-  useEngineStore.getState().compileTrackPreview(trackId);
-},
-
-
-
-  setPreviewPeaks(trackId, peaks) {
-  set(state => {
-    const index = state.tracks.findIndex(t => t.id === trackId);
-    if (index === -1) return state;
-
-    const updatedTracks = [...state.tracks];
-
-    updatedTracks[index] = {
-      ...updatedTracks[index],
-      previewPeaks: peaks,
+    const clip: RegionClip = {
+      id: crypto.randomUUID(),
+      sourceTrackId: track._id,
+      buffer,
+      sourceStart: 0,
+      sourceEnd: duration,
+      offset: 0,
+      edits: {},
     };
 
-    return {
-      ...state,
-      tracks: updatedTracks,
+    const region: SlateRegion = {
+      id: crypto.randomUUID(),
+      slateId,
+      start: 0,
+      end: duration,
+      clips: [clip],
+      parentRegionId: null,
+      status: "empty",
+      meta: { createdAt: Date.now(), updatedAt: Date.now() },
     };
-  });
-},
 
+    const slate: Slate = {
+      id: slateId,
+      name: track.title,
+      kind: "single",
+      regions: [region],
+      length: duration,
+      gain: 0,
+      pan: 0,
+      muted: false,
+      sourceTrackId: track._id,
+      peaks,
+      previewPeaks: null,
+      meta: { createdAt: Date.now(), updatedAt: Date.now() },
+    };
 
-  setMasterVolume: (value) =>
-    set((state) => ({
-      master: {
-        ...state.master,
-        volume: Math.max(0, Math.min(1, value)),
-      },
-    })),
+    set(state => ({ slates: [...state.slates, slate] }));
+    return slateId;
+  },
 
-  toggleMasterMute: () =>
-    set((state) => ({
-      master: {
-        ...state.master,
-        muted: !state.master.muted,
-      },
-    })),
+  addSlate: (name, kind = "project") => {
+    const id = crypto.randomUUID();
+    const defaultLength = get().slates.length ? Math.max(...get().slates.map(s => s.length)) : 60;
 
-  setLimiterEnabled: (enabled) =>
-    set((state) => ({
-      master: {
-        ...state.master,
-        limiter: {
-          ...state.master.limiter,
-          enabled,
+    set(state => ({
+      slates: [
+        ...state.slates,
+        {
+          id,
+          name: name ?? `Slate ${state.slates.filter(s => s.kind === "project").length + 1}`,
+          kind,
+          regions: [],
+          length: defaultLength,
+          gain: 0,
+          pan: 0,
+          muted: false,
+          peaks: null,
+          previewPeaks: null,
+          meta: { createdAt: Date.now(), updatedAt: Date.now() },
         },
-      },
+      ],
+    }));
+    return id;
+  },
+
+  removeSlate: (slateId) =>
+    set(state => ({
+      slates: state.slates.filter(s => s.id !== slateId),
+      armedSlateIds: state.armedSlateIds.filter(id => id !== slateId),
+      selectedSlateId: state.selectedSlateId === slateId ? null : state.selectedSlateId,
     })),
 
-  setLimiterCeiling: (value) =>
-    set((state) => ({
-      master: {
-        ...state.master,
-        limiter: {
-          ...state.master.limiter,
-          ceiling: Math.max(0.5, Math.min(1, value)),
-        },
-      },
+  renameSlate: (slateId, name) =>
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id === slateId ? { ...s, name, meta: { ...s.meta, updatedAt: Date.now() } } : s
+      ),
     })),
 
+  selectSlate: (id) => set({ selectedSlateId: id }),
 
-    //audio buffer setter
-    setTrackAudioBuffer: (trackId, buffer) =>
-  set(state => ({
-    tracks: state.tracks.map(t =>
-      t.id === trackId
-        ? { ...t, audioBuffer: buffer }
-        : t
-    ),
-  })),
-
-  setTrackPeaks: (trackId: string, peaks: number[]) =>
-  set(state => ({
-    tracks: state.tracks.map(t =>
-      t.id === trackId ? { ...t, peaks } : t
-    ),
-  })),
-
-  /* ========================
-     BASIC STATE
-     ======================== */
-
-  setTracks: (tracks) => set({ tracks }),
-
-  selectTrack: (id) => set({ selectedTrackId: id }),
-
-  toggleArmTrack: (id) =>
-    set((state) => ({
-      armedTrackIds: state.armedTrackIds.includes(id)
-        ? state.armedTrackIds.filter((t) => t !== id)
-        : [...state.armedTrackIds, id],
+  toggleArmSlate: (id) =>
+    set(state => ({
+      armedSlateIds: state.armedSlateIds.includes(id)
+        ? state.armedSlateIds.filter(i => i !== id)
+        : [...state.armedSlateIds, id],
     })),
 
-  selectRegion: (regionId) => set({ selectedRegionId: regionId }),
+  selectRegion: (regionId) => set({ selectedRegionId: regionId, selectedClipId: null }),
+  selectClip: (clipId) => set({ selectedClipId: clipId }),
 
-  /* ========================
-     TRACK INIT
-     ======================== */
+  setSlatePreviewPeaks: (slateId, peaks) =>
+    set(state => ({
+      slates: state.slates.map(s => (s.id === slateId ? { ...s, previewPeaks: peaks } : s)),
+    })),
 
-setTrackDuration: (trackId: string, duration: number) =>
-  set(state => {
-    const tracks = state.tracks.map(track =>
-      track.id === trackId && track.regions.length === 0
-        ? { ...track, duration, regions: [createRegion(trackId, 0, duration)] }
-        : track
-    );
+  setSlateLength: (slateId, length) =>
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id === slateId
+          ? { ...s, length: Math.max(0, length), meta: { ...s.meta, updatedAt: Date.now() } }
+          : s
+      ),
+    })),
 
-    return { tracks };
-  }),
+  setSlateGain: (slateId, value) =>
+    set(state => ({ slates: state.slates.map(s => (s.id === slateId ? { ...s, gain: value } : s)) })),
 
+  setSlatePan: (slateId, value) =>
+    set(state => ({ slates: state.slates.map(s => (s.id === slateId ? { ...s, pan: value } : s)) })),
 
+  toggleSlateMute: (slateId) =>
+    set(state => ({ slates: state.slates.map(s => (s.id === slateId ? { ...s, muted: !s.muted } : s)) })),
 
-
-
-
-
-  /* ========================
-     HISTORY
-     ======================== */
+  /* ======================== HISTORY ======================== */
 
   _pushPast: () => {
-    const { tracks, past } = get();
-    set({
-      past: [...past, JSON.parse(JSON.stringify(tracks))],
-      future: [],
-    });
+    const { slates, past } = get();
+    set({ past: [...past, cloneSlates(slates)], future: [] });
   },
 
   undo: () => {
-    const { past, tracks, future } = get();
+    const { past, slates, future } = get();
     if (past.length === 0) return;
-
     const previous = past[past.length - 1];
-    set({
-      tracks: previous,
-      past: past.slice(0, -1),
-      future: [JSON.parse(JSON.stringify(tracks)), ...future],
-    });
+    set({ slates: previous, past: past.slice(0, -1), future: [cloneSlates(slates), ...future] });
   },
 
   redo: () => {
-    const { past, tracks, future } = get();
+    const { past, slates, future } = get();
     if (future.length === 0) return;
-
     const next = future[0];
-    set({
-      tracks: next,
-      past: [...past, JSON.parse(JSON.stringify(tracks))],
-      future: future.slice(1),
-    });
+    set({ slates: next, past: [...past, cloneSlates(slates)], future: future.slice(1) });
   },
 
-  /* ========================
-     REGION OPS
-     ======================== */
+  /* ======================== STRUCTURAL REGION OPS ======================== */
 
-addRegion(trackId: string, start: number, end: number) {
-  set(state => {
-    const track = state.tracks.find(t => t.id === trackId);
-    if (!track) return state;
+  createRegionFromSelection: (sourceSlateId, selStart, selEnd, targetSlateId, placeAt) => {
+    const sourceSlate = get().slates.find(s => s.id === sourceSlateId);
+    if (!sourceSlate || selEnd <= selStart) return;
 
-    const newRegion: EditorRegion = {
+    const newClips: RegionClip[] = [];
+
+    for (const region of sourceSlate.regions) {
+      if (region.end <= selStart || region.start >= selEnd) continue;
+
+      for (const clip of region.clips) {
+        const rate = clip.edits.playbackRate ?? 1;
+        const visualDuration = (clip.sourceEnd - clip.sourceStart) / rate;
+        const clipAbsStart = region.start + clip.offset;
+        const clipAbsEnd = clipAbsStart + visualDuration;
+
+        const playStart = Math.max(clipAbsStart, selStart, region.start);
+        const playEnd = Math.min(clipAbsEnd, selEnd, region.end);
+        if (playEnd <= playStart) continue;
+
+        const trimIn = playStart - clipAbsStart;
+        const newSourceStart = clip.sourceStart + trimIn * rate;
+        const newSourceEnd = newSourceStart + (playEnd - playStart) * rate;
+
+        newClips.push({
+          id: crypto.randomUUID(),
+          sourceTrackId: clip.sourceTrackId,
+          buffer: clip.buffer,
+          sourceStart: newSourceStart,
+          sourceEnd: newSourceEnd,
+          offset: playStart - selStart,
+          edits: { ...clip.edits },
+        });
+      }
+    }
+
+    get()._pushPast();
+
+    const newRegion: SlateRegion = {
       id: crypto.randomUUID(),
-
-      start,
-      end,
-
-      // 🔥 FIX HERE
-      sourceStart: start,
-      sourceEnd: end,
-
-      sourceTrackId: trackId,
-
-      edits: {},
-      status: "empty",
-
+      slateId: targetSlateId,
+      start: placeAt,
+      end: placeAt + (selEnd - selStart),
+      clips: newClips,
       parentRegionId: null,
-
-      meta: {
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      },
+      status: newClips.some(c => Object.keys(c.edits).length > 0) ? "edited" : "empty",
+      meta: { createdAt: Date.now(), updatedAt: Date.now() },
     };
 
-    track.regions.push(newRegion);
-
-    return { tracks: [...state.tracks] };
-  });
-},
-
-
-updateRegionWindow: (
-  trackId: string,
-  regionId: string,
-  start: number,
-  end: number
-) => {
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== trackId) return track;
-
-      return {
-        ...track,
-        regions: track.regions.map(region => {
-          if (region.id !== regionId) return region;
-          if (region.meta.locked) return region;
-
-          return {
-            ...region,
-            start,
-            end,
-            sourceStart: start,
-            sourceEnd: end,
-            meta: {
-              ...region.meta,
-              updatedAt: Date.now(),
-            },
-          };
-        }),
-      };
-    }),
-  }));
-},
-
-// store/useEditorStore.ts
-updateRegionPlaybackRate: (trackId: string, regionId: string, value: number) => {
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== trackId) return track;
-
-      return {
-        ...track,
-        regions: track.regions.map(region => {
-          if (region.id !== regionId) return region;
-          if (region.meta.locked) return region;
-
-          return {
-            ...region,
-            edits: {
-              ...region.edits,
-              playbackRate: (region.edits.playbackRate ?? 1) * value,
-            },
-            meta: {
-              ...region.meta,
-              updatedAt: Date.now(),
-            },
-          };
-        }),
-      };
-    }),
-  }));
-
-    const engine = useEngineStore.getState();
-  engine?.play?.();
-},
-
-
- updateRegion: (trackId, regionId, patch) => {
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== trackId) return track;
-
-      return {
-        ...track,
-        regions: track.regions.map(region => {
-          if (region.id !== regionId) return region;
-          if (region.meta.locked) return region;
-
-          const oldStart = region.start;
-          const oldEnd = region.end;
-
-          const newStart = patch.start ?? oldStart;
-          const newEnd = patch.end ?? oldEnd;
-
-          const moved = newStart !== oldStart;
-          const resized = newEnd !== oldEnd;
-
-          let newSourceStart = region.sourceStart;
-          let newSourceEnd = region.sourceEnd;
-
-          // 🔥 MOVE → shift audio slice
-          if (moved) {
-            const delta = newStart - oldStart;
-            newSourceStart += delta;
-            newSourceEnd += delta;
-          }
-
-          // 🔥 RESIZE RIGHT EDGE
-          if (resized) {
-            const newDuration = newEnd - newStart;
-            newSourceEnd = newSourceStart + newDuration;
-          }
-
-          return {
-            ...region,
-            ...patch,
-            sourceStart: newSourceStart,
-            sourceEnd: newSourceEnd,
-            meta: {
-              ...region.meta,
-              updatedAt: Date.now(),
-            },
-          };
-        }),
-      };
-    }),
-  }));
-
-  const engine = useEngineStore.getState();
-  engine?.play?.();
-},
-
-
-removeRegion: (trackId, regionId) => {
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track =>
-      track.id === trackId
-        ? {
-            ...track,
-            regions: track.regions.filter(r => r.id !== regionId),
-          }
-        : track
-    ),
-  }));
-},
-
-
-splitRegion: (trackId, regionId, at) => {
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== trackId) return track;
-
-      const parent = track.regions.find(r => r.id === regionId);
-      if (!parent) return track;
-      if (at <= parent.start || at >= parent.end) return track;
-
-      const splitOffset = at - parent.start;
-
-      const left: EditorRegion = {
-        ...createRegion(trackId, parent.start, at, regionId),
-        sourceStart: parent.sourceStart,
-        sourceEnd: parent.sourceStart + splitOffset,
-      };
-
-      const right: EditorRegion = {
-        ...createRegion(trackId, at, parent.end, regionId),
-        sourceStart: parent.sourceStart + splitOffset,
-        sourceEnd: parent.sourceEnd,
-      };
-
-      return {
-        ...track,
-        regions: [
-          ...track.regions.filter(r => r.id !== regionId),
-          left,
-          right,
-        ],
-      };
-    }),
-  }));
-},
-
-
-
-  duplicateRegion: (trackId, regionId) => {
-    get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) => {
-        if (track.id !== trackId) return track;
-
-        const r = track.regions.find((r) => r.id === regionId);
-        if (!r) return track;
-
-        return {
-          ...track,
-          regions: [
-            ...track.regions,
-            {
-              ...createRegion(trackId, r.start, r.end, r.id),
-              edits: { ...r.edits },
-            },
-          ],
-        };
-      }),
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id === targetSlateId
+          ? {
+              ...s,
+              regions: [...s.regions, newRegion],
+              length: Math.max(s.length, newRegion.end),
+              meta: { ...s.meta, updatedAt: Date.now() },
+            }
+          : s
+      ),
     }));
+
+    return newRegion.id;
   },
 
-  lockRegion: (trackId, regionId, locked) => {
+  splitRegion: (slateId, regionId, at) => {
+    const slate = get().slates.find(s => s.id === slateId);
+    const parent = slate?.regions.find(r => r.id === regionId);
+    if (!slate || !parent) return;
+    if (at <= parent.start || at >= parent.end) return;
+
     get()._pushPast();
-    set((state) => ({
-      tracks: state.tracks.map((track) =>
-        track.id === trackId
-          ? {
-              ...track,
-              regions: track.regions.map((r) =>
-                r.id === regionId
-                  ? {
-                      ...r,
-                      meta: { ...r.meta, locked, updatedAt: Date.now() },
-                    }
-                  : r
-              ),
-            }
-          : track
+
+    const leftClips: RegionClip[] = [];
+    const rightClips: RegionClip[] = [];
+
+    for (const clip of parent.clips) {
+      const rate = clip.edits.playbackRate ?? 1;
+      const visualDuration = (clip.sourceEnd - clip.sourceStart) / rate;
+      const clipAbsStart = parent.start + clip.offset;
+      const clipAbsEnd = clipAbsStart + visualDuration;
+
+      const leftStart = Math.max(clipAbsStart, parent.start);
+      const leftEnd = Math.min(clipAbsEnd, at);
+      if (leftEnd > leftStart) {
+        const trimIn = leftStart - clipAbsStart;
+        const sStart = clip.sourceStart + trimIn * rate;
+        const sEnd = sStart + (leftEnd - leftStart) * rate;
+        leftClips.push({
+          id: crypto.randomUUID(),
+          sourceTrackId: clip.sourceTrackId,
+          buffer: clip.buffer,
+          sourceStart: sStart,
+          sourceEnd: sEnd,
+          offset: leftStart - parent.start,
+          edits: { ...clip.edits },
+        });
+      }
+
+      const rightStart = Math.max(clipAbsStart, at);
+      const rightEnd = Math.min(clipAbsEnd, parent.end);
+      if (rightEnd > rightStart) {
+        const trimIn = rightStart - clipAbsStart;
+        const sStart = clip.sourceStart + trimIn * rate;
+        const sEnd = sStart + (rightEnd - rightStart) * rate;
+        rightClips.push({
+          id: crypto.randomUUID(),
+          sourceTrackId: clip.sourceTrackId,
+          buffer: clip.buffer,
+          sourceStart: sStart,
+          sourceEnd: sEnd,
+          offset: rightStart - at,
+          edits: { ...clip.edits },
+        });
+      }
+    }
+
+    const left: SlateRegion = {
+      id: crypto.randomUUID(),
+      slateId,
+      start: parent.start,
+      end: at,
+      clips: leftClips,
+      parentRegionId: regionId,
+      status: parent.status,
+      meta: { createdAt: Date.now(), updatedAt: Date.now(), originRegionId: regionId },
+    };
+
+    const right: SlateRegion = {
+      id: crypto.randomUUID(),
+      slateId,
+      start: at,
+      end: parent.end,
+      clips: rightClips,
+      parentRegionId: regionId,
+      status: parent.status,
+      meta: { createdAt: Date.now(), updatedAt: Date.now(), originRegionId: regionId },
+    };
+
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId ? s : { ...s, regions: [...s.regions.filter(r => r.id !== regionId), left, right] }
       ),
     }));
   },
 
-  /* ========================
-     CLIPBOARD
-     ======================== */
+  duplicateRegion: (slateId, regionId) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(slate => {
+        if (slate.id !== slateId) return slate;
+        const r = slate.regions.find(r => r.id === regionId);
+        if (!r) return slate;
 
-copyRegion: (trackId, regionId) => {
-  const track = get().tracks.find(t => t.id === trackId);
-  if (!track) return;
-
-  const regions = collectRegionTree(track.regions, regionId);
-  if (regions.length === 0) return;
-
-  set({
-    clipboard: {
-      mode: "copy",
-      regions: JSON.parse(JSON.stringify(regions)),
-    },
-  });
-},
-
-cutRegion: (trackId, regionId) => {
-  const track = get().tracks.find(t => t.id === trackId);
-  if (!track) return;
-
-  const regionsToCut = collectRegionTree(track.regions, regionId);
-  if (regionsToCut.length === 0) return;
-
-  const ids = new Set(regionsToCut.map(r => r.id));
-
-  get()._pushPast();
-
-  set(state => ({
-    clipboard: {
-      mode: "cut",
-      regions: JSON.parse(JSON.stringify(regionsToCut)),
-    },
-    tracks: state.tracks.map(t =>
-      t.id === trackId
-        ? { ...t, regions: t.regions.filter(r => !ids.has(r.id)) }
-        : t
-    ),
-    selectedRegionId: null,
-  }));
-},
-
-
-pasteRegion: (targetTrackId, at) => {
-  const { clipboard } = get();
-  if (!clipboard) return;
-
-  get()._pushPast();
-
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== targetTrackId) return track;
-
-      const idMap = new Map<string, string>();
-
-      // find root region (the one without parent inside clipboard)
-      const root = clipboard.regions.find(
-        r => !clipboard.regions.some(x => x.id === r.parentRegionId)
-      );
-      if (!root) return track;
-
-      const offset = at - root.start;
-
-      const pasted = clipboard.regions.map(r => {
-        const newId = crypto.randomUUID();
-        idMap.set(r.id, newId);
-
-        return {
+        const copy: SlateRegion = {
           ...r,
-          id: newId,
-          start: r.start + offset,
-          end: r.end + offset,
-          parentRegionId: r.parentRegionId
-            ? idMap.get(r.parentRegionId) ?? null
-            : null,
-          sourceTrackId: r.sourceTrackId,
-          meta: {
-            ...r.meta,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          },
+          id: crypto.randomUUID(),
+          clips: r.clips.map(c => ({ ...c, id: crypto.randomUUID(), edits: { ...c.edits } })),
+          parentRegionId: regionId,
+          meta: { createdAt: Date.now(), updatedAt: Date.now(), originRegionId: regionId },
         };
-      });
 
-      return {
-        ...track,
-        regions: [...track.regions, ...pasted],
-      };
-    }),
-    clipboard: clipboard.mode === "cut" ? null : clipboard,
-  }));
-},
-createChildRegion: (trackId, parentRegionId, start, end) => {
+        return { ...slate, regions: [...slate.regions, copy] };
+      }),
+    }));
+  },
+
+  removeRegion: (slateId, regionId) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(slate =>
+        slate.id === slateId ? { ...slate, regions: slate.regions.filter(r => r.id !== regionId) } : slate
+      ),
+    }));
+  },
+
+  lockRegion: (slateId, regionId, locked) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(slate =>
+        slate.id !== slateId
+          ? slate
+          : {
+              ...slate,
+              regions: slate.regions.map(r =>
+                r.id === regionId ? { ...r, meta: { ...r.meta, locked, updatedAt: Date.now() } } : r
+              ),
+            }
+      ),
+    }));
+  },
+
+  moveRegion: (slateId, regionId, newStart) => {
+    const slate = get().slates.find(s => s.id === slateId);
+    const region = slate?.regions.find(r => r.id === regionId);
+    if (!slate || !region || region.meta.locked) return;
+
+    const duration = region.end - region.start;
+    const clampedStart = Math.max(0, newStart);
+    const newEnd = clampedStart + duration;
+
+    get()._pushPast();
+
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId
+          ? s
+          : {
+              ...s,
+              regions: s.regions.map(r =>
+                r.id === regionId
+                  ? { ...r, start: clampedStart, end: newEnd, meta: { ...r.meta, updatedAt: Date.now() } }
+                  : r
+              ),
+              length: Math.max(s.length, newEnd),
+            }
+      ),
+    }));
+  },
+
+  copyRegionToSlate: (sourceSlateId, regionId, targetSlateId, at) => {
+    const source = get().slates.find(s => s.id === sourceSlateId);
+    const region = source?.regions.find(r => r.id === regionId);
+    if (!region) return;
+
+    get()._pushPast();
+
+    const duration = region.end - region.start;
+    const copy: SlateRegion = {
+      ...region,
+      id: crypto.randomUUID(),
+      slateId: targetSlateId,
+      start: at,
+      end: at + duration,
+      clips: region.clips.map(c => ({ ...c, id: crypto.randomUUID(), edits: { ...c.edits } })),
+      meta: { createdAt: Date.now(), updatedAt: Date.now(), originRegionId: regionId },
+    };
+
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id === targetSlateId
+          ? { ...s, regions: [...s.regions, copy], length: Math.max(s.length, copy.end) }
+          : s
+      ),
+    }));
+  },
+
+  /* ======================== REGION-WIDE (CASCADES TO ALL CLIPS) ======================== */
+
+  applyToRegionClips: (slateId, regionId, fn) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId
+          ? s
+          : {
+              ...s,
+              regions: s.regions.map(r =>
+                r.id !== regionId || r.meta.locked
+                  ? r
+                  : { ...r, clips: r.clips.map(fn), status: "edited", meta: { ...r.meta, updatedAt: Date.now() } }
+              ),
+            }
+      ),
+    }));
+    useEngineStore.getState().playSlate?.(slateId);
+  },
+
+  applyRegionGain: (slateId, regionId, deltaDb) =>
+    get().applyToRegionClips(slateId, regionId, c => ({ ...c, edits: { ...c.edits, gain: (c.edits.gain ?? 0) + deltaDb } })),
+
+  applyRegionPan: (slateId, regionId, delta) =>
+    get().applyToRegionClips(slateId, regionId, c => ({
+      ...c,
+      edits: { ...c.edits, pan: Math.max(-1, Math.min(1, (c.edits.pan ?? 0) + delta)) },
+    })),
+
+applyRegionPlaybackRate: (slateId, regionId, factor) => {
+  const slate = get().slates.find(s => s.id === slateId);
+  const region = slate?.regions.find(r => r.id === regionId);
+  if (!slate || !region || region.meta.locked || factor <= 0) return;
+
   get()._pushPast();
 
-  set(state => ({
-    tracks: state.tracks.map(track => {
-      if (track.id !== trackId) return track;
-
-      const parent = track.regions.find(r => r.id === parentRegionId);
-      if (!parent) return track;
-
-      // enforce containment
-      if (start < parent.start || end > parent.end) return track;
-
-      const child = createRegion(
-        trackId,
-        start,
-        end,
-        parentRegionId // 👈 REAL nesting
-      );
-
-      return {
-        ...track,
-        regions: [...track.regions, child],
-      };
-    }),
+  // every clip's rate AND internal offset scale together, so layered
+  // clips inside THIS region stay proportionally aligned to each other —
+  // nothing about any other region is touched
+  const updatedClips = region.clips.map(c => ({
+    ...c,
+    offset: c.offset / factor,
+    edits: { ...c.edits, playbackRate: (c.edits.playbackRate ?? 1) * factor },
   }));
+
+  const newDuration = updatedClips.length
+    ? Math.max(
+        ...updatedClips.map(c => {
+          const rate = c.edits.playbackRate ?? 1;
+          const visualDur = (c.sourceEnd - c.sourceStart) / rate;
+          return c.offset + visualDur;
+        })
+      )
+    : 0;
+
+  const newEnd = region.start + newDuration;
+
+  set(state => ({
+    slates: state.slates.map(s =>
+      s.id !== slateId
+        ? s
+        : {
+            ...s,
+            regions: s.regions.map(r =>
+              r.id === regionId
+                ? { ...r, end: newEnd, clips: updatedClips, status: "edited" as const, meta: { ...r.meta, updatedAt: Date.now() } }
+                : r
+            ),
+            length: Math.max(s.length, newEnd), // auto-grow only, same rule used everywhere else — never shrinks the slate
+          }
+    ),
+  }));
+
+  useEngineStore.getState().playSlate?.(slateId);
 },
 
+  applyRegionPitch: (slateId, regionId, deltaSemi) =>
+    get().applyToRegionClips(slateId, regionId, c => ({ ...c, edits: { ...c.edits, pitch: (c.edits.pitch ?? 0) + deltaSemi } })),
 
+  applyRegionFadeIn: (slateId, regionId, delta) =>
+    get().applyToRegionClips(slateId, regionId, c => ({
+      ...c,
+      edits: { ...c.edits, fadeIn: Math.max(0, (c.edits.fadeIn ?? 0) + delta) },
+    })),
 
+  applyRegionFadeOut: (slateId, regionId, delta) =>
+    get().applyToRegionClips(slateId, regionId, c => ({
+      ...c,
+      edits: { ...c.edits, fadeOut: Math.max(0, (c.edits.fadeOut ?? 0) + delta) },
+    })),
 
-    play: () =>
-      set(state => ({
-        transport: { ...state.transport, isPlaying: true },
-      })),
+  toggleRegionReverse: (slateId, regionId) =>
+    get().applyToRegionClips(slateId, regionId, c => ({ ...c, edits: { ...c.edits, reverse: !c.edits.reverse } })),
 
-    pause: () =>
-      set(state => ({
-        transport: { ...state.transport, isPlaying: false },
-      })),
+  toggleRegionMute: (slateId, regionId) =>
+    get().applyToRegionClips(slateId, regionId, c => ({ ...c, edits: { ...c.edits, mute: !c.edits.mute } })),
 
-    seek: (time) =>
-      set(state => ({
-        transport: {
-          ...state.transport,
-          time: Math.max(0, Math.min(state.transport.duration, time)),
-        },
-      })),
+  /* ======================== SINGLE-CLIP TARGETING (deliberate, separate from above) ======================== */
 
-    setTransportDuration: (duration) =>
-      set(state => ({
-        transport: {
-          ...state.transport,
-          duration: Math.max(state.transport.duration, duration),
-        },
-      })),
+  removeClipFromRegion: (slateId, regionId, clipId) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId
+          ? s
+          : {
+              ...s,
+              regions: s.regions.map(r =>
+                r.id !== regionId
+                  ? r
+                  : { ...r, clips: r.clips.filter(c => c.id !== clipId), meta: { ...r.meta, updatedAt: Date.now() } }
+              ),
+            }
+      ),
+    }));
+  },
 
-    _tick: (dt) =>
-      set(state => {
-        if (!state.transport.isPlaying) return state;
+  updateClipEdits: (slateId, regionId, clipId, patch) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId
+          ? s
+          : {
+              ...s,
+              regions: s.regions.map(r =>
+                r.id !== regionId || r.meta.locked
+                  ? r
+                  : {
+                      ...r,
+                      clips: r.clips.map(c => (c.id === clipId ? { ...c, edits: { ...c.edits, ...patch } } : c)),
+                      status: "edited",
+                      meta: { ...r.meta, updatedAt: Date.now() },
+                    }
+              ),
+            }
+      ),
+    }));
+    useEngineStore.getState().playSlate?.(slateId);
+  },
 
-        const next = state.transport.time + dt * state.transport.rate;
+  updateClipPlaybackRate: (slateId, regionId, clipId, value) => {
+    get()._pushPast();
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id !== slateId
+          ? s
+          : {
+              ...s,
+              regions: s.regions.map(r =>
+                r.id !== regionId || r.meta.locked
+                  ? r
+                  : {
+                      ...r,
+                      clips: r.clips.map(c =>
+                        c.id === clipId
+                          ? { ...c, edits: { ...c.edits, playbackRate: (c.edits.playbackRate ?? 1) * value } }
+                          : c
+                      ),
+                      status: "edited",
+                      meta: { ...r.meta, updatedAt: Date.now() },
+                    }
+              ),
+            }
+      ),
+    }));
+    useEngineStore.getState().playSlate?.(slateId);
+  },
 
-        return {
-          transport: {
-            ...state.transport,
-            time: Math.min(next, state.transport.duration),
-            isPlaying: next < state.transport.duration,
-          },
-        };
-  }),
+  /* ======================== CLIPBOARD ======================== */
 
-     
+  copyRegion: (slateId, regionId) => {
+    const region = get().slates.find(s => s.id === slateId)?.regions.find(r => r.id === regionId);
+    if (!region) return;
+    set({ clipboard: { mode: "copy", region: cloneRegion(region) } });
+  },
 
+  cutRegion: (slateId, regionId) => {
+    const region = get().slates.find(s => s.id === slateId)?.regions.find(r => r.id === regionId);
+    if (!region) return;
 
-addTrackToProject(trackId: string) {
-  set(state => ({
-    projectTracks: [...state.projectTracks, trackId],
-  }));
-},
+    get()._pushPast();
+    set(state => ({
+      clipboard: { mode: "cut", region: cloneRegion(region) },
+      slates: state.slates.map(s =>
+        s.id === slateId ? { ...s, regions: s.regions.filter(r => r.id !== regionId) } : s
+      ),
+      selectedRegionId: null,
+      selectedClipId: null,
+    }));
+  },
 
-removeTrackFromProject: (trackId: string) =>
-  set(state => {
-    const removedTrack = state.tracks.find(t => t.id === trackId);
-    if (!removedTrack) return state;
+  pasteRegion: (targetSlateId, at) => {
+    const { clipboard } = get();
+    if (!clipboard) return;
 
-    // EARLY EXIT: If this track duration is less than transport, just remove
-    if (removedTrack.duration < state.transport.duration) {
-      return {
-        projectTracks: state.projectTracks.filter(id => id !== trackId),
-      };
-    }
+    get()._pushPast();
 
-    // Otherwise, we need to recalc transport (only if removed track had max duration)
-    const newProjectIds = state.projectTracks.filter(id => id !== trackId);
-    const remainingDurations = state.tracks
-      .filter(t => newProjectIds.includes(t.id))
-      .map(t => t.duration);
-
-    return {
-      projectTracks: newProjectIds,
-      transport: {
-        ...state.transport,
-        duration: remainingDurations.length > 0 ? Math.max(...remainingDurations) : 0,
-      },
+    const duration = clipboard.region.end - clipboard.region.start;
+    const pasted: SlateRegion = {
+      ...clipboard.region,
+      id: crypto.randomUUID(),
+      slateId: targetSlateId,
+      start: at,
+      end: at + duration,
+      clips: clipboard.region.clips.map(c => ({ ...c, id: crypto.randomUUID(), edits: { ...c.edits } })),
+      meta: { ...clipboard.region.meta, createdAt: Date.now(), updatedAt: Date.now() },
     };
-  }),
 
-
-  setTransportDurationIfLonger: (trackId: string, duration: number) =>
-  set(state => {
-    // Early exit: if the duration is not bigger than current transport, do nothing
-    if (duration <= state.transport.duration) return state;
-
-    return {
-      transport: {
-        ...state.transport,
-        duration: duration,
-      },
-    };
-  }),
-
-
+    set(state => ({
+      slates: state.slates.map(s =>
+        s.id === targetSlateId
+          ? { ...s, regions: [...s.regions, pasted], length: Math.max(s.length, pasted.end) }
+          : s
+      ),
+      clipboard: clipboard.mode === "cut" ? null : clipboard,
+    }));
+  },
 
   clearClipboard: () => set({ clipboard: null }),
+
+  /* ======================== MASTER ======================== */
+
+  setMasterVolume: (value) =>
+    set(state => ({ master: { ...state.master, volume: Math.max(0, Math.min(1, value)) } })),
+
+  toggleMasterMute: () => set(state => ({ master: { ...state.master, muted: !state.master.muted } })),
+
+  setLimiterEnabled: (enabled) =>
+    set(state => ({ master: { ...state.master, limiter: { ...state.master.limiter, enabled } } })),
+
+  setLimiterCeiling: (value) =>
+    set(state => ({
+      master: { ...state.master, limiter: { ...state.master.limiter, ceiling: Math.max(0.5, Math.min(1, value)) } },
+    })),
+
+  /* ======================== TRANSPORT ======================== */
+
+  play: () => set(state => ({ transport: { ...state.transport, isPlaying: true } })),
+  pause: () => set(state => ({ transport: { ...state.transport, isPlaying: false } })),
+
+  seek: (time) =>
+    set(state => ({
+      transport: { ...state.transport, time: Math.max(0, Math.min(state.transport.duration, time)) },
+    })),
+
+  setProjectDuration: (duration) => set(state => ({ transport: { ...state.transport, duration } })),
+
+  _tick: (dt) =>
+    set(state => {
+      if (!state.transport.isPlaying) return state;
+      const next = state.transport.time + dt * state.transport.rate;
+      return {
+        transport: {
+          ...state.transport,
+          time: Math.min(next, state.transport.duration),
+          isPlaying: next < state.transport.duration,
+        },
+      };
+    }),
 }));

@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useAudioStore, Track as TrackType } from "@/store/useAudioStore";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { uploadSongs } from "@/lib/firebase/uploadSongs";
-import { uploadImage } from "@/lib/firebase/uploadImage";
+import {storage} from "@/lib/storage/storage";
 import Image from "next/image";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { extractAudioMetadata } from "@/lib/Mp3DataParser/extractAudioMetadata";
@@ -135,8 +134,8 @@ const createTracksMutation = useMutation({
     // Upload all tracks
     const createdTracks = await Promise.all(
       tracksToUpload.map(async (t) => {
-        const songUrl = await uploadSongs(t.file);
-        const imageUrl = t.imageFile ? await uploadImage(t.imageFile) : undefined;
+        const songUrl = await storage.uploadSongs(t.file);
+        const imageUrl = t.imageFile ? await storage.uploadImage(t.imageFile) : undefined;
 
         const res = await authFetch("/api/tracks/public", {
           method: "POST",
@@ -211,11 +210,11 @@ const handleSelectTrack = (track: DraftTrack) => {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
-          <div className="absolute top-4 right-4 z-50">
+          <div className="absolute top-4 right-4 max-md:left-4 z-10">
             <BackButton/>
           </div>
             
-      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8 my-12">
         {/* Upload Audio */}
        <motion.div
                   initial={{ opacity: 0, y: 20 }}

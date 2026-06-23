@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { PlaylistDb } from "@/types/playlistTypes";
 import { Track } from "@/store/useAudioStore";
 import { createPlaylist } from "@/lib/TanStackQuery/CreatePlaylist/PlaylistsMutations";
-import { uploadImage } from "@/lib/firebase/uploadImage";
+import {storage} from "@/lib/storage/storage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Spinner } from "@/components/basics/Spinner";
@@ -86,7 +86,7 @@ const filteredSongs = useMemo(() => {
     // 1. User uploaded image (highest priority)
     if (playlistImage) {
       try {
-        imageUrl = await uploadImage(playlistImage);
+        imageUrl = await storage.uploadImage(playlistImage);
       } catch {
         alert("Failed to upload image");
         return;
@@ -120,11 +120,11 @@ const filteredSongs = useMemo(() => {
 
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
-          <div className="absolute top-4 right-4 z-50">
+          <div className="absolute top-4 right-4 max-md:left-4 z-50">
             <BackButton/>
           </div>
             
-      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8 my-12">
         {/* LEFT */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

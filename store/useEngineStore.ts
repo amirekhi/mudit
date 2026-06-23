@@ -2,9 +2,8 @@
 
 import { create } from "zustand";
 import { useEditorStore } from "@/store/useEditorStore";
-import { compileRegions } from "@/util/compileRegions";
-
-import { EditorProject } from "@/types/editorTypes";
+import { compileSlate } from "@/util/compileRegions";
+import { Slate } from "@/types/slateTypes";
 import { extractPeaks } from "@/util/extractPeaks";
 
 interface PlayWindow {
@@ -16,54 +15,37 @@ interface EngineState {
   ctx: AudioContext | null;
   sources: AudioBufferSourceNode[];
   isPlaying: boolean;
-
   ctxStartTime: number;
   transportOffset: number;
-
   playWindow: PlayWindow | null;
+  currentSlateIds: string[]; // which slate(s) are the active playback source — drives the "now playing" indicator
 
   setPlayWindow(win: PlayWindow): void;
-
-  play(): Promise<void>;
-  playRegion(win: PlayWindow): Promise<void>;
+  playProject(): Promise<void>;
+  playSlate(slateId: string): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
-  reset(): void;
-
-  // 👇 NEW — Track specific visual compilation
-  compileTrackPreview(trackId: string): Promise<void>;
+  reset(): void; // stop AND rewind playhead to 0 — bound to the explicit "Reset" button
+  compileSlatePreview(slateId: string): Promise<void>;
+  renderProjectOffline(): Promise<AudioBuffer | null>;
 }
 
 export const useEngineStore = create<EngineState>((set, get) => {
-  // --------------------------------------------------
-  // INTERNAL: Build project from editor state
-  // --------------------------------------------------
-  const buildProject = (): EditorProject => {
-    const editor = useEditorStore.getState();
+  const slateDuration = (slate: Slate) => slate.length;
 
-    const tracks = editor.projectTracks
-      .map(id => editor.tracks.find(t => t.id === id))
-      .filter((t): t is NonNullable<typeof t> => !!t);
-
-    const duration = tracks.length
-      ? Math.max(...tracks.map(t => t.duration))
-      : 0;
-
-    return {
-      id: "runtime-project",
-      ownerId: "runtime-owner",
-      bpm: 120,
-      sampleRate: 44100,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      duration,
-      tracks,
-    };
+  // Internal-only: stop whatever's currently sounding WITHOUT touching the
+  // playhead position. Used before starting fresh playback so "Play" can
+  // start from wherever transport.time currently is, instead of always 0.
+  const stopSources = () => {
+    get().sources.forEach(s => {
+      try { s.stop(); } catch {}
+    });
+    set({ sources: [], isPlaying: false, transportOffset: 0, currentSlateIds: [] });
+    useEditorStore.getState().pause();
   };
 
-  // --------------------------------------------------
-  // INTERNAL: Transport tick
-  // --------------------------------------------------
+  
+
   const startTick = () => {
     const ctx = get().ctx;
     const win = get().playWindow;
@@ -74,24 +56,18 @@ export const useEngineStore = create<EngineState>((set, get) => {
 
       const now = ctx.currentTime;
       const t = get().transportOffset + (now - get().ctxStartTime);
-
       useEditorStore.getState().seek(t);
 
       if (t >= win.end) {
-        get().reset();
+        get().reset(); // natural end-of-playback rewinds to 0, same as a manual Reset
         return;
       }
-
       requestAnimationFrame(tick);
     };
-
     requestAnimationFrame(tick);
   };
 
-  // --------------------------------------------------
-  // INTERNAL: Schedule compiled playback
-  // --------------------------------------------------
-  const scheduleCompiled = async (win: PlayWindow) => {
+  const scheduleCompiled = async (win: PlayWindow, slatesToPlay: Slate[]) => {
     const editor = useEditorStore.getState();
     let ctx = get().ctx;
 
@@ -99,14 +75,9 @@ export const useEngineStore = create<EngineState>((set, get) => {
       ctx = new AudioContext();
       set({ ctx });
     }
+    if (ctx.state === "suspended") await ctx.resume();
 
-    if (ctx.state === "suspended") {
-      await ctx.resume();
-    }
-
-    const project = buildProject();
-    const compiled = compileRegions(project, win);
-
+    const compiled = slatesToPlay.flatMap(s => compileSlate(s, win));
     const ctxNow = ctx.currentTime;
     const scheduled: AudioBufferSourceNode[] = [];
 
@@ -123,46 +94,27 @@ export const useEngineStore = create<EngineState>((set, get) => {
 
       source.connect(gainNode).connect(panNode).connect(ctx.destination);
 
-      // Fade in
       if (r.fadeIn && r.fadeIn > 0) {
         gainNode.gain.setValueAtTime(0, ctxNow + r.when);
-        gainNode.gain.linearRampToValueAtTime(
-          r.gain,
-          ctxNow + r.when + r.fadeIn
-        );
+        gainNode.gain.linearRampToValueAtTime(r.gain, ctxNow + r.when + r.fadeIn);
       }
-
-      // Fade out
       if (r.fadeOut && r.fadeOut > 0) {
-        gainNode.gain.setValueAtTime(
-          r.gain,
-          ctxNow + r.when + r.duration - r.fadeOut
-        );
-        gainNode.gain.linearRampToValueAtTime(
-          0,
-          ctxNow + r.when + r.duration
-        );
+        gainNode.gain.setValueAtTime(r.gain, ctxNow + r.when + r.duration - r.fadeOut);
+        gainNode.gain.linearRampToValueAtTime(0, ctxNow + r.when + r.duration);
       }
 
       source.start(ctxNow + r.when, r.offset, r.duration);
       scheduled.push(source);
     }
 
-    set({
-      sources: scheduled,
-      ctxStartTime: ctxNow,
-      transportOffset: win.start,
-      isPlaying: true,
-    });
+    set({ sources: scheduled, ctxStartTime: ctxNow, transportOffset: win.start, isPlaying: true, playWindow: win });
 
+    editor.setProjectDuration(win.end);
     editor.seek(win.start);
     editor.play();
     startTick();
   };
 
-  // --------------------------------------------------
-  // STORE
-  // --------------------------------------------------
   return {
     ctx: null,
     sources: [],
@@ -170,40 +122,93 @@ export const useEngineStore = create<EngineState>((set, get) => {
     ctxStartTime: 0,
     transportOffset: 0,
     playWindow: null,
+    currentSlateIds: [],
 
-    setPlayWindow(win) {
-      set({ playWindow: win });
+    async renderProjectOffline() {
+  const editorState = useEditorStore.getState();
+  const projectSlates = editorState.slates.filter(s => s.kind === "project");
+  if (projectSlates.length === 0) return null;
+
+  const duration = Math.max(...projectSlates.map(slateDuration));
+  if (duration <= 0) return null;
+
+  const win = { start: 0, end: duration };
+  const compiled = projectSlates.flatMap(s => compileSlate(s, win));
+  if (compiled.length === 0) return null;
+
+  const sampleRate = 44100;
+  const length = Math.ceil(sampleRate * duration);
+  const offline = new OfflineAudioContext(2, length, sampleRate);
+
+  for (const r of compiled) {
+    const source = offline.createBufferSource();
+    source.buffer = r.buffer;
+    source.playbackRate.value = r.playbackRate;
+
+    const gainNode = offline.createGain();
+    gainNode.gain.value = r.gain;
+
+    const panNode = offline.createStereoPanner();
+    panNode.pan.value = r.pan;
+
+    source.connect(gainNode).connect(panNode).connect(offline.destination);
+
+    if (r.fadeIn && r.fadeIn > 0) {
+      gainNode.gain.setValueAtTime(0, r.when);
+      gainNode.gain.linearRampToValueAtTime(r.gain, r.when + r.fadeIn);
+    }
+    if (r.fadeOut && r.fadeOut > 0) {
+      gainNode.gain.setValueAtTime(r.gain, r.when + r.duration - r.fadeOut);
+      gainNode.gain.linearRampToValueAtTime(0, r.when + r.duration);
+    }
+
+    source.start(r.when, r.offset, r.duration);
+  }
+
+  return await offline.startRendering();
+},
+
+    setPlayWindow: (win) => set({ playWindow: win }),
+
+    async playProject() {
+      const editorState = useEditorStore.getState();
+      const projectSlates = editorState.slates.filter(s => s.kind === "project");
+      if (projectSlates.length === 0) return;
+
+      const maxDuration = Math.max(...projectSlates.map(slateDuration));
+      if (maxDuration <= 0) return;
+
+      // start from wherever the shared playhead currently is, clamped to range
+      const startTime = Math.min(Math.max(editorState.transport.time, 0), maxDuration);
+
+      stopSources();
+      set({ currentSlateIds: projectSlates.map(s => s.id) });
+      await scheduleCompiled({ start: startTime, end: maxDuration }, projectSlates);
     },
 
-    async play() {
-      const win = get().playWindow;
-      if (!win) return;
+    async playSlate(slateId) {
+      const editorState = useEditorStore.getState();
+      const slate = editorState.slates.find(s => s.id === slateId);
+      if (!slate) return;
 
-      get().reset();
-      await scheduleCompiled(win);
-    },
+      const duration = slateDuration(slate);
+      if (duration <= 0) return;
 
-    async playRegion(win) {
-      set({ playWindow: win });
-      get().reset();
-      await scheduleCompiled(win);
+      const startTime = Math.min(Math.max(editorState.transport.time, 0), duration);
+
+      stopSources();
+      set({ currentSlateIds: [slateId] });
+      await scheduleCompiled({ start: startTime, end: duration }, [slate]);
     },
 
     async pause() {
       const ctx = get().ctx;
       if (!ctx || ctx.state !== "running") return;
 
-      const pausedOffset =
-        get().transportOffset +
-        (ctx.currentTime - get().ctxStartTime);
-
+      const pausedOffset = get().transportOffset + (ctx.currentTime - get().ctxStartTime);
       await ctx.suspend();
 
-      set({
-        isPlaying: false,
-        transportOffset: pausedOffset,
-      });
-
+      set({ isPlaying: false, transportOffset: pausedOffset }); // currentSlateIds deliberately untouched — keeps the "paused here" indicator visible
       useEditorStore.getState().pause();
     },
 
@@ -212,85 +217,49 @@ export const useEngineStore = create<EngineState>((set, get) => {
       if (!ctx || get().isPlaying) return;
 
       await ctx.resume();
-
-      set({
-        isPlaying: true,
-        ctxStartTime: ctx.currentTime,
-      });
+      set({ isPlaying: true, ctxStartTime: ctx.currentTime });
 
       useEditorStore.getState().play();
       startTick();
     },
 
     reset() {
-      get().sources.forEach(s => {
-        try {
-          s.stop();
-        } catch {}
-      });
-
-      set({
-        sources: [],
-        isPlaying: false,
-        transportOffset: 0,
-      });
-
-      useEditorStore.getState().pause();
+      stopSources();
+      useEditorStore.getState().seek(0);
     },
 
-    // --------------------------------------------------
-    // 🎯 TRACK-SPECIFIC VISUAL COMPILATION
-    // --------------------------------------------------
-      async compileTrackPreview(trackId: string) {
-        const project = buildProject();
-        const track = project.tracks.find(t => t.id === trackId);
-        if (!track || !track.duration) return;
+    async compileSlatePreview(slateId) {
+      const slate = useEditorStore.getState().slates.find(s => s.id === slateId);
+      if (!slate) return;
 
-        const fullWindow = {
-          start: 0,
-          end: track.duration,
-        };
-        console.log("Track duration:", track.duration);
+      const duration = slateDuration(slate);
+      if (duration <= 0) return;
 
-        const compiled = compileRegions(project, fullWindow);
+      const fullWindow = { start: 0, end: duration };
+      const compiled = compileSlate(slate, fullWindow);
 
-        const sampleRate = project.sampleRate;
-        const length = Math.ceil(sampleRate * track.duration);
+      const sampleRate = 44100;
+      const length = Math.ceil(sampleRate * duration);
+      const offline = new OfflineAudioContext(2, length, sampleRate);
 
-        const offline = new OfflineAudioContext(
-          2,
-          length,
-          sampleRate
-        );
+      for (const r of compiled) {
+        const source = offline.createBufferSource();
+        source.buffer = r.buffer;
+        source.playbackRate.value = r.playbackRate;
 
-        for (const r of compiled) {
-          if (r.trackId !== trackId) continue;
+        const gainNode = offline.createGain();
+        gainNode.gain.value = r.gain;
 
-          const source = offline.createBufferSource();
-          source.buffer = r.buffer;
-          source.playbackRate.value = r.playbackRate;
+        const panNode = offline.createStereoPanner();
+        panNode.pan.value = r.pan;
 
-          const gainNode = offline.createGain();
-          gainNode.gain.value = r.gain;
+        source.connect(gainNode).connect(panNode).connect(offline.destination);
+        source.start(r.when, r.offset, r.duration);
+      }
 
-          const panNode = offline.createStereoPanner();
-          panNode.pan.value = r.pan;
-
-          source.connect(gainNode).connect(panNode).connect(offline.destination);
-
-          source.start(r.when, r.offset, r.duration);
-        }
-
-        const rendered = await offline.startRendering();
-        const peaks = extractPeaks(rendered);
-
-        useEditorStore.getState().setPreviewPeaks(trackId, peaks);
-    }
-    
-
+      const rendered = await offline.startRendering();
+      const peaks = extractPeaks(rendered);
+      useEditorStore.getState().setSlatePreviewPeaks(slateId, peaks);
+    },
   };
-
-  
-
-  
 });

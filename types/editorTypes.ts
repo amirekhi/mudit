@@ -1,4 +1,5 @@
 import { Track } from "@/store/useAudioStore";
+import type { Slate } from "./slateTypes";
 
 export interface RegionEdits {
   gain?: number;          // dB
@@ -63,6 +64,8 @@ export interface EditorTrack {
 
 
 
+
+
 export interface EditorProject {
   id: string;
   ownerId: string;
@@ -70,7 +73,7 @@ export interface EditorProject {
   bpm?: number;
   sampleRate: number;
 
-  tracks: EditorTrack[];
+  slates: Slate[];
 
   duration: number;
 

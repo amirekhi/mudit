@@ -1,9 +1,6 @@
-// types/clipboard.ts
-import { EditorRegion } from "@/types/editorTypes";
-
-export type ClipboardMode = "copy" | "cut";
+import type { SlateRegion } from "./slateTypes";
 
 export interface RegionClipboard {
-  regions: EditorRegion[];
-  mode: ClipboardMode;
+  mode: "copy" | "cut";
+  region: SlateRegion;
 }

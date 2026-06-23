@@ -1,54 +1,85 @@
 "use client";
 
+import { useState } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 import { useEngineStore } from "@/store/useEngineStore";
-import GroupWFE from "@/components/editor/GroupWFE";
-import ProjectPlayWindowWFE from "@/components/editor/ProjectPlayWindowWFE";
+import SlateEditor from "@/components/editor/SlateEditor";
+import ExportDialog from "@/components/editor/ExportDialog";
 
-export default function ProjectWFE() {
-  const projectTracks = useEditorStore(state => state.projectTracks);
+export default function ProjectWFE({ referenceLength }: { referenceLength: number }) {
+  const slates        = useEditorStore(s => s.slates);
+  const addSlate      = useEditorStore(s => s.addSlate);
+  const projectSlates = slates.filter(s => s.kind === "project");
 
-  const isPlaying = useEngineStore(state => state.isPlaying);
-  const resume = useEngineStore(state => state.resume);
-  const pause = useEngineStore(state => state.pause);
-  const reset = useEngineStore(state => state.play);
+  const isPlaying  = useEngineStore(s => s.isPlaying);
+  const pause      = useEngineStore(s => s.pause);
+  const playProject = useEngineStore(s => s.playProject);
+  const reset      = useEngineStore(s => s.reset);
 
-  if (projectTracks.length === 0) return null;
+  const [exportOpen, setExportOpen] = useState(false);
+
+  const cb = "px-3 py-1.5 rounded text-xs font-medium transition-colors";
 
   return (
-    <section className="mt-10 rounded-xl border border-indigo-500/30 bg-indigo-500/5">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-indigo-500/20">
-        <span className="text-sm font-semibold text-indigo-300">
-          Project Waveforms
-        </span>
+    <section className="mt-6 rounded-xl border border-indigo-500/30 bg-indigo-500/5">
 
-        <div className="flex gap-2">
-          {/* Play / Pause */}
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-indigo-500/20 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 sm:justify-between">
+        <span className="text-sm font-semibold text-indigo-300">Project Slates</span>
+
+        {/* Button row — wraps on mobile, single row on sm+ */}
+        <div className="flex flex-wrap gap-1.5">
           <button
-            onClick={() => (isPlaying ? pause() : resume())}
-            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500"
+            onClick={() => addSlate()}
+            className={`${cb} bg-neutral-800 hover:bg-neutral-700`}
           >
-            {isPlaying ? "Pause All" : "Play All"}
+            + New Slate
           </button>
-
-          {/* Reset */}
+          <button
+            onClick={playProject}
+            disabled={projectSlates.length === 0}
+            className={`${cb} bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40`}
+          >
+            ▶ Play All
+          </button>
+          <button
+            onClick={pause}
+            disabled={!isPlaying}
+            className={`${cb} bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40`}
+          >
+            ⏸ Pause
+          </button>
           <button
             onClick={reset}
-            className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500"
+            disabled={projectSlates.length === 0}
+            className={`${cb} bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40`}
           >
-            Reset
+            ↺ Reset
+          </button>
+          <button
+            onClick={() => setExportOpen(true)}
+            disabled={projectSlates.length === 0}
+            className={`${cb} bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40`}
+          >
+            Export MP3
           </button>
         </div>
       </div>
 
-      <div className="p-4 space-y-4">
-        {projectTracks.map(trackId => (
-          <GroupWFE key={trackId} trackId={trackId} />
-        ))}
-
-        {/* ✅ DUMMY PLAY WINDOW AFTER TRACKS */}
-        <ProjectPlayWindowWFE />
+      {/* Slates */}
+      <div className="p-3 md:p-4 space-y-3 md:space-y-4">
+        {projectSlates.length === 0 ? (
+          <div className="text-sm text-neutral-500 text-center py-8">
+            No project slates yet — hit "+ New Slate", or send a selection from a source track into one.
+          </div>
+        ) : (
+          projectSlates.map(slate => (
+            <SlateEditor key={slate.id} slateId={slate.id} referenceLength={referenceLength} />
+          ))
+        )}
       </div>
+
+      {exportOpen && <ExportDialog onClose={() => setExportOpen(false)} />}
     </section>
   );
 }

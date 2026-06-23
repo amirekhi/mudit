@@ -5,8 +5,7 @@ import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions";
 import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
-import { getDownloadURL, ref } from "firebase/storage";
-import { storage } from "@/lib/firebase/firebase";
+
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { EditorRegion } from "@/types/editorTypes";
@@ -82,69 +81,76 @@ export default function WaveformEditor({ trackId }: Props) {
      Initialize WaveSurfer
   ========================= */
   useEffect(() => {
-    if (!containerRef.current) return;
+  if (!containerRef.current) return;
 
-    let ws: WaveSurfer | null = null;
-    let regions: RegionsPlugin | null = null;
+  let ws: WaveSurfer | null = null;
+  let regions: RegionsPlugin | null = null;
+  let cancelled = false;
 
-    const init = async () => {
-      containerRef.current!.innerHTML = "";
-      setLoading(true);
-      setIsReady(false);
+  const init = async () => {
+    containerRef.current!.innerHTML = "";
+    setLoading(true);
+    setIsReady(false);
 
-      const url = await getDownloadURL(ref(storage, track.source.url));
+    const url = track.source.url;
 
-      regions = RegionsPlugin.create();
+    regions = RegionsPlugin.create();
 
-      ws = WaveSurfer.create({
-        container: containerRef.current!,
-        waveColor: "#444",
-        progressColor: "#6366f1",
-        cursorColor: "#fff",
-        height: 140,
-        normalize: true,
-        plugins: [regions],
-      });
+    ws = WaveSurfer.create({
+      container: containerRef.current!,
+      waveColor: "#444",
+      progressColor: "#6366f1",
+      cursorColor: "#fff",
+      height: 140,
+      normalize: true,
+      plugins: [regions],
+    });
 
-      ws.load(url);
+    ws.on("play", () => setIsPlaying(true));
+    ws.on("pause", () => setIsPlaying(false));
+    ws.on("finish", () => setIsPlaying(false));
 
-      ws.on("ready", () => {
-        const wsInstance = ws!;
+    wsRef.current = ws;
+    regionsRef.current = regions;
 
-        const audioBuffer = wsInstance.getDecodedData();
-        const exported = wsInstance.exportPeaks({
-          channels: 1,
-          precision: 10000,
-        });
+    try {
+      await ws.load(url);
+    } catch (err: any) {
+      if (err?.name === "AbortError") return; // expected during unmount/track switch
+      console.error("Failed to load waveform audio:", err);
+      return;
+    }
 
-        const peaks = exported[0];
-        const duration = wsInstance.getDuration();
+    if (cancelled) return; // unmounted while loading finished
 
-        const editor = useEditorStore.getState();
-        editor.setTrackDuration(track.id, duration);
-        editor.setTrackAudioBuffer(track.id, audioBuffer);
-        editor.setTrackPeaks(track.id, peaks);
+    const wsInstance = ws;
+    const audioBuffer = wsInstance.getDecodedData();
+    const exported = wsInstance.exportPeaks({ channels: 1, precision: 10000 });
+    const peaks = exported[0];
+    const duration = wsInstance.getDuration();
 
-        setLoading(false);
-        setIsReady(true);
-      });
+    const editor = useEditorStore.getState();
+    editor.setTrackDuration(track.id, duration);
+    editor.setTrackAudioBuffer(track.id, audioBuffer);
+    editor.setTrackPeaks(track.id, peaks);
 
-      ws.on("play", () => setIsPlaying(true));
-      ws.on("pause", () => setIsPlaying(false));
-      ws.on("finish", () => setIsPlaying(false));
+    setLoading(false);
+    setIsReady(true);
+  };
 
-      wsRef.current = ws;
-      regionsRef.current = regions;
-    };
+  init();
 
-    init();
-
-    return () => {
+  return () => {
+    cancelled = true;
+    try {
       ws?.destroy();
-      wsRef.current = null;
-      regionsRef.current = null;
-    };
-  }, [track.id, setTrackDuration]);
+    } catch {
+      // destroy can throw if called mid in-flight decode; safe to ignore here
+    }
+    wsRef.current = null;
+    regionsRef.current = null;
+  };
+}, [track.id, setTrackDuration]);
 
   /* =========================
      Render regions (existing + new)

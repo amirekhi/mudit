@@ -5,85 +5,41 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
-import { uploadImage } from "@/lib/firebase/uploadImage";
+import { storage } from "@/lib/storage/storage";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Track, useAudioStore } from "@/store/useAudioStore";
 import BackButton from "@/components/basics/BackButton";
 
-
-
-/* ---------------- debounce hook ---------------- */
-
 function useDebounce<T>(value: T, delay = 400) {
   const [debounced, setDebounced] = useState(value);
-
   useEffect(() => {
     const id = setTimeout(() => setDebounced(value), delay);
     return () => clearTimeout(id);
   }, [value, delay]);
-
   return debounced;
 }
-
-/* ---------------- page ---------------- */
 
 export default function UpdateTrackPage() {
   const queryClient = useQueryClient();
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const isAdmin = currentUser?.role === "admin";
-
-  const setTrack = useAudioStore(s => s.setTrack);
+  const setTrack = useAudioStore((s) => s.setTrack);
 
   const [activeTrack, setActiveTrack] = useState<Track | null>(null);
-
   const [form, setForm] = useState({
     title: "",
     artist: "",
     visibility: "private" as "private" | "public",
   });
-
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-
   const [playlists, setPlaylists] = useState<{ _id: string; title: string }[]>([]);
   const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
-
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search);
-
   const isDirty = useRef(false);
-
-  //delete mutation
-  const deleteMutation = useMutation({
-  mutationFn: async () => {
-    if (!activeTrack) throw new Error("No track selected");
-
-    const res = await authFetch(`/api/tracks/${activeTrack._id}`, {
-      method: "DELETE",
-    });
-
-    if (!res.ok) throw new Error("Failed to delete track");
-  },
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ["my-tracks"] });
-
-    setActiveTrack(null);
-    setImageFile(null);
-    setImagePreview(null);
-    setSelectedPlaylists([]);
-    isDirty.current = false;
-
-    alert("Track deleted successfully");
-  },
-  onError: (err: any) => {
-    alert(err.message || "Failed to delete track");
-  },
-});
-
-
-
-
-  /* ---------------- data ---------------- */
+  // Mobile: show track list or editor
+  const [showEditor, setShowEditor] = useState(false);
 
   const { data: tracks = [] } = useQuery({
     queryKey: ["my-tracks"],
@@ -94,20 +50,18 @@ export default function UpdateTrackPage() {
     },
   });
 
-  const filteredTracks = useMemo(() => {
-    if (!debouncedSearch) return tracks;
-    return tracks.filter((t: Track) =>
-      `${t.title} ${t.artist}`.toLowerCase().includes(debouncedSearch.toLowerCase())
-    );
-  }, [tracks, debouncedSearch]);
+  const filteredTracks = useMemo(() =>
+    debouncedSearch
+      ? tracks.filter((t: Track) =>
+          `${t.title} ${t.artist}`.toLowerCase().includes(debouncedSearch.toLowerCase())
+        )
+      : tracks,
+    [tracks, debouncedSearch]
+  );
 
   useEffect(() => {
-    authFetch("/api/playlists/me")
-      .then(res => res.json())
-      .then(setPlaylists);
+    authFetch("/api/playlists/me").then((r) => r.json()).then(setPlaylists);
   }, []);
-
-  /* ---------------- unsaved warning ---------------- */
 
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent) => {
@@ -119,68 +73,60 @@ export default function UpdateTrackPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
 
-  /* ---------------- select track ---------------- */
-
   const selectTrack = (track: Track) => {
-    if (activeTrack?._id === track._id) return;
-
-    if (isDirty.current && !confirm("You have unsaved changes. Discard them?")) {
-      return;
-    }
+    if (activeTrack?._id === track._id) { setShowEditor(true); return; }
+    if (isDirty.current && !confirm("Discard unsaved changes?")) return;
 
     setActiveTrack(track);
-    setForm({
-      title: track.title,
-      artist: track.artist,
-      visibility: track.visibility,
-    });
-
+    setForm({ title: track.title, artist: track.artist, visibility: track.visibility });
     setImagePreview(track.image ?? null);
     setImageFile(null);
     setSelectedPlaylists([]);
     isDirty.current = false;
-
-    // load into player (paused)
     setTrack(track);
+    setShowEditor(true);
   };
 
-  /* ---------------- update mutation ---------------- */
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      if (!activeTrack) throw new Error("No track selected");
+      const res = await authFetch(`/api/tracks/${activeTrack._id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete track");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["my-tracks"] });
+      setActiveTrack(null);
+      setImageFile(null);
+      setImagePreview(null);
+      setSelectedPlaylists([]);
+      isDirty.current = false;
+      setShowEditor(false);
+      alert("Track deleted");
+    },
+    onError: (err: any) => alert(err.message || "Failed to delete"),
+  });
 
   const updateMutation = useMutation({
     mutationFn: async () => {
       if (!activeTrack) throw new Error("No track selected");
-
       let imageUrl = activeTrack.image;
-      if (imageFile) {
-        imageUrl = await uploadImage(imageFile);
-      }
+      if (imageFile) imageUrl = await storage.uploadImage(imageFile);
 
-      const payload: any = {
-        title: form.title,
-        artist: form.artist,
-        image: imageUrl,
-      };
-
-      if (isAdmin) {
-        payload.visibility = form.visibility;
-      }
+      const payload: any = { title: form.title, artist: form.artist, image: imageUrl };
+      if (isAdmin) payload.visibility = form.visibility;
 
       const res = await authFetch(`/api/tracks/${activeTrack._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) throw new Error("Failed to update track");
 
       if (selectedPlaylists.length) {
         await authFetch("/api/playlists/addTrack", {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            trackIds: [activeTrack._id],
-            playlistIds: selectedPlaylists,
-          }),
+          body: JSON.stringify({ trackIds: [activeTrack._id], playlistIds: selectedPlaylists }),
         });
       }
     },
@@ -188,183 +134,209 @@ export default function UpdateTrackPage() {
       queryClient.invalidateQueries({ queryKey: ["my-tracks"] });
       isDirty.current = false;
       setSelectedPlaylists([]);
-      alert("Track updated successfully");
+      alert("Track updated");
     },
+    onError: (err: any) => alert(err.message || "Failed to update"),
   });
 
-  /* ---------------- UI ---------------- */
+  const inputCls =
+    "w-full rounded-xl bg-neutral-800 border border-neutral-700 px-3 py-2.5 text-sm " +
+    "text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6 flex items-center">
-          <div className="absolute top-4 right-4 z-50">
-            <BackButton/>
-          </div>
-            
-      <div className="max-w-6xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="min-h-full overflow-x-hidden">
+      <div className="p-4 sm:p-6 pb-10 flex flex-col gap-4">
 
-        {/* Track list */}
-        <motion.div className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-          <h1 className="text-2xl font-semibold text-white mb-4">Your Tracks</h1>
-
-          <input
-            placeholder="Search tracks..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="mb-4 w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white"
-          />
-
-          <ul className="space-y-2 max-h-[440px] overflow-y-auto">
-            {filteredTracks.map((t: Track) => (
-              <li
-                key={t._id}
-                onClick={() => selectTrack(t)}
-                className={`cursor-pointer rounded-lg px-4 py-3 transition ${
-                  activeTrack?._id === t._id
-                    ? "bg-white text-neutral-900"
-                    : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                }`}
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {showEditor && (
+              <button
+                onClick={() => setShowEditor(false)}
+                className="sm:hidden text-sm text-neutral-400 hover:text-white transition"
               >
-                <p className="font-medium truncate">{t.title}</p>
-                <p className="text-sm opacity-70 truncate">{t.artist}</p>
-              </li>
-            ))}
-          </ul>
-        </motion.div>
+                ← Tracks
+              </button>
+            )}
+            <h1 className="text-2xl font-semibold text-white hidden sm:block">Edit Tracks</h1>
+          </div>
+          <BackButton />
+        </div>
 
-        {/* Editor */}
-        <div className="space-y-6">
-          <motion.div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <fieldset disabled={!activeTrack} className="space-y-4 disabled:opacity-50">
-              <h2 className="text-lg font-semibold text-white">Edit Track</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
 
-              <input
-                value={form.title}
-                onChange={e => {
-                  if (e.target.value !== form.title) isDirty.current = true;
-                  setForm(f => ({ ...f, title: e.target.value }));
-                }}
-                placeholder="Track title"
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white"
-              />
+          {/* Track list */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`sm:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-5
+              ${showEditor ? "hidden sm:block" : "block"}`}
+          >
+            <h2 className="text-base font-semibold text-white mb-3">Your Tracks</h2>
 
-              <input
-                value={form.artist}
-                onChange={e => {
-                  if (e.target.value !== form.artist) isDirty.current = true;
-                  setForm(f => ({ ...f, artist: e.target.value }));
-                }}
-                placeholder="Artist"
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white"
-              />
+            <input
+              placeholder="Search tracks…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`${inputCls} mb-3`}
+            />
 
-              {!userLoading && isAdmin && (
-                <div>
-                  <span className="text-white block mb-2">Visibility</span>
-                  <div
-                    onClick={() => {
-                      isDirty.current = true;
-                      setForm(f => ({
-                        ...f,
-                        visibility: f.visibility === "public" ? "private" : "public",
-                      }));
-                    }}
-                    className="relative w-40 h-10 rounded-full bg-neutral-800 cursor-pointer"
-                  >
-                    <div
-                      className={`absolute top-0 left-0 h-full w-1/2 bg-white rounded-full transition-transform ${
-                        form.visibility === "public" ? "translate-x-full" : "translate-x-0"
-                      }`}
-                    />
-                    <div className="relative z-10 flex h-full text-sm font-medium">
-                      <div className={`w-1/2 flex items-center justify-center ${form.visibility === "private" ? "text-neutral-900" : "text-white"}`}>
-                        Private
-                      </div>
-                      <div className={`w-1/2 flex items-center justify-center ${form.visibility === "public" ? "text-neutral-900" : "text-white"}`}>
-                        Public
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-neutral-400 hover:border-white">
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={e => {
-                    const f = e.target.files?.[0];
-                    if (!f) return;
-                    isDirty.current = true;
-                    setImageFile(f);
-                    setImagePreview(URL.createObjectURL(f));
-                  }}
-                />
-                {imagePreview ? (
-                  <Image src={imagePreview} alt="cover" width={120} height={120} className="rounded-lg object-cover" />
-                ) : (
-                  <span>Select cover image</span>
-                )}
-              </label>
-            </fieldset>
-          </motion.div>
-
-          {/* Playlists */}
-          <motion.div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <h2 className="text-lg font-semibold text-white mb-3">Add to Playlists</h2>
-            <ul className="space-y-2 max-h-[160px] overflow-y-auto">
-              {playlists.map(p => {
-                const checked = selectedPlaylists.includes(p._id);
-                return (
-                  <li
-                    key={p._id}
-                    onClick={() => {
-                      isDirty.current = true;
-                      setSelectedPlaylists(prev =>
-                        checked ? prev.filter(id => id !== p._id) : [...prev, p._id]
-                      );
-                    }}
-                    className="cursor-pointer flex justify-between px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800"
-                  >
-                    <span className="truncate">{p.title}</span>
-                    {checked && <span>✓</span>}
-                  </li>
-                );
-              })}
+            <ul className="space-y-1.5 max-h-[60vh] sm:max-h-[440px] overflow-y-auto">
+              {filteredTracks.map((t: Track) => (
+                <li
+                  key={t._id}
+                  onClick={() => selectTrack(t)}
+                  className={`cursor-pointer rounded-xl px-4 py-3 transition ${
+                    activeTrack?._id === t._id
+                      ? "bg-white text-neutral-900"
+                      : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  <p className="font-medium text-sm truncate">{t.title}</p>
+                  <p className="text-xs opacity-70 truncate">{t.artist}</p>
+                </li>
+              ))}
             </ul>
           </motion.div>
 
-          {/* Save */}
-          <motion.div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-            <button
-              disabled={!activeTrack || updateMutation.isPending}
-              onClick={() => updateMutation.mutate()}
-              className={`w-full rounded-xl py-3 font-medium transition ${
-                !activeTrack
-                  ? "bg-neutral-700 text-neutral-400"
-                  : "bg-white text-neutral-900 hover:bg-neutral-200"
-              }`}
-            >
-              {updateMutation.isPending ? "Saving..." : "Update Track"}
-            </button>
-            {  activeTrack && activeTrack?.visibility !== "public"  && (
-                                
-               <button
-                disabled={!activeTrack || deleteMutation.isPending}
-                onClick={() => {
-                  if (!confirm("Are you sure you want to delete this track?")) return;
-                  deleteMutation.mutate();
-                }}
-                className={`mt-3 w-full rounded-xl py-3 font-medium transition ${
-                  !activeTrack
-                    ? "bg-neutral-700 text-neutral-400"
-                    : "bg-red-600 text-white hover:bg-red-700"
-                }`}
-              >
-                {deleteMutation.isPending ? "Deleting..." : "Delete Track"}
-              </button>)}
+          {/* Editor */}
+          <div className={`space-y-4 ${!showEditor && !activeTrack ? "hidden sm:block" : "block"}`}>
 
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
+            >
+              <fieldset disabled={!activeTrack} className="space-y-3 disabled:opacity-40">
+                <h2 className="text-base font-semibold text-white">Edit Track</h2>
+
+                <input
+                  value={form.title}
+                  onChange={(e) => { isDirty.current = true; setForm((f) => ({ ...f, title: e.target.value })); }}
+                  placeholder="Track title"
+                  className={inputCls}
+                />
+
+                <input
+                  value={form.artist}
+                  onChange={(e) => { isDirty.current = true; setForm((f) => ({ ...f, artist: e.target.value })); }}
+                  placeholder="Artist"
+                  className={inputCls}
+                />
+
+                {!userLoading && isAdmin && (
+                  <div>
+                    <span className="text-xs text-neutral-400 block mb-1.5">Visibility</span>
+                    <div
+                      onClick={() => {
+                        isDirty.current = true;
+                        setForm((f) => ({ ...f, visibility: f.visibility === "public" ? "private" : "public" }));
+                      }}
+                      className="relative w-40 h-10 rounded-full bg-neutral-800 cursor-pointer select-none"
+                    >
+                      <div
+                        className={`absolute top-0 left-0 h-full w-1/2 bg-white rounded-full
+                          transition-transform ${form.visibility === "public" ? "translate-x-full" : "translate-x-0"}`}
+                      />
+                      <div className="relative z-10 flex h-full text-xs font-medium">
+                        <div className={`w-1/2 flex items-center justify-center ${
+                          form.visibility === "private" ? "text-neutral-900" : "text-white"
+                        }`}>Private</div>
+                        <div className={`w-1/2 flex items-center justify-center ${
+                          form.visibility === "public" ? "text-neutral-900" : "text-white"
+                        }`}>Public</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <label className="cursor-pointer flex flex-col items-center justify-center
+                  border-2 border-dashed rounded-2xl p-4 text-neutral-500 text-sm
+                  hover:border-neutral-500 transition">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      isDirty.current = true;
+                      setImageFile(f);
+                      setImagePreview(URL.createObjectURL(f));
+                    }}
+                  />
+                  {imagePreview ? (
+                    <Image src={imagePreview} alt="Cover" width={100} height={100} className="rounded-xl object-cover" />
+                  ) : (
+                    <span>Select cover image</span>
+                  )}
+                </label>
+              </fieldset>
+            </motion.div>
+
+            {/* Playlists */}
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.05 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
+            >
+              <h2 className="text-base font-semibold text-white mb-3">Add to Playlists</h2>
+              <ul className="space-y-1.5 max-h-40 overflow-y-auto">
+                {playlists.map((p) => {
+                  const checked = selectedPlaylists.includes(p._id);
+                  return (
+                    <li
+                      key={p._id}
+                      onClick={() => {
+                        isDirty.current = true;
+                        setSelectedPlaylists((prev) =>
+                          checked ? prev.filter((id) => id !== p._id) : [...prev, p._id]
+                        );
+                      }}
+                      className="flex justify-between items-center cursor-pointer
+                        px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition"
+                    >
+                      <span className="truncate">{p.title}</span>
+                      {checked && <span className="text-indigo-400 flex-shrink-0 ml-2">✓</span>}
+                    </li>
+                  );
+                })}
+              </ul>
+            </motion.div>
+
+            {/* Actions */}
+            <motion.div
+              initial={{ opacity: 0, x: 16 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 space-y-3"
+            >
+              <button
+                disabled={!activeTrack || updateMutation.isPending}
+                onClick={() => updateMutation.mutate()}
+                className="w-full rounded-xl py-3 font-medium text-sm transition
+                  disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed
+                  enabled:bg-white enabled:text-neutral-900 enabled:hover:bg-neutral-200"
+              >
+                {updateMutation.isPending ? "Saving…" : "Update Track"}
+              </button>
+
+              {activeTrack && activeTrack.visibility !== "public" && (
+                <button
+                  disabled={deleteMutation.isPending}
+                  onClick={() => {
+                    if (!confirm("Delete this track permanently?")) return;
+                    deleteMutation.mutate();
+                  }}
+                  className="w-full rounded-xl py-3 font-medium text-sm transition
+                    bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                >
+                  {deleteMutation.isPending ? "Deleting…" : "Delete Track"}
+                </button>
+              )}
+            </motion.div>
+          </div>
         </div>
       </div>
     </div>
