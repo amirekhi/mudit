@@ -3,9 +3,14 @@ import clientPromise from "@/lib/mongo/mongodb";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { ObjectId } from "mongodb";
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
 
   const p = await params;
   const playlistId = p.id;
@@ -66,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getCurrentUser();
   if (!user) {
@@ -76,7 +81,7 @@ export async function DELETE(
     );
   }
 
-  const p =  await params;
+  const p = await params;
   const playlistId = p.id;
 
   const client = await clientPromise;

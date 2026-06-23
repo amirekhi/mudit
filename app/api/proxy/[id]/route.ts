@@ -9,7 +9,10 @@ if (mongoose.connection.readyState === 0) {
   await mongoose.connect(MONGODB_URI);
 }
 
-export async function GET(req: Request, { params }: { params: { trackId: string } }) {
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ trackId: string }> }
+) {
   try {
     const p =  await params;
     const trackId = p.trackId;

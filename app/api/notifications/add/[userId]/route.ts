@@ -15,7 +15,10 @@ interface Params {
   };
 }
 
-export async function POST(request: Request, { params }: {params: { userId: string }}) {
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ userId: string }> }
+) {
   try {
     const currentUser = await getCurrentUser();
 

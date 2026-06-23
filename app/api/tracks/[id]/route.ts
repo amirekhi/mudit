@@ -16,12 +16,12 @@ if (mongoose.connection.readyState === 0) {
  * Update track metadata
  */
 export async function PATCH(
-  req: Request,
-  context :  { params: { id: string } }
+  req: NextRequest,
+  context: { params: Promise<{ id: string }> }
 ) {
+  const params = await context.params;
+  const trackId = params.id;
 
-    const params = await context.params; // ✅ unwrap it
-   const trackId = params.id;
   try {
     const currentUser = await getCurrentUser();
 
@@ -98,8 +98,10 @@ export async function PATCH(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const p = await params;
+  const trackId = p.id;
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json(
@@ -108,8 +110,6 @@ export async function DELETE(
     );
   }
 
-  const p = await params;
-  const trackId = p.id;
 
   const client = await clientPromise;
   const db = client.db(process.env.MONGODB_DB!);
