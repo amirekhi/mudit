@@ -18,10 +18,7 @@ export async function GET(
   const track = await Track.findById(id).lean();
 
   if (!track)
-    return NextResponse.json(
-      { message: "Track not found" },
-      { status: 404 }
-    );
+    return NextResponse.json({ message: "Track not found" }, { status: 404 });
 
   const res = await fetch(track.url);
   const arrayBuffer = await res.arrayBuffer();
