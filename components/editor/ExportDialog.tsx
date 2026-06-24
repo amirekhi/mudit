@@ -69,7 +69,7 @@ export default function ExportDialog({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-full max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-5 space-y-4">
+      <div className="w-[90%] max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-5 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-neutral-200">Export Project</h2>
           <button
