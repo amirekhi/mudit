@@ -52,8 +52,7 @@ export default function PublicMusicCarousel({ tracks, title }: PublicMusicCarous
       {/* Carousel container */}
       <div
         ref={containerRef}
-        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-proximity px-8 pr-16 touch-pan-x hide-scrollbar
-                   max-md:items-start"
+      className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-proximity px-8 pr-16 md:touch-pan-x hide-scrollbar max-md:items-start"
       >
         {tracks.map((track) => (
           <PublicMusicCard key={track._id} track={track} />

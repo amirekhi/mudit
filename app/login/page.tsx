@@ -11,6 +11,7 @@ import { loginUser, LoginInput } from "@/lib/TanStackQuery/authQueries/loginUser
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import BackButton from "@/components/basics/BackButton";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -23,11 +24,12 @@ export default function LoginPage() {
     onSuccess: (data) => {
       queryClient.setQueryData(["current-user"], data.user);
       router.push("/");
+      router.refresh();
     },
   });
 
   return (
-    <div className="min-h-full overflow-x-hidden flex items-center justify-center
+    <div className="min-h-screen overflow-x-hidden flex items-center justify-center
       bg-gradient-to-b from-black to-zinc-900 px-4 py-10">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
@@ -35,10 +37,18 @@ export default function LoginPage() {
         transition={{ duration: 0.35 }}
         className="w-full max-w-sm"
       >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Sign in</h1>
+            <p className="text-sm text-zinc-400 mt-0.5">Welcome back</p>
+          </div>
+          <BackButton />
+        </div>
+
         <div className="bg-zinc-950/60 backdrop-blur-xl border border-zinc-800
           rounded-2xl shadow-xl p-6 sm:p-8 space-y-5">
 
-          {/* Header */}
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-2">
               <IconMusic className="w-7 h-7 text-purple-400" />
@@ -47,12 +57,10 @@ export default function LoginPage() {
             <h2 className="text-sm text-zinc-400">Sign in to your account</h2>
           </div>
 
-          {/* Error */}
           {isError && (
             <p className="text-red-400 text-sm text-center">{(error as Error).message}</p>
           )}
 
-          {/* Form */}
           <div className="space-y-3">
             <div>
               <Label className="text-zinc-400 text-xs mb-1 block">Email</Label>
@@ -80,9 +88,7 @@ export default function LoginPage() {
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
                 >
-                  {showPassword
-                    ? <IconEyeOff className="w-4 h-4" />
-                    : <IconEye className="w-4 h-4" />}
+                  {showPassword ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
                 </button>
               </div>
             </div>

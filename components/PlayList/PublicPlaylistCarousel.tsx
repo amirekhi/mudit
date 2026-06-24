@@ -48,7 +48,7 @@ export default function PublicPlaylistCarousel({ playlists, title }: PublicPlayl
 
       <div
         ref={containerRef}
-        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-proximity px-8 pr-16 touch-pan-x hide-scrollbar"
+        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-proximity px-8 pr-16 md:touch-pan-x hide-scrollbar"
       >
         {playlists.map((playlist) => (
           <PublicPlaylistCard key={playlist._id} playlist={playlist} />

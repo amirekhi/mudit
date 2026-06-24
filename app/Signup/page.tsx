@@ -13,6 +13,7 @@ import { uploadImage } from "@/lib/firebase/uploadImage";
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import BackButton from "@/components/basics/BackButton";
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -39,6 +40,7 @@ export default function SignupPage() {
     onSuccess: (data) => {
       queryClient.setQueryData(["current-user"], data.user);
       router.push("/");
+      router.refresh();
     },
   });
 
@@ -64,10 +66,18 @@ export default function SignupPage() {
         transition={{ duration: 0.4, ease: "easeOut" }}
         className="w-full max-w-md"
       >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-2xl font-semibold text-white">Sign up</h1>
+            <p className="text-sm text-zinc-400 mt-0.5">Create your account</p>
+          </div>
+          <BackButton />
+        </div>
+
         <div className="bg-zinc-950/70 backdrop-blur-xl border border-zinc-800 rounded-3xl
           shadow-2xl p-6 sm:p-8 space-y-5">
 
-          {/* Header */}
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-2">
               <IconMusic className="w-7 h-7 text-purple-400" />
@@ -103,7 +113,6 @@ export default function SignupPage() {
             <span className="text-xs text-zinc-500">Optional profile photo</span>
           </div>
 
-          {/* Feedback */}
           {mutation.isError && (
             <p className="text-red-400 text-sm text-center">{(mutation.error as Error).message}</p>
           )}
@@ -111,7 +120,6 @@ export default function SignupPage() {
             <p className="text-red-400 text-sm text-center">{passwordError}</p>
           )}
 
-          {/* Form */}
           <div className="space-y-3">
             <div>
               <Label className="text-zinc-400 text-xs mb-1 block">Username</Label>
@@ -149,7 +157,6 @@ export default function SignupPage() {
                   {showPassword ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
                 </button>
               </div>
-              {/* Strength bar */}
               <div className="flex gap-1 mt-1.5">
                 {[1, 2, 3].map((lvl) => (
                   <div

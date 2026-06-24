@@ -49,8 +49,7 @@ export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselP
       {/* Carousel container */}
       <div
         ref={containerRef}
-        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar
-                   max-md:items-start"
+        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 md:touch-pan-x hide-scrollbar max-md:items-start"
       >
         {/* CREATE PLAYLIST CARD */}
         <Link

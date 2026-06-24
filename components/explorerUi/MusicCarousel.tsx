@@ -52,8 +52,7 @@ export default function MusicCarousel({ tracks, title }: MusicCarouselProps) {
       {/* Carousel container */}
       <div
         ref={containerRef}
-        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 touch-pan-x hide-scrollbar
-                   max-md:items-start"
+        className="flex gap-4 py-4 overflow-x-auto scroll-smooth snap-x snap-mandatory px-8 md:touch-pan-x hide-scrollbar max-md:items-start"
       >
         {/* ADD TRACK CARD */}
         <Link href="/createSong">

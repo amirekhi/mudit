@@ -1,15 +1,14 @@
 "use client";
 
-import React, { useState, ReactNode } from "react";
+import React, { useState, useEffect, ReactNode } from "react";
+import { usePathname } from "next/navigation"; // 👈 add this
 import { Sidebar, SidebarAction, SidebarBody, SidebarLink } from "../ui/sidebar";
 import {
-  IconArrowLeft,
   IconBrandTabler,
   IconEdit,
   IconLogout,
   IconPlaylistAdd,
   IconPlus,
-  IconSettings,
   IconUserCircle,
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
@@ -23,30 +22,37 @@ interface SidebarLayoutProps {
 }
 
 export function SidebarDemo({ children }: SidebarLayoutProps) {
-  const { data: user } = useCurrentUser(); // user: CurrentUser | null
+  const { data: user } = useCurrentUser();
   const [open, setOpen] = useState(false);
+  const pathname = usePathname(); // 👈 track current route
+
+  // Close the sidebar on mobile whenever the route changes.
+  // On desktop the sidebar is always visible in collapsed/expanded state
+  // so we leave it alone — only act when the screen is narrow.
+  useEffect(() => {
+    const isMobile = window.matchMedia("(max-width: 767px)").matches;
+    if (isMobile) setOpen(false);
+  }, [pathname]);
 
   const handleLogOut = async () => {
     try {
-      // no need to use authFetch btw
-      authFetch("/api/auth/logout" , {method : "POST"});
-      queryClient.setQueryData(["current-user"], null); 
-    }catch(err){
+      authFetch("/api/auth/logout", { method: "POST" });
+      queryClient.setQueryData(["current-user"], null);
+    } catch (err) {
       console.log(err);
     }
-  }
+  };
 
   const links = [
-    { label: "Home", href: "/", icon: <IconBrandTabler className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Profile", href: "/profile", icon: <IconUserCircle className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Create new playlist", href: "/createPlaylist", icon: <IconPlus className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Add new Tracks", href: "/createSong", icon: <IconPlaylistAdd className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />},
-    { label: "Edit", href: "/edit", icon: <IconEdit className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />},
-    
+    { label: "Home",                href: "/",              icon: <IconBrandTabler  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Profile",             href: "/profile",       icon: <IconUserCircle   className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Create new playlist", href: "/createPlaylist",icon: <IconPlus         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Add new Tracks",      href: "/createSong",    icon: <IconPlaylistAdd  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Edit",                href: "/edit",          icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (
-    <div className={cn("md:flex w-full h-screen  ")}>
+    <div className={cn("md:flex w-full h-screen")}>
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
           <div className="mt-8 flex flex-col gap-2">
@@ -56,13 +62,10 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
 
             <SidebarAction
               label="Logout"
-              icon={
-                <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />
-              }
+              icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
               onClick={handleLogOut}
             />
           </div>
-
 
           {user && (
             <div className="flex flex-col items-center p-2">
