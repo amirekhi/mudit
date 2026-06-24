@@ -5,14 +5,17 @@ interface PlaylistState {
   playlist: Track[];
   currentTrackIndex: number | null;
   isPlaying: boolean;
+  currentPlaylist: string | null;
+  isOpen: boolean;                          // 👈 moved out of component
 
   setPlaylist: (tracks: Track[]) => void;
   addTrack: (track: Track) => void;
   removeTrack: (id: string) => void;
   clearPlaylist: () => void;
-
-  currentPlaylist: string | null;
   setCurrentPlaylist: (id: string | null) => void;
+  openWindow: () => void;                   // 👈 new
+  closeWindow: () => void;                  // 👈 new
+  toggleWindow: () => void;                 // 👈 new
 
   playTrack: (index: number) => void;
   togglePlay: () => void;
@@ -26,27 +29,27 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
   currentTrackIndex: null,
   currentPlaylist: null,
   isPlaying: false,
+  isOpen: false,
 
-  setCurrentPlaylist: (id: string | null) => set({ currentPlaylist: id }),
+  setCurrentPlaylist: (id) => set({ currentPlaylist: id }),
+  openWindow:  ()  => set({ isOpen: true }),
+  closeWindow: ()  => set({ isOpen: false }),
+  toggleWindow: () => set(s => ({ isOpen: !s.isOpen })),
+
   setPlaylist: (tracks) => set({ playlist: tracks }),
-  addTrack: (track) => set((s) => ({ playlist: [...s.playlist, track] })),
-  removeTrack: (id) =>
-    set((s) => ({ playlist: s.playlist.filter((t) => t._id !== id) })),
-  clearPlaylist: () =>
-    set({ playlist: [], currentTrackIndex: null, isPlaying: false }),
+  addTrack:    (track)  => set(s => ({ playlist: [...s.playlist, track] })),
+  removeTrack: (id)     => set(s => ({ playlist: s.playlist.filter(t => t._id !== id) })),
+  clearPlaylist: ()     => set({ playlist: [], currentTrackIndex: null, isPlaying: false }),
 
   playTrack: (index) => {
     const tracks = get().playlist;
     if (!tracks[index]) return;
-
     set({ currentTrackIndex: index, isPlaying: true });
-
-    // Update the audio store
     useAudioStore.getState().playTrack(tracks[index]);
   },
 
   togglePlay: () => {
-    set((s) => ({ isPlaying: !s.isPlaying }));
+    set(s => ({ isPlaying: !s.isPlaying }));
     useAudioStore.getState().togglePlay();
   },
 
@@ -57,21 +60,17 @@ export const usePlaylistStore = create<PlaylistState>((set, get) => ({
 
   nextTrack: () => {
     const { playlist, currentTrackIndex } = get();
-    if (currentTrackIndex === null || playlist.length === 0) return;
-
-    const nextIndex = (currentTrackIndex + 1) % playlist.length;
-    set({ currentTrackIndex: nextIndex, isPlaying: true });
-
-    useAudioStore.getState().playTrack(playlist[nextIndex]);
+    if (currentTrackIndex === null || !playlist.length) return;
+    const next = (currentTrackIndex + 1) % playlist.length;
+    set({ currentTrackIndex: next, isPlaying: true });
+    useAudioStore.getState().playTrack(playlist[next]);
   },
 
   prevTrack: () => {
     const { playlist, currentTrackIndex } = get();
-    if (currentTrackIndex === null || playlist.length === 0) return;
-
-    const prevIndex = (currentTrackIndex - 1 + playlist.length) % playlist.length;
-    set({ currentTrackIndex: prevIndex, isPlaying: true });
-
-    useAudioStore.getState().playTrack(playlist[prevIndex]);
+    if (currentTrackIndex === null || !playlist.length) return;
+    const prev = (currentTrackIndex - 1 + playlist.length) % playlist.length;
+    set({ currentTrackIndex: prev, isPlaying: true });
+    useAudioStore.getState().playTrack(playlist[prev]);
   },
 }));
