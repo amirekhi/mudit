@@ -11,11 +11,13 @@ import {
   IconVolume,
   IconVolumeOff,
   IconArrowsShuffle,
-  IconPlaylist,          // 👈 add
+  IconPlaylist,
+  IconExternalLink,          // 👈 add
 } from "@tabler/icons-react";
 
 import { useAudioStore } from "@/store/useAudioStore";
 import { usePlaylistStore } from "@/store/usePlaylistStore";
+import Link from "next/link";
 
 export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void }) {
   const {
@@ -120,6 +122,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
           items-center justify-between px-4 md:px-8 shadow-lg rounded-full m-1"
       >
         {/* Track Info */}
+    
         <div className="flex items-center gap-4 flex-1 min-w-0">
           <div className="flex flex-col min-w-0">
             <span className="font-semibold text-lg truncate">{currentTrack.title}</span>
@@ -133,8 +136,16 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
                 className="w-full h-full object-cover rounded-md" />
             </div>
           )}
+          <Link
+            href={`/tracks/${currentTrack._id}`}
+            className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg
+              bg-neutral-700 hover:bg-neutral-600 text-xs text-neutral-300
+              hover:text-white transition-colors"
+          >
+            <IconExternalLink className="w-3.5 h-3.5" />
+            View
+          </Link>
         </div>
-
         {/* Progress */}
         <div className="flex flex-col w-full md:w-64 mx-4">
           <input type="range" min={0} max={1} step={0.001}
@@ -233,7 +244,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         )}
 
         {/* Expanded Mobile Card */}
-        {expanded && (
+{expanded && (
           <motion.div
             className="md:hidden fixed bottom-4 left-2 right-2 bg-neutral-900 rounded-xl
               shadow-2xl p-4 z-50 flex flex-col gap-3"
@@ -243,20 +254,39 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
             transition={{ duration: 0.5, ease: "easeInOut" }}
           >
             <div className="flex justify-between items-center">
-              <div className="flex items-center gap-2">
+              {/* Track info — constrained width */}
+              <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
                 {currentTrack.image && (
                   <img src={currentTrack.image} alt={currentTrack.title}
-                    className="w-16 h-16 rounded-lg object-cover" />
+                    className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                 )}
-                <div className="flex flex-col overflow-hidden">
-                  <p className="text-sm font-semibold truncate">{currentTrack.title}</p>
+                <div className="flex flex-col overflow-hidden min-w-0">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <motion.div className="overflow-hidden whitespace-nowrap flex-1 min-w-0">
+                      <motion.p
+                        className="text-sm font-semibold whitespace-nowrap"
+                        animate={{ x: ["0%", "-100%"] }}
+                        transition={{ duration: 8, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                      >
+                        {currentTrack.title}&nbsp;&nbsp;&nbsp;&nbsp;{currentTrack.title}
+                      </motion.p>
+                    </motion.div>
+                    <Link
+                      href={`/tracks/${currentTrack._id}`}
+                      onClick={e => e.stopPropagation()}
+                      className="flex-shrink-0 p-1 rounded-md hover:bg-neutral-700
+                        text-neutral-500 hover:text-white transition-colors"
+                    >
+                      <IconExternalLink className="w-3.5 h-3.5" />
+                    </Link>
+                  </div>
                   {currentTrack.artist && (
                     <p className="text-xs text-gray-400 truncate">{currentTrack.artist}</p>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-1">
-                {/* 👇 Playlist toggle — mobile expanded */}
+              {/* Buttons — never pushed out */}
+              <div className="flex items-center gap-1 flex-shrink-0">
                 <PlaylistToggle />
                 <button onClick={() => setExpanded(false)}
                   className="p-2 hover:bg-neutral-700 rounded-full">

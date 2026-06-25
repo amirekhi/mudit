@@ -1,9 +1,11 @@
-import jwt, { Secret, SignOptions } from "jsonwebtoken";
+import jwt, { Secret, SignOptions, JwtPayload } from "jsonwebtoken";
 
-// Secret typed as Secret
 const SECRET_KEY: Secret = process.env.JWT_SECRET || "supersecretkey";
 
-// Use ms-compatible string or number (seconds)
+export interface AppJwtPayload extends JwtPayload {
+  userId: string;
+}
+
 export function signToken(
   payload: object,
   expiresIn: `${number}${"s" | "m" | "h" | "d"}` | number = "7d"
@@ -12,9 +14,11 @@ export function signToken(
   return jwt.sign(payload, SECRET_KEY, options);
 }
 
-export function verifyToken(token: string) {
+export function verifyToken(token: string): AppJwtPayload | null {
   try {
-    return jwt.verify(token, SECRET_KEY);
+    const decoded = jwt.verify(token, SECRET_KEY);
+    if (typeof decoded === "string") return null;
+    return decoded as AppJwtPayload;
   } catch {
     return null;
   }

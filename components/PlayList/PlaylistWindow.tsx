@@ -21,12 +21,12 @@ export default function PlaylistWindow() {
     if (currentPlaylist) openWindow();
   }, [currentPlaylist, openWindow]);
 
-  // Auto-open whenever a new track starts playing anywhere
-  useEffect(() => {
-    return useAudioStore.subscribe(state => {
-      if (state.currentTrack && state.isPlaying) openWindow();
-    });
-  }, [openWindow]);
+  // // Auto-open whenever a new track starts playing anywhere
+  // useEffect(() => {
+  //   return useAudioStore.subscribe(state => {
+  //     if (state.currentTrack && state.isPlaying) openWindow();
+  //   });
+  // }, [openWindow]);
 
   const handlePlayAll = () => {
     if (playlist.length > 0) playTrack(playlist[0]);

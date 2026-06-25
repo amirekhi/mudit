@@ -208,9 +208,20 @@ export default function CreateSongPage() {
               {!activeTrack ? (
                 <p className="text-neutral-400">Drag & drop your audio file here, or click to browse</p>
               ) : (
-                <div className="space-y-2 text-center">
+                <div className="w-full flex flex-col items-center space-y-2 text-center">
                   <p className="text-white font-medium">File loaded</p>
-                  <p className="text-sm text-neutral-400 truncate">{activeTrack.file.name}</p>
+
+                  {/* Marquee container — fixed width, never overflows */}
+                  <div className="w-full max-w-xs overflow-hidden">
+                    <motion.p
+                      className="text-sm text-neutral-400 whitespace-nowrap"
+                      animate={{ x: ["0%", "-50%"] }}
+                      transition={{ duration: 8, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
+                    >
+                      {activeTrack.file.name}&nbsp;&nbsp;&nbsp;&nbsp;{activeTrack.file.name}
+                    </motion.p>
+                  </div>
+
                   <button
                     type="button"
                     onClick={togglePlay}
