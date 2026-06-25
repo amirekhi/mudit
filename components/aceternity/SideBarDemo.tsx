@@ -8,6 +8,7 @@ import {
   IconEdit,
   IconLogout,
   IconMusic,
+  IconPlaylist,
   IconPlaylistAdd,
   IconPlus,
   IconUserCircle,
@@ -49,7 +50,8 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
     { label: "Profile",             href: "/profile",       icon: <IconUserCircle   className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Create new playlist", href: "/createPlaylist",icon: <IconPlus         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Add new Tracks",      href: "/createSong",    icon: <IconPlaylistAdd  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "My Tracks", href: "/tracks", icon: <IconMusic className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> }, 
+    { label: "My Tracks", href: "/tracks", icon: <IconMusic className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },  
+    { label: "My Playlists", href: "/playlists", icon: <IconPlaylist className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },  
     { label: "Edit",                href: "/edit/updateTrack",          icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 

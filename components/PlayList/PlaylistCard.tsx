@@ -10,8 +10,8 @@ export interface Playlist {
   description: string;
   image: string;
   tracks: Track[];
+  visibility: "public" | "private"; // add this
 }
-
 export default function PlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
     <div

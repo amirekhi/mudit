@@ -13,6 +13,7 @@ import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrent
 import { Spinner } from "@/components/basics/Spinner";
 import { useRouter } from "next/navigation";
 import BackButton from "@/components/basics/BackButton";
+import ShareButton from "@/components/PlayList/ShareButton";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
@@ -21,6 +22,8 @@ export default function CreatePlaylistPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [visibility, setVisibility] = useState<"private" | "public">("private");
+  const [createdPlaylistId, setCreatedPlaylistId] = useState<string | null>(null);
+  const [createdVisibility, setCreatedVisibility] = useState<"public" | "private">("private");
 
   const router = useRouter();
 
@@ -46,7 +49,8 @@ export default function CreatePlaylistPage() {
   const mutation = useMutation<PlaylistDb, Error, PlaylistDb>({
     mutationFn: createPlaylist,
     onSuccess: (data) => {
-      alert(`Playlist '${data.title}' created!`);
+      setCreatedPlaylistId((data as any)._id);
+      setCreatedVisibility(data.visibility ?? "private");
       setPlaylistName("");
       setPlaylistImage(null);
       setSelectedSongs([]);
@@ -103,7 +107,7 @@ export default function CreatePlaylistPage() {
   const firstSelectedTrack = songs.find((s) => s._id === selectedSongs[0]);
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6 flex flex-col items-center justify-center">
+    <div className="min-h-screen bg-neutral-950 px-6">
       <div className="max-w-6xl mx-auto w-full my-12">
 
         {/* Header */}
@@ -211,6 +215,17 @@ export default function CreatePlaylistPage() {
                 "Create Playlist"
               )}
             </button>
+
+            {/* Share button — appears after creation */}
+            {createdPlaylistId && (
+              <div className="pt-2 space-y-2">
+                <p className="text-green-400 text-sm">Playlist created successfully!</p>
+                <ShareButton
+                  playlistId={createdPlaylistId}
+                  playlistVisibility={createdVisibility}
+                />
+              </div>
+            )}
           </motion.div>
 
           {/* RIGHT */}
