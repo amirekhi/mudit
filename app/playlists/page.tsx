@@ -95,7 +95,7 @@ export default function PlaylistsPage() {
                   <div className="flex items-center gap-2 pt-1">
                     <ShareButton playlistId={playlist._id} playlistVisibility={playlist.visibility} />
                     <Link
-                      href={`/playlists/edit/${playlist._id}`}
+                      href={`/edit/updatePlaylist/${playlist._id}`}
                       className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-700
                         bg-neutral-800 text-white text-sm hover:bg-neutral-700 transition"
                     >

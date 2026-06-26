@@ -23,8 +23,9 @@ export default function LoginPage() {
     mutationFn: (input: LoginInput) => loginUser(input),
     onSuccess: (data) => {
       queryClient.setQueryData(["current-user"], data.user);
+      queryClient.resetQueries({ queryKey: ["playlists", "me"] });
+      queryClient.resetQueries({ queryKey: ["user-tracks"] });
       router.push("/");
-      router.refresh();
     },
   });
 

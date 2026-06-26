@@ -11,8 +11,8 @@ import { Track } from "@/store/useAudioStore";
 import { Spinner } from "@/components/basics/Spinner";
 import { PlaylistDb } from "@/types/playlistTypes";
 import BackButton from "@/components/basics/BackButton";
+import { useParams } from "next/navigation";
 
-// Simple debounce hook
 function useDebounce<T>(value: T, delay = 300) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -22,21 +22,20 @@ function useDebounce<T>(value: T, delay = 300) {
   return debounced;
 }
 
-
-
-
 export default function UpdatePlaylistPage() {
   const queryClient = useQueryClient();
+  const params = useParams();
+  // Works for both /edit/updatePlaylist (no id) and /edit/updatePlaylist/[id]
+  const urlId = Array.isArray(params?.id) ? params.id[0] : params?.id ?? null;
+
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const isAdmin = currentUser?.role === "admin";
 
-  // --- Playlist selection ---
   const [playlists, setPlaylists] = useState<PlaylistDb[]>([]);
   const [searchPlaylist, setSearchPlaylist] = useState("");
   const debouncedSearchPlaylist = useDebounce(searchPlaylist, 300);
   const [activePlaylist, setActivePlaylist] = useState<PlaylistDb | null>(null);
 
-  // --- Playlist editing ---
   const [playlistName, setPlaylistName] = useState("");
   const [playlistImage, setPlaylistImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -45,65 +44,33 @@ export default function UpdatePlaylistPage() {
   const [selectedTracks, setSelectedTracks] = useState<Track[]>([]);
   const [trackSearch, setTrackSearch] = useState("");
   const debouncedTrackSearch = useDebounce(trackSearch, 300);
-
   const [isDirty, setIsDirty] = useState(false);
 
-
-  //delet mutation 
-  const handleDeletePlaylist = useMutation({
-  mutationFn: async () => {
-    if (!activePlaylist) return;
-
-    const res = await authFetch(`/api/playlists/${activePlaylist._id}`, {
-      method: "DELETE",
-    });
-
-    if (!res.ok) throw new Error("Failed to delete playlist");
-  },
-  onSuccess: () => {
-    setPlaylists(prev =>
-      prev.filter(p => p._id !== activePlaylist?._id)
-    );
-    setActivePlaylist(null);
-    setIsDirty(false);
-
-    queryClient.invalidateQueries({ queryKey: ["user-playlists"] });
-
-    alert("Playlist deleted successfully");
-  },
-  onError: (err: any) => {
-    alert(err.message || "Failed to delete playlist");
-  },
-});
-
-  // Fetch playlists
+  // Fetch playlists + tracks in parallel
   useEffect(() => {
-    authFetch("/api/playlists/me")
-      .then(res => res.json())
-      .then(setPlaylists);
+    authFetch("/api/playlists/me").then(r => r.json()).then(setPlaylists);
+    authFetch("/api/tracks/me").then(r => r.json()).then(setAllTracks);
   }, []);
 
-  // Fetch tracks
+  // Once playlists are loaded, auto-select if urlId is present
   useEffect(() => {
-    authFetch("/api/tracks/me")
-      .then(res => res.json())
-      .then(setAllTracks);
-  }, []);
+    if (!urlId || playlists.length === 0) return;
+    const match = playlists.find(p => p._id === urlId);
+    if (match) setActivePlaylist(match);
+  }, [urlId, playlists]);
 
-  // When a playlist is selected
+  // Populate form when active playlist changes
   useEffect(() => {
     if (!activePlaylist) return;
     setPlaylistName(activePlaylist.title);
     setVisibility(activePlaylist.visibility ?? "private");
     setImagePreview(activePlaylist.image ?? null);
-
     const tracks = activePlaylist.trackIds
       .map(id => allTracks.find(t => t._id === id))
       .filter(Boolean) as Track[];
     setSelectedTracks(tracks);
   }, [activePlaylist, allTracks]);
 
-  // Filter playlists
   const filteredPlaylists = useMemo(() => {
     if (!debouncedSearchPlaylist) return playlists;
     return playlists.filter(p =>
@@ -111,7 +78,6 @@ export default function UpdatePlaylistPage() {
     );
   }, [playlists, debouncedSearchPlaylist]);
 
-  // Filter tracks for adding
   const filteredTracks = useMemo(() => {
     if (!debouncedTrackSearch) return [];
     return allTracks.filter(
@@ -132,9 +98,7 @@ export default function UpdatePlaylistPage() {
   const handleUpdatePlaylist = useMutation({
     mutationFn: async () => {
       if (!activePlaylist || !playlistName || selectedTracks.length === 0) return;
-
       let imageUrl = imagePreview ?? "";
-
       if (playlistImage) {
         try {
           imageUrl = await uploadImage(playlistImage);
@@ -143,7 +107,6 @@ export default function UpdatePlaylistPage() {
           return;
         }
       }
-
       const payload: PlaylistDb = {
         _id: activePlaylist._id,
         title: playlistName,
@@ -152,13 +115,11 @@ export default function UpdatePlaylistPage() {
         trackIds: selectedTracks.map(t => t._id),
         visibility,
       };
-
       const res = await authFetch(`/api/playlists/${activePlaylist._id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       if (!res.ok) throw new Error("Failed to update playlist");
     },
     onSuccess: () => {
@@ -171,74 +132,90 @@ export default function UpdatePlaylistPage() {
     },
   });
 
+  const handleDeletePlaylist = useMutation({
+    mutationFn: async () => {
+      if (!activePlaylist) return;
+      const res = await authFetch(`/api/playlists/${activePlaylist._id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete playlist");
+    },
+    onSuccess: () => {
+      setPlaylists(prev => prev.filter(p => p._id !== activePlaylist?._id));
+      setActivePlaylist(null);
+      setIsDirty(false);
+      queryClient.invalidateQueries({ queryKey: ["user-playlists"] });
+      alert("Playlist deleted successfully");
+    },
+    onError: (err: any) => {
+      alert(err.message || "Failed to delete playlist");
+    },
+  });
+
+  // Hide the selector panel when a specific playlist was linked to directly
+  const showSelector = !urlId;
+
   return (
     <div className="min-h-screen bg-neutral-950 px-6 flex items-center justify-center py-8">
-          <div className="absolute top-4 right-4 z-50">
-            <BackButton/>
-          </div>
-            
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="absolute top-4 right-4 z-50">
+        <BackButton />
+      </div>
 
-        {/* --- Playlist selection --- */}
-        <motion.div
-          initial={{ y: -20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          className="lg:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 flex flex-col items-center"
-        >
-          <h2 className="text-lg font-semibold text-white text-center">Select Playlist</h2>
-          <input
-            placeholder="Search playlists..."
-            value={searchPlaylist}
-            onChange={e => setSearchPlaylist(e.target.value)}
-            className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white mb-2"
-          />
-          <ul className="space-y-2 max-h-96 overflow-y-auto w-full">
-            {filteredPlaylists.map(p => (
-              <li
-                key={p._id}
-                onClick={() => setActivePlaylist(p)}
-                className={`cursor-pointer px-3 py-2 rounded-lg w-full text-center ${
-                  activePlaylist?._id === p._id
-                    ? "bg-white text-neutral-900"
-                    : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
-                }`}
-              >
-                {p.title}
-              </li>
-            ))}
-          </ul>
-        </motion.div>
+      <div className={`max-w-6xl w-full grid grid-cols-1 gap-8 ${showSelector ? "lg:grid-cols-3" : "lg:grid-cols-1"}`}>
 
-        {/* --- Playlist editor --- */}
+        {/* Selector — only shown when no id in URL */}
+        {showSelector && (
+          <motion.div
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="lg:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 flex flex-col items-center"
+          >
+            <h2 className="text-lg font-semibold text-white text-center">Select Playlist</h2>
+            <input
+              placeholder="Search playlists..."
+              value={searchPlaylist}
+              onChange={e => setSearchPlaylist(e.target.value)}
+              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white mb-2"
+            />
+            <ul className="space-y-2 max-h-96 overflow-y-auto w-full">
+              {filteredPlaylists.map(p => (
+                <li
+                  key={p._id}
+                  onClick={() => setActivePlaylist(p)}
+                  className={`cursor-pointer px-3 py-2 rounded-lg w-full text-center ${
+                    activePlaylist?._id === p._id
+                      ? "bg-white text-neutral-900"
+                      : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                  }`}
+                >
+                  {p.title}
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+
+        {/* Editor */}
         <motion.div
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6 min-h-[400px]"
+          className={`rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6 min-h-[400px] ${showSelector ? "lg:col-span-2" : ""}`}
         >
           {activePlaylist ? (
             <>
               <h1 className="text-2xl font-semibold text-white">Update Playlist</h1>
 
-              {/* Playlist name */}
               <input
                 placeholder="Playlist Name"
                 value={playlistName}
-                onChange={e => {
-                  setPlaylistName(e.target.value);
-                  setIsDirty(true);
-                }}
+                onChange={e => { setPlaylistName(e.target.value); setIsDirty(true); }}
                 className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
               />
 
-              {/* Visibility */}
               {!userLoading && isAdmin && (
                 <div className="flex items-center gap-4">
                   <span className="text-white text-sm">Visibility</span>
                   <div
-                    onClick={() =>
-                      setVisibility(visibility === "private" ? "public" : "private")
-                    }
+                    onClick={() => setVisibility(v => v === "private" ? "public" : "private")}
                     className="relative w-36 h-9 bg-neutral-800 rounded-full cursor-pointer border border-neutral-700"
                   >
                     <motion.div
@@ -254,17 +231,14 @@ export default function UpdatePlaylistPage() {
                 </div>
               )}
 
-              {/* Image */}
               <label className="cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 transition">
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-                {imagePreview ? (
-                  <Image src={imagePreview} alt="Playlist cover" width={120} height={120} className="rounded-lg object-cover" />
-                ) : (
-                  <span className="text-neutral-400">Select playlist image</span>
-                )}
+                {imagePreview
+                  ? <Image src={imagePreview} alt="Playlist cover" width={120} height={120} className="rounded-lg object-cover" />
+                  : <span className="text-neutral-400">Select playlist image</span>
+                }
               </label>
 
-              {/* Track list + search + add */}
               <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-3">
                 <input
                   placeholder="Search tracks to add..."
@@ -277,10 +251,7 @@ export default function UpdatePlaylistPage() {
                     {filteredTracks.map(t => (
                       <li
                         key={t._id}
-                        onClick={() => {
-                          setSelectedTracks(prev => [...prev, t]);
-                          setTrackSearch("");
-                        }}
+                        onClick={() => { setSelectedTracks(prev => [...prev, t]); setTrackSearch(""); }}
                         className="cursor-pointer px-2 py-1 rounded hover:bg-neutral-700 text-white"
                       >
                         {t.title} - {t.artist}
@@ -288,7 +259,6 @@ export default function UpdatePlaylistPage() {
                     ))}
                   </ul>
                 )}
-
                 <Reorder.Group
                   axis="y"
                   values={selectedTracks}
@@ -307,7 +277,6 @@ export default function UpdatePlaylistPage() {
                 </Reorder.Group>
               </div>
 
-              {/* Save */}
               <button
                 onClick={() => handleUpdatePlaylist.mutate()}
                 disabled={handleUpdatePlaylist.isPending || !playlistName || selectedTracks.length === 0}
@@ -320,21 +289,17 @@ export default function UpdatePlaylistPage() {
                 }`}
               >
                 {handleUpdatePlaylist.isPending ? <><Spinner size={18} /> Saving...</> : "Save Playlist"}
-                
               </button>
-              {(!userLoading && (isAdmin)) && (
 
-              <button
-                onClick={() => {
-                  if (!confirm("Are you sure you want to delete this playlist?")) return;
-                  handleDeletePlaylist.mutate();
-                }}
-                disabled={handleDeletePlaylist.isPending}
-                className="w-full py-3 rounded-lg font-medium transition bg-red-600 hover:bg-red-700 text-white"
-              >
-                {handleDeletePlaylist.isPending ? "Deleting..." : "Delete Playlist"}
-              </button>)}
-
+              {!userLoading && isAdmin && (
+                <button
+                  onClick={() => { if (!confirm("Are you sure you want to delete this playlist?")) return; handleDeletePlaylist.mutate(); }}
+                  disabled={handleDeletePlaylist.isPending}
+                  className="w-full py-3 rounded-lg font-medium transition bg-red-600 hover:bg-red-700 text-white"
+                >
+                  {handleDeletePlaylist.isPending ? "Deleting..." : "Delete Playlist"}
+                </button>
+              )}
             </>
           ) : (
             <div className="flex items-center justify-center h-full text-neutral-400 text-lg">

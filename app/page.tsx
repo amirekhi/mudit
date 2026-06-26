@@ -77,7 +77,7 @@ export default function Home() {
     "hover:bg-white/10 hover:border-white/20 active:scale-[0.98] transition-all text-sm";
 
   return (
-    <div className="relative w-full overflow-x-hidden">
+    <div className="relative w-full overflow-x-hidden pb-32">
       <div className="p-3 md:p-6 pb-48 flex flex-col gap-4 md:gap-8">
 
         {/* Mobile-only button row */}

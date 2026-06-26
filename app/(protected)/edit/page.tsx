@@ -47,7 +47,7 @@ export default function EditHubPage() {
 
             <div className="mt-auto">
               <Link
-                href="/songs/edit"
+                href="/edit/updateTrack"
                 className="block text-center rounded-xl bg-white text-neutral-900
                   font-medium py-3 hover:bg-neutral-200 transition text-sm"
               >
@@ -82,7 +82,7 @@ export default function EditHubPage() {
 
             <div className="mt-auto">
               <Link
-                href="/playlists/edit"
+                href="/edit/updatePlaylist"
                 className="block text-center rounded-xl border border-neutral-700
                   text-white font-medium py-3 hover:bg-neutral-800 transition text-sm"
               >

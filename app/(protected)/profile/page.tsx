@@ -38,8 +38,14 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center overflow-x-hidden">
-      <div className="absolute top-4 right-4 z-50">
+    <div className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center overflow-x-hidden px-4 py-10">
+
+      {/* Header row */}
+      <div className="w-full max-w-3xl flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-semibold">Profile</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Manage your account</p>
+        </div>
         <BackButton />
       </div>
 
@@ -47,10 +53,11 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-3xl px-4"
+        className="w-full max-w-3xl"
       >
         <Card className="rounded-2xl shadow-md">
           <CardContent className="p-6 sm:p-8 space-y-8">
+
             {/* Avatar + name */}
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 sm:gap-6">
               <Avatar className="h-24 w-24 flex-shrink-0">
@@ -87,11 +94,12 @@ export default function ProfilePage() {
                 Change Password
               </Button>
             </div>
+
           </CardContent>
         </Card>
       </motion.div>
 
-      {/* ── Modals ── */}
+      {/* Modals */}
       <AnimatePresence>
         {activeModal === "edit" && (
           <EditProfileModal user={user} onClose={close} />
@@ -190,7 +198,11 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
       </div>
 
       {error   && <p className="text-sm text-red-400 text-center">{error}</p>}
-      {success && <p className="text-sm text-emerald-400 text-center flex items-center justify-center gap-1"><IconCheck className="w-4 h-4" /> Saved!</p>}
+      {success && (
+        <p className="text-sm text-emerald-400 text-center flex items-center justify-center gap-1">
+          <IconCheck className="w-4 h-4" /> Saved!
+        </p>
+      )}
 
       <Button onClick={handleSubmit} disabled={loading || success} className="w-full rounded-xl">
         {loading ? "Saving…" : "Save Changes"}

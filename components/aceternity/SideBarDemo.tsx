@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, ReactNode } from "react";
-import { usePathname } from "next/navigation"; // 👈 add this
+import { usePathname } from "next/navigation";
 import { Sidebar, SidebarAction, SidebarBody, SidebarLink } from "../ui/sidebar";
 import {
   IconBrandTabler,
@@ -26,11 +26,8 @@ interface SidebarLayoutProps {
 export function SidebarDemo({ children }: SidebarLayoutProps) {
   const { data: user } = useCurrentUser();
   const [open, setOpen] = useState(false);
-  const pathname = usePathname(); // 👈 track current route
+  const pathname = usePathname();
 
-  // Close the sidebar on mobile whenever the route changes.
-  // On desktop the sidebar is always visible in collapsed/expanded state
-  // so we leave it alone — only act when the screen is narrow.
   useEffect(() => {
     const isMobile = window.matchMedia("(max-width: 767px)").matches;
     if (isMobile) setOpen(false);
@@ -38,21 +35,21 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
 
   const handleLogOut = async () => {
     try {
-      authFetch("/api/auth/logout", { method: "POST" });
-      queryClient.setQueryData(["current-user"], null);
+      await authFetch("/api/auth/logout", { method: "POST" });
+      queryClient.clear();
     } catch (err) {
       console.log(err);
     }
   };
 
   const links = [
-    { label: "Home",                href: "/",              icon: <IconBrandTabler  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Profile",             href: "/profile",       icon: <IconUserCircle   className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Create new playlist", href: "/createPlaylist",icon: <IconPlus         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "Add new Tracks",      href: "/createSong",    icon: <IconPlaylistAdd  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
-    { label: "My Tracks", href: "/tracks", icon: <IconMusic className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },  
-    { label: "My Playlists", href: "/playlists", icon: <IconPlaylist className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },  
-    { label: "Edit",                href: "/edit/updateTrack",          icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Home",                href: "/",                 icon: <IconBrandTabler  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Profile",             href: "/profile",          icon: <IconUserCircle   className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Create new playlist", href: "/createPlaylist",   icon: <IconPlus         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Add new Tracks",      href: "/createSong",       icon: <IconPlaylistAdd  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "My Tracks",           href: "/tracks",           icon: <IconMusic        className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "My Playlists",        href: "/playlists",        icon: <IconPlaylist     className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Edit",                href: "/edit/updateTrack", icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (
@@ -64,11 +61,21 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
               <SidebarLink key={idx} link={link} />
             ))}
 
-            <SidebarAction
-              label="Logout"
-              icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
-              onClick={handleLogOut}
-            />
+            {user ? (
+              <SidebarAction
+                label="Logout"
+                icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
+                onClick={handleLogOut}
+              />
+            ) : (
+              <SidebarLink
+                link={{
+                  label: "Login",
+                  href: "/login",
+                  icon: <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200 rotate-180" />,
+                }}
+              />
+            )}
           </div>
 
           {user && (

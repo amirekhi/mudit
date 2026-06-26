@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "next/navigation";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { storage } from "@/lib/storage/storage";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
@@ -19,26 +20,24 @@ function useDebounce<T>(value: T, delay = 400) {
   return debounced;
 }
 
-export default function UpdateTrackPage() {
+function UpdateTrackPageInner() {
   const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const preselectedId = searchParams.get("id");
+
   const { data: currentUser, isLoading: userLoading } = useCurrentUser();
   const isAdmin = currentUser?.role === "admin";
-  const setTrack = useAudioStore((s) => s.setTrack);
+  const setTrack = useAudioStore(s => s.setTrack);
 
-  const [activeTrack, setActiveTrack] = useState<Track | null>(null);
-  const [form, setForm] = useState({
-    title: "",
-    artist: "",
-    visibility: "private" as "private" | "public",
-  });
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [playlists, setPlaylists] = useState<{ _id: string; title: string }[]>([]);
-  const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
-  const [search, setSearch] = useState("");
+  const [activeTrack,      setActiveTrack]      = useState<Track | null>(null);
+  const [form,             setForm]             = useState({ title: "", artist: "", visibility: "private" as "private" | "public" });
+  const [imageFile,        setImageFile]        = useState<File | null>(null);
+  const [imagePreview,     setImagePreview]     = useState<string | null>(null);
+  const [playlists,        setPlaylists]        = useState<{ _id: string; title: string }[]>([]);
+  const [selectedPlaylists,setSelectedPlaylists]= useState<string[]>([]);
+  const [search,           setSearch]           = useState("");
   const debouncedSearch = useDebounce(search);
   const isDirty = useRef(false);
-  // Mobile: show track list or editor
   const [showEditor, setShowEditor] = useState(false);
 
   const { data: tracks = [] } = useQuery({
@@ -60,7 +59,7 @@ export default function UpdateTrackPage() {
   );
 
   useEffect(() => {
-    authFetch("/api/playlists/me").then((r) => r.json()).then(setPlaylists);
+    authFetch("/api/playlists/me").then(r => r.json()).then(setPlaylists);
   }, []);
 
   useEffect(() => {
@@ -72,6 +71,15 @@ export default function UpdateTrackPage() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, []);
+
+  // Auto-select track from URL param once tracks are loaded
+  useEffect(() => {
+    if (!preselectedId || !tracks.length || activeTrack) return;
+    const found = tracks.find((t: Track) => t._id === preselectedId);
+    if (!found) return;
+    selectTrack(found);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preselectedId, tracks]);
 
   const selectTrack = (track: Track) => {
     if (activeTrack?._id === track._id) { setShowEditor(true); return; }
@@ -147,7 +155,6 @@ export default function UpdateTrackPage() {
     <div className="min-h-full overflow-x-hidden">
       <div className="p-4 sm:p-6 pb-10 flex flex-col gap-4">
 
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             {showEditor && (
@@ -177,7 +184,7 @@ export default function UpdateTrackPage() {
             <input
               placeholder="Search tracks…"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={e => setSearch(e.target.value)}
               className={`${inputCls} mb-3`}
             />
 
@@ -199,7 +206,7 @@ export default function UpdateTrackPage() {
             </ul>
           </motion.div>
 
-          {/* Editor */}
+          {/* Editor panel */}
           <div className={`space-y-4 ${!showEditor && !activeTrack ? "hidden sm:block" : "block"}`}>
 
             <motion.div
@@ -212,14 +219,14 @@ export default function UpdateTrackPage() {
 
                 <input
                   value={form.title}
-                  onChange={(e) => { isDirty.current = true; setForm((f) => ({ ...f, title: e.target.value })); }}
+                  onChange={e => { isDirty.current = true; setForm(f => ({ ...f, title: e.target.value })); }}
                   placeholder="Track title"
                   className={inputCls}
                 />
 
                 <input
                   value={form.artist}
-                  onChange={(e) => { isDirty.current = true; setForm((f) => ({ ...f, artist: e.target.value })); }}
+                  onChange={e => { isDirty.current = true; setForm(f => ({ ...f, artist: e.target.value })); }}
                   placeholder="Artist"
                   className={inputCls}
                 />
@@ -230,34 +237,31 @@ export default function UpdateTrackPage() {
                     <div
                       onClick={() => {
                         isDirty.current = true;
-                        setForm((f) => ({ ...f, visibility: f.visibility === "public" ? "private" : "public" }));
+                        setForm(f => ({ ...f, visibility: f.visibility === "public" ? "private" : "public" }));
                       }}
                       className="relative w-40 h-10 rounded-full bg-neutral-800 cursor-pointer select-none"
                     >
-                      <div
-                        className={`absolute top-0 left-0 h-full w-1/2 bg-white rounded-full
-                          transition-transform ${form.visibility === "public" ? "translate-x-full" : "translate-x-0"}`}
-                      />
+                      <div className={`absolute top-0 left-0 h-full w-1/2 bg-white rounded-full transition-transform ${
+                        form.visibility === "public" ? "translate-x-full" : "translate-x-0"
+                      }`} />
                       <div className="relative z-10 flex h-full text-xs font-medium">
-                        <div className={`w-1/2 flex items-center justify-center ${
-                          form.visibility === "private" ? "text-neutral-900" : "text-white"
-                        }`}>Private</div>
-                        <div className={`w-1/2 flex items-center justify-center ${
-                          form.visibility === "public" ? "text-neutral-900" : "text-white"
-                        }`}>Public</div>
+                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "private" ? "text-neutral-900" : "text-white"}`}>
+                          Private
+                        </div>
+                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "public" ? "text-neutral-900" : "text-white"}`}>
+                          Public
+                        </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                <label className="cursor-pointer flex flex-col items-center justify-center
-                  border-2 border-dashed rounded-2xl p-4 text-neutral-500 text-sm
-                  hover:border-neutral-500 transition">
+                <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-neutral-500 text-sm hover:border-neutral-500 transition">
                   <input
                     type="file"
                     accept="image/*"
                     className="hidden"
-                    onChange={(e) => {
+                    onChange={e => {
                       const f = e.target.files?.[0];
                       if (!f) return;
                       isDirty.current = true;
@@ -283,19 +287,18 @@ export default function UpdateTrackPage() {
             >
               <h2 className="text-base font-semibold text-white mb-3">Add to Playlists</h2>
               <ul className="space-y-1.5 max-h-40 overflow-y-auto">
-                {playlists.map((p) => {
+                {playlists.map(p => {
                   const checked = selectedPlaylists.includes(p._id);
                   return (
                     <li
                       key={p._id}
                       onClick={() => {
                         isDirty.current = true;
-                        setSelectedPlaylists((prev) =>
-                          checked ? prev.filter((id) => id !== p._id) : [...prev, p._id]
+                        setSelectedPlaylists(prev =>
+                          checked ? prev.filter(id => id !== p._id) : [...prev, p._id]
                         );
                       }}
-                      className="flex justify-between items-center cursor-pointer
-                        px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition"
+                      className="flex justify-between items-center cursor-pointer px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition"
                     >
                       <span className="truncate">{p.title}</span>
                       {checked && <span className="text-indigo-400 flex-shrink-0 ml-2">✓</span>}
@@ -329,8 +332,7 @@ export default function UpdateTrackPage() {
                     if (!confirm("Delete this track permanently?")) return;
                     deleteMutation.mutate();
                   }}
-                  className="w-full rounded-xl py-3 font-medium text-sm transition
-                    bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+                  className="w-full rounded-xl py-3 font-medium text-sm transition bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
                 >
                   {deleteMutation.isPending ? "Deleting…" : "Delete Track"}
                 </button>
@@ -340,5 +342,17 @@ export default function UpdateTrackPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function UpdateTrackPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-full text-neutral-500 text-sm">
+        Loading…
+      </div>
+    }>
+      <UpdateTrackPageInner />
+    </Suspense>
   );
 }

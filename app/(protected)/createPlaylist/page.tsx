@@ -107,8 +107,8 @@ export default function CreatePlaylistPage() {
   const firstSelectedTrack = songs.find((s) => s._id === selectedSongs[0]);
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6">
-      <div className="max-w-6xl mx-auto w-full my-12">
+    <div className="min-h-screen flex  justify-center items-center bg-neutral-950 px-6 pb-24 max-md:pb-12">
+      <div className="max-w-6xl mx-auto w-full py-12">
 
         {/* Header */}
         <div className="w-full flex items-center justify-between mb-8 md:mb-10">
