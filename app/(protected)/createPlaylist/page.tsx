@@ -77,7 +77,7 @@ export default function CreatePlaylistPage() {
   };
 
   const handleCreatePlaylist = async () => {
-    if (!playlistName || selectedSongs.length === 0) return;
+    if (!playlistName.trim()) return;
 
     let imageUrl = "";
 
@@ -88,7 +88,7 @@ export default function CreatePlaylistPage() {
         alert("Failed to upload image");
         return;
       }
-    } else {
+    } else if (selectedSongs.length > 0) {
       const firstTrack = songs.find((s) => s._id === selectedSongs[0]);
       if (firstTrack?.image) imageUrl = firstTrack.image;
     }
@@ -105,9 +105,10 @@ export default function CreatePlaylistPage() {
   };
 
   const firstSelectedTrack = songs.find((s) => s._id === selectedSongs[0]);
+  const canCreate = !!playlistName.trim() && !mutation.isPending;
 
   return (
-    <div className="min-h-screen flex  justify-center items-center bg-neutral-950 px-6 pb-24 max-md:pb-12">
+    <div className="min-h-screen flex justify-center items-center bg-neutral-950 px-4 sm:px-6 pb-24 max-md:pb-12">
       <div className="max-w-6xl mx-auto w-full py-12">
 
         {/* Header */}
@@ -126,13 +127,13 @@ export default function CreatePlaylistPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6"
+            className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8 space-y-6"
           >
             <input
               placeholder="Playlist Name"
               value={playlistName}
               onChange={(e) => setPlaylistName(e.target.value)}
-              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
+              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
             />
 
             {/* VISIBILITY */}
@@ -167,7 +168,7 @@ export default function CreatePlaylistPage() {
               className={`cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 transition ${
                 playlistImage || firstSelectedTrack?.image
                   ? "border-white bg-neutral-800"
-                  : "border-neutral-700"
+                  : "border-neutral-700 hover:border-neutral-500"
               }`}
             >
               <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
@@ -184,24 +185,30 @@ export default function CreatePlaylistPage() {
                   className="h-32 w-32 object-cover rounded-lg opacity-80"
                 />
               ) : (
-                <p className="text-neutral-400">Drag & drop playlist image or click to browse</p>
+                <div className="flex flex-col items-center gap-2 text-center">
+                  <span className="text-2xl">🖼</span>
+                  <p className="text-sm text-neutral-400">Drag & drop a cover image, or click to browse</p>
+                  <p className="text-xs text-neutral-600">Optional — will use first track's art if available</p>
+                </div>
               )}
             </label>
 
             <button
               onClick={() => setIsModalOpen(true)}
-              className="bg-white text-neutral-900 font-medium py-2 px-4 rounded-lg hover:bg-neutral-200"
+              className="bg-neutral-800 border border-neutral-700 text-white font-medium py-2 px-4 rounded-lg hover:bg-neutral-700 transition text-sm"
             >
-              Add Songs to Playlist
+              {selectedSongs.length > 0
+                ? `${selectedSongs.length} song${selectedSongs.length > 1 ? "s" : ""} added — edit`
+                : "Add Songs (optional)"}
             </button>
 
             <button
               onClick={handleCreatePlaylist}
-              disabled={mutation.isPending || !playlistName || selectedSongs.length === 0}
+              disabled={!canCreate}
               className={`w-full py-3 rounded-lg font-medium transition flex items-center justify-center gap-2 ${
                 mutation.isPending
                   ? "bg-green-500 text-white cursor-not-allowed"
-                  : playlistName && selectedSongs.length
+                  : canCreate
                   ? "bg-green-500 hover:bg-green-600 text-white"
                   : "bg-neutral-700 text-neutral-400 pointer-events-none"
               }`}
@@ -215,6 +222,12 @@ export default function CreatePlaylistPage() {
                 "Create Playlist"
               )}
             </button>
+
+            {!playlistName.trim() && (
+              <p className="text-xs text-neutral-500 text-center -mt-2">
+                A playlist name is all you need to get started
+              </p>
+            )}
 
             {/* Share button — appears after creation */}
             {createdPlaylistId && (
@@ -235,9 +248,19 @@ export default function CreatePlaylistPage() {
             className="space-y-6"
           >
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6">
-              <h2 className="text-lg font-semibold text-white mb-4">Selected Songs</h2>
+              <h2 className="text-base font-semibold text-white mb-4">
+                Selected Songs
+                {selectedSongs.length > 0 && (
+                  <span className="ml-2 text-xs font-normal text-neutral-400">
+                    {selectedSongs.length} track{selectedSongs.length > 1 ? "s" : ""}
+                  </span>
+                )}
+              </h2>
               {selectedSongs.length === 0 ? (
-                <p className="text-neutral-400">No songs selected</p>
+                <div className="text-center py-4">
+                  <p className="text-sm text-neutral-500">No songs added yet</p>
+                  <p className="text-xs text-neutral-600 mt-1">You can add songs later from the playlist editor</p>
+                </div>
               ) : (
                 <Reorder.Group
                   axis="y"
@@ -252,14 +275,14 @@ export default function CreatePlaylistPage() {
                       <Reorder.Item
                         key={id}
                         value={id}
-                        className="flex justify-between px-3 py-2 rounded-lg cursor-pointer hover:bg-neutral-800 text-sm text-neutral-300"
+                        className="flex justify-between px-3 py-2 rounded-lg cursor-grab active:cursor-grabbing hover:bg-neutral-800 text-sm text-neutral-300"
                       >
-                        <span>{song.title} - {song.artist}</span>
+                        <span className="truncate">{song.title} — {song.artist}</span>
                         <button
                           onClick={() =>
                             setSelectedSongs((prev) => prev.filter((sid) => sid !== id))
                           }
-                          className="text-white font-bold"
+                          className="ml-2 shrink-0 text-neutral-500 hover:text-white transition"
                         >
                           ✕
                         </button>
@@ -271,64 +294,77 @@ export default function CreatePlaylistPage() {
             </div>
 
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-3">
-              <Link href="/songs/create" className="block text-white py-2 px-3 rounded-lg hover:bg-neutral-800">
-                Create New Song
+              <Link href="/songs/create" className="block text-sm text-white py-2 px-3 rounded-lg hover:bg-neutral-800 transition">
+                + Create New Song
               </Link>
-              <Link href="/songs/edit" className="block text-white py-2 px-3 rounded-lg hover:bg-neutral-800">
+              <Link href="/songs/edit" className="block text-sm text-white py-2 px-3 rounded-lg hover:bg-neutral-800 transition">
                 Open Song Editor
               </Link>
             </div>
           </motion.div>
-
-          {/* MODAL */}
-          {isModalOpen && (
-            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="bg-neutral-900 rounded-2xl p-6 w-full max-w-lg space-y-4"
-              >
-                <h3 className="text-white font-semibold text-lg">Add Songs</h3>
-                <input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search songs..."
-                  className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white"
-                />
-                <ul className="max-h-64 overflow-y-auto space-y-2">
-                  {filteredSongs.map((song) => {
-                    const checked = selectedSongs.includes(song._id);
-                    return (
-                      <li
-                        key={song._id}
-                        onClick={() =>
-                          setSelectedSongs((prev) =>
-                            checked
-                              ? prev.filter((id) => id !== song._id)
-                              : [...prev, song._id]
-                          )
-                        }
-                        className="flex justify-between px-3 py-2 rounded-lg hover:bg-neutral-800 cursor-pointer text-sm text-neutral-300"
-                      >
-                        <span>{song.title} - {song.artist}</span>
-                        {checked && <span className="h-3 w-3 bg-white rounded-full" />}
-                      </li>
-                    );
-                  })}
-                </ul>
-                <div className="flex justify-end">
-                  <button
-                    onClick={() => setIsModalOpen(false)}
-                    className="bg-neutral-700 text-white px-4 py-2 rounded-lg hover:bg-neutral-600"
-                  >
-                    Close
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
         </div>
       </div>
+
+      {/* MODAL */}
+      {isModalOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 px-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="bg-neutral-900 rounded-2xl p-6 w-full max-w-lg space-y-4 mb-0 sm:mb-0"
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-white font-semibold text-lg">Add Songs</h3>
+              {selectedSongs.length > 0 && (
+                <span className="text-xs text-neutral-400">{selectedSongs.length} selected</span>
+              )}
+            </div>
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search songs..."
+              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
+            />
+            <ul className="max-h-64 overflow-y-auto space-y-1">
+              {filteredSongs.length === 0 ? (
+                <li className="text-sm text-neutral-500 px-3 py-4 text-center">No tracks found</li>
+              ) : (
+                filteredSongs.map((song) => {
+                  const checked = selectedSongs.includes(song._id);
+                  return (
+                    <li
+                      key={song._id}
+                      onClick={() =>
+                        setSelectedSongs((prev) =>
+                          checked
+                            ? prev.filter((id) => id !== song._id)
+                            : [...prev, song._id]
+                        )
+                      }
+                      className={`flex justify-between items-center px-3 py-2 rounded-lg cursor-pointer text-sm transition ${
+                        checked
+                          ? "bg-neutral-700 text-white"
+                          : "text-neutral-300 hover:bg-neutral-800"
+                      }`}
+                    >
+                      <span className="truncate">{song.title} — {song.artist}</span>
+                      {checked && <span className="ml-2 shrink-0 h-3 w-3 bg-white rounded-full" />}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                onClick={() => setIsModalOpen(false)}
+                className="bg-neutral-800 text-white px-4 py-2 rounded-lg hover:bg-neutral-700 transition text-sm"
+              >
+                Done
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

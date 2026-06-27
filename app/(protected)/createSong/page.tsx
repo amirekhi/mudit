@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAudioStore, Track as TrackType } from "@/store/useAudioStore";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { storage } from "@/lib/storage/storage";
@@ -9,32 +9,58 @@ import Image from "next/image";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { extractAudioMetadata } from "@/lib/Mp3DataParser/extractAudioMetadata";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
-import { useRouter } from "next/navigation";
 import { DraftTrack } from "@/models/Track";
 import BackButton from "@/components/basics/BackButton";
+import { Spinner } from "@/components/basics/Spinner";
+
+interface PlaylistMeta {
+  _id: string;
+  title: string;
+  visibility: "public" | "private";
+}
 
 export default function CreateSongPage() {
   const [isDragging, setIsDragging] = useState(false);
-  const [playlists, setPlaylists] = useState<{ _id: string; title: string }[]>([]);
+  const [playlists, setPlaylists] = useState<PlaylistMeta[]>([]);
   const [selectedPlaylists, setSelectedPlaylists] = useState<string[]>([]);
   const [tracks, setTracks] = useState<DraftTrack[]>([]);
   const [activeTrackId, setActiveTrackId] = useState<string | null>(null);
 
+  // Quick-playlist modal state
+  const [playlistModalOpen, setPlaylistModalOpen] = useState(false);
+  const [quickPlaylistName, setQuickPlaylistName] = useState("");
+  const [quickPlaylistVisibility, setQuickPlaylistVisibility] = useState<"private" | "public">("private");
+  const [quickPlaylistPending, setQuickPlaylistPending] = useState(false);
+  const [quickPlaylistSuccess, setQuickPlaylistSuccess] = useState(false);
+
   const activeTrack = tracks.find((t) => t.id === activeTrackId) || null;
-  const globalVisibility = tracks.every((t) => t.visibility === "public") ? "public" : "private";
+
+  const hasPublicPlaylist = playlists
+    .filter((p) => selectedPlaylists.includes(p._id))
+    .some((p) => p.visibility === "public");
+
+  const effectiveVisibility = (track: DraftTrack) =>
+    hasPublicPlaylist ? "public" : track.visibility;
+
+  const globalVisibility = hasPublicPlaylist
+    ? "public"
+    : tracks.every((t) => t.visibility === "public")
+    ? "public"
+    : "private";
+
+  const updateTrack = (id: string, patch: Partial<DraftTrack>) => {
+    setTracks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  };
 
   const updateActiveTrack = (patch: Partial<DraftTrack>) => {
     if (!activeTrack) return;
-    setTracks((prev) =>
-      prev.map((t) => (t.id === activeTrack.id ? { ...t, ...patch } : t))
-    );
+    updateTrack(activeTrack.id, patch);
   };
 
   const playTrack = useAudioStore((s) => s.playTrack);
   const togglePlay = useAudioStore((s) => s.togglePlay);
   const isPlaying = useAudioStore((s) => s.isPlaying);
   const queryClient = useQueryClient();
-  const router = useRouter();
 
   const { data: currentUser, isLoading } = useCurrentUser();
   const isAdmin = currentUser?.role === "admin";
@@ -48,7 +74,6 @@ export default function CreateSongPage() {
 
   const handleFileChange = async (selected: File | null) => {
     if (!selected) return;
-
     const id = crypto.randomUUID();
     const draft: DraftTrack = {
       id,
@@ -64,7 +89,9 @@ export default function CreateSongPage() {
       if (metadata?.title) draft.title = metadata.title;
       if (metadata?.artist) draft.artist = metadata.artist;
       if (metadata?.image) {
-        draft.imageFile = new File([metadata.image], "embedded-image", { type: metadata.image.type });
+        draft.imageFile = new File([metadata.image], "embedded-image", {
+          type: metadata.image.type,
+        });
         draft.imagePreview = URL.createObjectURL(metadata.image);
       }
     } catch (err) {
@@ -80,7 +107,7 @@ export default function CreateSongPage() {
   const handleDrop = (e: React.DragEvent<HTMLLabelElement>) => {
     e.preventDefault();
     setIsDragging(false);
-    handleFileChange(e.dataTransfer.files?.[0] || null);
+    Array.from(e.dataTransfer.files ?? []).forEach((f) => handleFileChange(f));
   };
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -90,6 +117,96 @@ export default function CreateSongPage() {
         imageFile: selected,
         imagePreview: URL.createObjectURL(selected),
       });
+    }
+  };
+
+  const handleSelectTrack = (track: DraftTrack) => {
+    setActiveTrackId(track.id);
+    const audioTrack: TrackType = {
+      _id: "local-preview",
+      title: track.title || track.file.name,
+      artist: track.artist || "Local file",
+      url: URL.createObjectURL(track.file),
+      visibility: track.visibility,
+      createdAt: "",
+      updatedAt: "",
+    };
+    playTrack(audioTrack);
+  };
+
+  const togglePlaylistSelection = (playlistId: string) => {
+    setSelectedPlaylists((prev) =>
+      prev.includes(playlistId)
+        ? prev.filter((id) => id !== playlistId)
+        : [...prev, playlistId]
+    );
+  };
+
+  // Upload all selected tracks, then create a playlist with them
+  const handleQuickCreatePlaylist = async () => {
+    if (!quickPlaylistName.trim()) return;
+    const tracksToUpload = tracks.filter((t) => t.selected);
+    if (!tracksToUpload.length) return;
+
+    setQuickPlaylistPending(true);
+    try {
+      const createdTracks = await Promise.all(
+        tracksToUpload.map(async (t) => {
+          const songUrl = await storage.uploadSongs(t.file);
+          const imageUrl = t.imageFile ? await storage.uploadImage(t.imageFile) : undefined;
+
+          const res = await authFetch("/api/tracks/public", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: t.title,
+              artist: t.artist,
+              url: songUrl,
+              image: imageUrl,
+              visibility: quickPlaylistVisibility,
+            }),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.message || "Failed to upload track");
+          }
+          return res.json();
+        })
+      );
+
+      const coverImage = createdTracks[0]?.image ?? "";
+      const res = await authFetch("/api/playlists", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: quickPlaylistName,
+          description: "",
+          image: coverImage,
+          trackIds: createdTracks.map((t) => t._id),
+          visibility: quickPlaylistVisibility,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Failed to create playlist");
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["tracks"] });
+      queryClient.invalidateQueries({ queryKey: ["playlists"] });
+      setTracks([]);
+      setActiveTrackId(null);
+      setSelectedPlaylists([]);
+      setQuickPlaylistSuccess(true);
+      setTimeout(() => {
+        setPlaylistModalOpen(false);
+        setQuickPlaylistSuccess(false);
+        setQuickPlaylistName("");
+        setQuickPlaylistVisibility("private");
+      }, 1800);
+    } catch (err: any) {
+      alert(err.message || "Something went wrong");
+    } finally {
+      setQuickPlaylistPending(false);
     }
   };
 
@@ -111,7 +228,7 @@ export default function CreateSongPage() {
               artist: t.artist,
               url: songUrl,
               image: imageUrl,
-              visibility: t.visibility,
+              visibility: effectiveVisibility(t),
             }),
           });
 
@@ -119,7 +236,6 @@ export default function CreateSongPage() {
             const errorData = await res.json().catch(() => ({}));
             throw new Error(errorData.message || "Failed to create track");
           }
-
           return res.json();
         })
       );
@@ -148,283 +264,598 @@ export default function CreateSongPage() {
     },
   });
 
-  const handleSelectTrack = (track: DraftTrack) => {
-    setActiveTrackId(track.id);
-    const audioTrack: TrackType = {
-      _id: "local-preview",
-      title: track.title || track.file.name,
-      artist: track.artist || "Local file",
-      url: URL.createObjectURL(track.file),
-      visibility: track.visibility,
-      createdAt: "",
-      updatedAt: "",
-    };
-    playTrack(audioTrack);
-  };
+  const multiTrackMode = tracks.length > 1;
+  const selectedCount = tracks.filter((t) => t.selected).length;
+  const allSelectedValid = tracks
+    .filter((t) => t.selected)
+    .every((t) => t.title.trim() && t.artist.trim());
+  const canSubmit = selectedCount > 0 && allSelectedValid && !createTracksMutation.isPending;
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6 flex flex-col items-center justify-center">
-      <div className="max-w-6xl mx-auto w-full my-12">
+    <div className="min-h-screen bg-neutral-950 px-4 sm:px-6 flex flex-col items-center justify-start">
+      <div className="max-w-6xl mx-auto w-full my-8 sm:my-12">
 
         {/* Header */}
-        <div className="w-full flex items-center justify-between mb-8 md:mb-10">
+        <div className="w-full flex items-center justify-between mb-6 sm:mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Import Song</h1>
+            <h1 className="text-xl sm:text-2xl font-semibold text-white">Import Songs</h1>
             <p className="text-sm text-neutral-400 mt-0.5">Upload and configure your tracks</p>
           </div>
           <BackButton />
         </div>
 
-        {/* Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-          {/* LEFT */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="lg:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-8 flex flex-col"
-          >
-            {/* Drag & Drop */}
-            <label
-              style={{ minHeight: "260px" }}
-              onDragEnter={() => setIsDragging(true)}
-              onDragLeave={() => setIsDragging(false)}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={handleDrop}
-              className={`cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-10 text-center transition ${
-                isDragging ? "border-white bg-neutral-800" : "border-neutral-700"
-              }`}
+        {/* Public playlist banner */}
+        <AnimatePresence>
+          {hasPublicPlaylist && (
+            <motion.div
+              initial={{ opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              className="mb-4 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3"
             >
-              <input
-                type="file"
-                accept="audio/*"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  files.forEach((file) => handleFileChange(file));
-                }}
-              />
-              {!activeTrack ? (
-                <p className="text-neutral-400">Drag & drop your audio file here, or click to browse</p>
-              ) : (
-                <div className="w-full flex flex-col items-center space-y-2 text-center">
-                  <p className="text-white font-medium">File loaded</p>
+              <span className="mt-0.5 text-amber-400">⚠</span>
+              <p className="text-sm text-amber-300 leading-snug">
+                A selected playlist is <span className="font-semibold">public</span> — all tracks will be uploaded as public automatically.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-                  {/* Marquee container — fixed width, never overflows */}
-                  <div className="w-full max-w-xs overflow-hidden">
-                    <motion.p
-                      className="text-sm text-neutral-400 whitespace-nowrap"
-                      animate={{ x: ["0%", "-50%"] }}
-                      transition={{ duration: 8, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
-                    >
-                      {activeTrack.file.name}&nbsp;&nbsp;&nbsp;&nbsp;{activeTrack.file.name}
-                    </motion.p>
-                  </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-                  <button
-                    type="button"
-                    onClick={togglePlay}
-                    className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition"
-                  >
-                    {isPlaying ? "Pause Preview" : "Play Preview"}
-                  </button>
-                </div>
-              )}
-            </label>
+          {/* ── LEFT ── */}
+          <div className="lg:col-span-2 flex flex-col gap-6">
 
-            {/* Imported Tracks */}
-            {tracks.length > 0 && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4 mt-6 flex-1 overflow-y-auto max-h-[360px]"
+            {/* Drop zone */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 sm:p-8"
+            >
+              <label
+                style={{ minHeight: "200px" }}
+                onDragEnter={() => setIsDragging(true)}
+                onDragLeave={() => setIsDragging(false)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={handleDrop}
+                className={`cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-8 text-center transition ${
+                  isDragging
+                    ? "border-white bg-neutral-800"
+                    : "border-neutral-700 hover:border-neutral-500"
+                }`}
               >
-                <h2 className="text-lg font-semibold text-white mb-4">Imported Tracks</h2>
-                <ul className="space-y-2">
-                  {tracks.map((track) => {
-                    const isActive = track.id === activeTrackId;
-                    return (
-                      <li
-                        key={track.id}
-                        onClick={() => handleSelectTrack(track)}
-                        className={`cursor-pointer flex items-center justify-between rounded-lg px-3 py-2 transition ${
-                          isActive
-                            ? "bg-white text-neutral-900"
-                            : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                <input
+                  type="file"
+                  accept="audio/*"
+                  multiple
+                  className="hidden"
+                  onChange={(e) =>
+                    Array.from(e.target.files ?? []).forEach((f) => handleFileChange(f))
+                  }
+                />
+                <div className="flex flex-col items-center gap-3">
+                  <div className="h-12 w-12 rounded-full bg-neutral-800 flex items-center justify-center text-neutral-400 text-xl">
+                    ♪
+                  </div>
+                  {tracks.length === 0 ? (
+                    <>
+                      <p className="text-neutral-300 font-medium">Drop audio files here</p>
+                      <p className="text-sm text-neutral-500">or click to browse — multiple files supported</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-neutral-300 font-medium">
+                        {tracks.length} track{tracks.length > 1 ? "s" : ""} added
+                      </p>
+                      <p className="text-sm text-neutral-500">Drop more to add, or click to browse</p>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.preventDefault(); togglePlay(); }}
+                        className="mt-1 rounded-lg bg-white px-4 py-1.5 text-sm font-medium text-neutral-900 hover:bg-neutral-200 transition"
+                      >
+                        {isPlaying ? "Pause Preview" : "Preview Active"}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </label>
+
+              {/* Quick create playlist shortcut */}
+              <AnimatePresence>
+                {tracks.length > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="mt-4 pt-4 border-t border-neutral-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                      <div>
+                        <p className="text-sm text-white font-medium">Create a playlist from these tracks</p>
+                        <p className="text-xs text-neutral-500 mt-0.5">
+                          Uploads all selected tracks and wraps them into a new playlist in one step
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={selectedCount === 0 || !allSelectedValid}
+                        onClick={() => setPlaylistModalOpen(true)}
+                        className={`shrink-0 rounded-xl px-4 py-2 text-sm font-medium transition border ${
+                          selectedCount > 0 && allSelectedValid
+                            ? "border-white text-white hover:bg-white hover:text-neutral-900"
+                            : "border-neutral-700 text-neutral-600 pointer-events-none"
                         }`}
                       >
-                        <div className="flex items-center space-x-2 truncate">
+                        + New Playlist
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+
+            {/* Track list */}
+            <AnimatePresence>
+              {tracks.length > 0 && (
+                <motion.div
+                  key="track-list"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 flex flex-col gap-4"
+                >
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-base font-semibold text-white">
+                      Tracks
+                      <span className="ml-2 text-xs font-normal text-neutral-400">
+                        {selectedCount} of {tracks.length} selected
+                      </span>
+                    </h2>
+                    {tracks.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setTracks((prev) =>
+                            prev.map((t) => ({ ...t, selected: selectedCount !== tracks.length }))
+                          )
+                        }
+                        className="text-xs text-neutral-400 hover:text-white transition"
+                      >
+                        {selectedCount === tracks.length ? "Deselect all" : "Select all"}
+                      </button>
+                    )}
+                  </div>
+
+                  <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                    {tracks.map((track) => {
+                      const isActive = track.id === activeTrackId;
+                      const needsInfo = !track.title.trim() || !track.artist.trim();
+                      return (
+                        <li
+                          key={track.id}
+                          onClick={() => handleSelectTrack(track)}
+                          className={`cursor-pointer group flex items-center gap-3 rounded-xl px-3 py-2.5 transition ${
+                            isActive
+                              ? "bg-white text-neutral-900"
+                              : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                          }`}
+                        >
                           <input
                             type="checkbox"
                             checked={track.selected}
                             onClick={(e) => e.stopPropagation()}
-                            onChange={() =>
-                              setTracks((prev) =>
-                                prev.map((t) =>
-                                  t.id === track.id ? { ...t, selected: !t.selected } : t
-                                )
-                              )
-                            }
+                            onChange={() => updateTrack(track.id, { selected: !track.selected })}
+                            className="shrink-0 accent-neutral-900"
                           />
-                          <div className="truncate">
-                            <p className="font-medium truncate">{track.title || track.file.name}</p>
-                            <p className="text-sm opacity-70 truncate">{track.artist || "Unknown artist"}</p>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium truncate text-sm leading-tight">
+                              {track.title || track.file.name}
+                            </p>
+                            <p className={`text-xs truncate mt-0.5 ${isActive ? "text-neutral-600" : "text-neutral-500"}`}>
+                              {track.artist || "Artist needed"}
+                            </p>
                           </div>
-                        </div>
-                        {isActive && <span className="text-xs font-semibold">Editing</span>}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </motion.div>
-            )}
-          </motion.div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            {needsInfo && !isActive && (
+                              <span className="text-xs text-amber-400 font-medium">!</span>
+                            )}
+                            {isActive && (
+                              <span className="text-xs font-semibold text-neutral-600">Editing</span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setTracks((prev) => prev.filter((t) => t.id !== track.id));
+                                if (isActive) setActiveTrackId(null);
+                              }}
+                              className={`text-sm opacity-0 group-hover:opacity-100 transition hover:text-red-400 ${
+                                isActive ? "text-neutral-600" : "text-neutral-500"
+                              }`}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
-          {/* RIGHT */}
-          <div className="space-y-6">
+            {/* Batch editor */}
+            <AnimatePresence>
+              {multiTrackMode && (
+                <motion.div
+                  key="batch-editor"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 flex flex-col gap-4"
+                >
+                  <div>
+                    <h2 className="text-base font-semibold text-white">Edit All Tracks</h2>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Fill in details for each track, or click one above to edit it in the panel
+                    </p>
+                  </div>
+
+                  {!isLoading && isAdmin && !hasPublicPlaylist && (
+                    <div>
+                      <p className="text-sm text-neutral-400 mb-2">Set visibility for all</p>
+                      <div className="flex gap-2">
+                        {(["private", "public"] as const).map((v) => (
+                          <button
+                            key={v}
+                            type="button"
+                            onClick={() =>
+                              setTracks((prev) => prev.map((t) => ({ ...t, visibility: v })))
+                            }
+                            className={`flex-1 rounded-lg py-2 text-sm font-medium capitalize transition border ${
+                              globalVisibility === v
+                                ? "bg-white text-neutral-900 border-white"
+                                : "bg-neutral-800 text-neutral-400 border-neutral-700 hover:border-neutral-500"
+                            }`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {hasPublicPlaylist && !isLoading && isAdmin && (
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2.5">
+                      <p className="text-xs text-amber-400">Visibility locked to Public — public playlist selected</p>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
+                    {tracks.map((track, i) => (
+                      <div
+                        key={track.id}
+                        className={`rounded-xl border p-4 transition ${
+                          track.id === activeTrackId
+                            ? "border-white/20 bg-neutral-800"
+                            : "border-neutral-800 bg-neutral-800/50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 mb-3">
+                          <span className="text-xs text-neutral-500 font-mono w-5">{i + 1}</span>
+                          <p className="text-xs text-neutral-400 truncate flex-1">{track.file.name}</p>
+                          <input
+                            type="checkbox"
+                            checked={track.selected}
+                            onChange={() => updateTrack(track.id, { selected: !track.selected })}
+                            className="accent-white shrink-0"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <input
+                            placeholder="Song title"
+                            value={track.title}
+                            onChange={(e) => updateTrack(track.id, { title: e.target.value })}
+                            className="rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-500"
+                          />
+                          <input
+                            placeholder="Artist"
+                            value={track.artist}
+                            onChange={(e) => updateTrack(track.id, { artist: e.target.value })}
+                            className="rounded-lg bg-neutral-900 border border-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-600 focus:outline-none focus:border-neutral-500"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* ── RIGHT ── */}
+          <div className="flex flex-col gap-5">
 
             {/* Playlists */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 h-[220px] flex flex-col"
+              transition={{ delay: 0.05 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 flex flex-col"
             >
-              <h2 className="text-lg font-semibold text-white mb-4">Add to Playlists</h2>
-              <ul className="space-y-2 overflow-y-auto pr-1">
-                {playlists.map((playlist) => {
-                  const checked = selectedPlaylists.includes(playlist._id);
-                  return (
-                    <li
-                      key={playlist._id}
-                      onClick={() =>
-                        setSelectedPlaylists((prev) =>
-                          checked
-                            ? prev.filter((id) => id !== playlist._id)
-                            : [...prev, playlist._id]
-                        )
-                      }
-                      className="flex items-center justify-between cursor-pointer rounded-lg px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
-                    >
-                      <span className="truncate">{playlist.title}</span>
-                      <span
-                        className={`h-4 w-4 flex items-center justify-center rounded-full border ${
-                          checked ? "border-white" : "border-neutral-500"
-                        }`}
+              <h2 className="text-base font-semibold text-white mb-3">Add to Playlists</h2>
+              {playlists.length === 0 ? (
+                <p className="text-sm text-neutral-500">No playlists yet</p>
+              ) : (
+                <ul className="space-y-1.5 overflow-y-auto max-h-44 pr-1">
+                  {playlists.map((playlist) => {
+                    const checked = selectedPlaylists.includes(playlist._id);
+                    return (
+                      <li
+                        key={playlist._id}
+                        onClick={() => togglePlaylistSelection(playlist._id)}
+                        className="flex items-center justify-between cursor-pointer rounded-lg px-3 py-2 text-sm text-neutral-300 hover:bg-neutral-800 transition"
                       >
-                        {checked && <span className="h-2 w-2 rounded-full bg-white" />}
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="truncate">{playlist.title}</span>
+                          {playlist.visibility === "public" && (
+                            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-amber-400 bg-amber-400/10 rounded px-1.5 py-0.5">
+                              Public
+                            </span>
+                          )}
+                        </div>
+                        <span
+                          className={`ml-2 shrink-0 h-4 w-4 flex items-center justify-center rounded-full border transition ${
+                            checked ? "border-white" : "border-neutral-600"
+                          }`}
+                        >
+                          {checked && <span className="h-2 w-2 rounded-full bg-white" />}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
             </motion.div>
 
-            {/* Song Details */}
+            {/* Active track details */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 flex flex-col gap-4"
+            >
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  {multiTrackMode && activeTrack ? "Selected Track" : "Song Details"}
+                </h2>
+                {multiTrackMode && activeTrack && (
+                  <p className="text-xs text-neutral-500 mt-0.5 truncate">{activeTrack.file.name}</p>
+                )}
+              </div>
+
+              {activeTrack ? (
+                <>
+                  <input
+                    placeholder="Song title"
+                    value={activeTrack.title}
+                    onChange={(e) => updateActiveTrack({ title: e.target.value })}
+                    className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
+                  />
+                  <input
+                    placeholder="Artist"
+                    value={activeTrack.artist}
+                    onChange={(e) => updateActiveTrack({ artist: e.target.value })}
+                    className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
+                  />
+
+                  {!isLoading && isAdmin && !multiTrackMode && (
+                    <div>
+                      <p className="text-sm text-neutral-400 mb-2">Visibility</p>
+                      <div
+                        className={`relative w-full h-10 flex items-center rounded-full bg-neutral-800 select-none ${
+                          hasPublicPlaylist ? "opacity-50 pointer-events-none" : "cursor-pointer"
+                        }`}
+                        onClick={() => {
+                          if (hasPublicPlaylist) return;
+                          updateActiveTrack({
+                            visibility: activeTrack.visibility === "public" ? "private" : "public",
+                          });
+                        }}
+                      >
+                        <div
+                          className={`absolute top-0 left-0 h-full w-1/2 rounded-full bg-white transition-transform duration-300 ${
+                            effectiveVisibility(activeTrack) === "public"
+                              ? "translate-x-full"
+                              : "translate-x-0"
+                          }`}
+                        />
+                        <div className="relative flex w-full text-sm font-medium z-10">
+                          {(["private", "public"] as const).map((v) => (
+                            <div
+                              key={v}
+                              className={`w-1/2 text-center py-2 capitalize transition-colors duration-300 ${
+                                effectiveVisibility(activeTrack) === v
+                                  ? "text-neutral-900"
+                                  : "text-white"
+                              }`}
+                            >
+                              {v}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      {hasPublicPlaylist && (
+                        <p className="text-xs text-amber-400 mt-1.5">Locked — public playlist selected</p>
+                      )}
+                    </div>
+                  )}
+
+                  <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-neutral-700 rounded-xl p-4 text-center text-neutral-400 hover:border-neutral-500 hover:text-white transition">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleImageSelect}
+                    />
+                    {!activeTrack.imagePreview ? (
+                      <span className="text-sm">Upload cover image</span>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <Image
+                          src={activeTrack.imagePreview}
+                          alt="Cover preview"
+                          width={100}
+                          height={100}
+                          className="rounded-lg object-cover"
+                        />
+                        <span className="text-xs text-neutral-500">Click to change</span>
+                      </div>
+                    )}
+                  </label>
+                </>
+              ) : (
+                <p className="text-sm text-neutral-500">
+                  {tracks.length === 0 ? "Add a track to fill in details" : "Click a track to edit it"}
+                </p>
+              )}
+            </motion.div>
+
+            {/* Submit */}
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4"
+              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
             >
-              <h2 className="text-lg font-semibold text-white mb-2">Song Details</h2>
-              <input
-                placeholder="Song title"
-                value={activeTrack?.title ?? ""}
-                onChange={(e) => updateActiveTrack({ title: e.target.value })}
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
-              />
-              <input
-                placeholder="Artist"
-                value={activeTrack?.artist ?? ""}
-                onChange={(e) => updateActiveTrack({ artist: e.target.value })}
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
-              />
-
-              {/* Visibility toggle */}
-              {!isLoading && isAdmin && (
-                <div className="mt-4">
-                  <span className="text-white mb-2 block">Visibility:</span>
-                  <div
-                    className="relative w-40 h-10 flex items-center rounded-full bg-neutral-800 cursor-pointer select-none"
-                    onClick={() => {
-                      const newVisibility = globalVisibility === "public" ? "private" : "public";
-                      setTracks((prev) => prev.map((t) => ({ ...t, visibility: newVisibility })));
-                    }}
-                  >
-                    <div
-                      className={`absolute top-0 left-0 h-full w-1/2 rounded-full bg-white transition-transform duration-300 ${
-                        globalVisibility === "public" ? "translate-x-full" : "translate-x-0"
-                      }`}
-                    />
-                    <div className="relative flex w-full text-sm font-medium text-white z-10">
-                      <div
-                        className={`w-1/2 text-center py-2 transition-colors duration-300 ${
-                          globalVisibility === "private" ? "text-neutral-900" : "text-white"
-                        }`}
-                      >
-                        Private
-                      </div>
-                      <div
-                        className={`w-1/2 text-center py-2 transition-colors duration-300 ${
-                          globalVisibility === "public" ? "text-neutral-900" : "text-white"
-                        }`}
-                      >
-                        Public
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              {selectedCount > 0 && !allSelectedValid && (
+                <p className="text-xs text-amber-400 mb-3">
+                  Some selected tracks are missing a title or artist.
+                </p>
               )}
-
-              {/* Image Upload */}
-              <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-center text-neutral-400 hover:border-white hover:text-white transition mt-4">
-                <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
-                {!activeTrack?.imagePreview ? (
-                  <span>Drag & drop cover image, or click to select</span>
-                ) : (
-                  <div className="flex flex-col items-center space-y-2">
-                    <span>Preview</span>
-                    <Image
-                      src={activeTrack.imagePreview}
-                      alt="Preview"
-                      width={120}
-                      height={120}
-                      className="rounded-lg object-cover"
-                    />
-                  </div>
-                )}
-              </label>
-            </motion.div>
-
-            {/* Create Button */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6"
-            >
               <button
-                disabled={
-                  !activeTrack ||
-                  !activeTrack.title ||
-                  !activeTrack.artist ||
-                  createTracksMutation.isPending
-                }
+                disabled={!canSubmit}
                 onClick={() => createTracksMutation.mutate()}
-                className={`w-full rounded-xl font-medium py-3 transition ${
-                  !activeTrack || !activeTrack.title || !activeTrack.artist || createTracksMutation.isPending
-                    ? "bg-neutral-700 text-neutral-400 pointer-events-none"
-                    : "bg-white text-neutral-900 hover:bg-neutral-200"
+                className={`w-full rounded-xl font-medium py-3 text-sm transition ${
+                  canSubmit
+                    ? "bg-white text-neutral-900 hover:bg-neutral-200"
+                    : "bg-neutral-700 text-neutral-500 pointer-events-none"
                 }`}
               >
-                {createTracksMutation.isPending ? "Uploading..." : "Create Track"}
+                {createTracksMutation.isPending
+                  ? "Uploading…"
+                  : `Upload ${selectedCount > 0 ? selectedCount : ""} Track${selectedCount !== 1 ? "s" : ""}`}
               </button>
             </motion.div>
           </div>
         </div>
       </div>
+
+      {/* ── QUICK PLAYLIST MODAL ── */}
+      <AnimatePresence>
+        {playlistModalOpen && (
+          <div className="fixed inset-0 bg-black/60 flex items-end sm:items-center justify-center z-50 px-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md flex flex-col gap-5 mb-4 sm:mb-0"
+            >
+              {quickPlaylistSuccess ? (
+                <div className="flex flex-col items-center gap-3 py-6 text-center">
+                  <div className="h-12 w-12 rounded-full bg-green-500/20 flex items-center justify-center text-green-400 text-2xl">✓</div>
+                  <p className="text-white font-semibold">Playlist created!</p>
+                  <p className="text-sm text-neutral-400">Tracks uploaded and playlist saved.</p>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <h3 className="text-white font-semibold text-lg">New Playlist</h3>
+                    <p className="text-xs text-neutral-500 mt-0.5">
+                      Uploads {selectedCount} track{selectedCount > 1 ? "s" : ""} and creates a playlist from them
+                    </p>
+                  </div>
+
+                  <input
+                    placeholder="Playlist name"
+                    value={quickPlaylistName}
+                    onChange={(e) => setQuickPlaylistName(e.target.value)}
+                    className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2.5 text-white placeholder-neutral-500 focus:outline-none focus:border-neutral-500"
+                    autoFocus
+                  />
+
+                  {!isLoading && isAdmin && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-neutral-400">Visibility</span>
+                      <div
+                        onClick={() =>
+                          setQuickPlaylistVisibility(
+                            quickPlaylistVisibility === "private" ? "public" : "private"
+                          )
+                        }
+                        className="relative w-36 h-9 bg-neutral-800 rounded-full cursor-pointer border border-neutral-700"
+                      >
+                        <motion.div
+                          animate={{ x: quickPlaylistVisibility === "public" ? "100%" : "0%" }}
+                          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                          className="absolute top-1 left-1 h-7 w-[calc(50%-4px)] bg-white rounded-full"
+                        />
+                        <div className="relative z-10 flex h-full text-xs font-medium select-none">
+                          <div className="w-1/2 flex items-center justify-center text-black">Private</div>
+                          <div className="w-1/2 flex items-center justify-center text-black">Public</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Track preview list */}
+                  <div className="rounded-xl bg-neutral-800 px-4 py-3 space-y-1.5 max-h-40 overflow-y-auto">
+                    {tracks.filter((t) => t.selected).map((t, i) => (
+                      <div key={t.id} className="flex items-center gap-2 text-sm text-neutral-300">
+                        <span className="text-xs text-neutral-600 w-4 text-right shrink-0">{i + 1}</span>
+                        <span className="truncate">{t.title || t.file.name}</span>
+                        {t.artist && <span className="text-neutral-500 shrink-0">— {t.artist}</span>}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPlaylistModalOpen(false);
+                        setQuickPlaylistName("");
+                      }}
+                      className="flex-1 rounded-xl border border-neutral-700 text-neutral-400 py-2.5 text-sm hover:bg-neutral-800 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!quickPlaylistName.trim() || quickPlaylistPending}
+                      onClick={handleQuickCreatePlaylist}
+                      className={`flex-1 rounded-xl py-2.5 text-sm font-medium transition flex items-center justify-center gap-2 ${
+                        quickPlaylistName.trim() && !quickPlaylistPending
+                          ? "bg-white text-neutral-900 hover:bg-neutral-200"
+                          : "bg-neutral-700 text-neutral-500 pointer-events-none"
+                      }`}
+                    >
+                      {quickPlaylistPending ? (
+                        <>
+                          <Spinner size={14} />
+                          Uploading…
+                        </>
+                      ) : (
+                        "Create Playlist"
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
