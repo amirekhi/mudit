@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import { cookies } from "next/headers";
+import "./globals.css"
 import { SidebarDemo } from "@/components/aceternity/SideBarDemo";
 import MusicPlayer from "@/components/music-player/MusicPlayer";
 import QueryProvider from "@/lib/TanStackQuery/QueryProvider";
@@ -56,24 +57,31 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Theme is read server-side from a cookie written by ThemeToggle.
+  // No localStorage, no client effect, no flash of the wrong theme.
+  const cookieStore = await cookies();
+  const theme = cookieStore.get("theme")?.value === "light" ? "light" : "dark";
+
   return (
-    <html lang="en">
-          <head>
+    <html lang="en" className={theme === "dark" ? "dark" : ""} style={{ colorScheme: theme }}>
+      <head>
         {/* Favicon */}
         <link rel="icon" type="image/png" sizes="32x32" href="/logoDark.png" />
         <meta name="theme-color" content="#000000" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full dark p-1`}
+        className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full p-1
+          bg-neutral-100 dark:bg-black transition-colors`}
       >
         <QueryProvider>
           <TopBanner />
-          <div className="flex flex-1 w-full overflow-hidden rounded-md border border-neutral-200 bg-neutral-400 dark:border-neutral-700 relative z-50 dark:bg-neutral-800">
+          <div className="flex flex-1 w-full overflow-hidden rounded-md border relative z-50
+            border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 transition-colors">
             <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
               <SidebarDemo>
                 {children}

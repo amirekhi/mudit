@@ -69,13 +69,13 @@ export default function ExportDialog({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-      <div className="w-[90%] max-w-sm rounded-xl border border-neutral-800 bg-neutral-900 p-5 space-y-4">
+      <div className="w-[90%] max-w-sm rounded-xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-neutral-200">Export Project</h2>
+          <h2 className="text-sm font-semibold text-neutral-800 dark:text-neutral-200">Export Project</h2>
           <button
             onClick={onClose}
             disabled={busy}
-            className="text-neutral-500 hover:text-neutral-300 disabled:opacity-30"
+            className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 disabled:opacity-30"
           >
             ✕
           </button>
@@ -88,7 +88,7 @@ export default function ExportDialog({ onClose }: Props) {
             onChange={e => setTitle(e.target.value)}
             disabled={busy}
             placeholder="My Track"
-            className="w-full px-3 py-2 rounded bg-neutral-950 border border-neutral-800 text-sm outline-none"
+            className="w-full px-3 py-2 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 outline-none"
           />
         </div>
 
@@ -99,7 +99,7 @@ export default function ExportDialog({ onClose }: Props) {
             onChange={e => setArtist(e.target.value)}
             disabled={busy}
             placeholder="Unknown Artist"
-            className="w-full px-3 py-2 rounded bg-neutral-950 border border-neutral-800 text-sm outline-none"
+            className="w-full px-3 py-2 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 outline-none"
           />
         </div>
 
@@ -107,14 +107,14 @@ export default function ExportDialog({ onClose }: Props) {
           <label className="block text-xs text-neutral-500">Cover Image (optional)</label>
           <div className="flex items-center gap-3">
             {coverPreview && (
-              <img src={coverPreview} alt="cover preview" className="w-12 h-12 rounded object-cover border border-neutral-800" />
+              <img src={coverPreview} alt="cover preview" className="w-12 h-12 rounded object-cover border border-neutral-200 dark:border-neutral-800" />
             )}
             <input
               type="file"
               accept="image/*"
               disabled={busy}
               onChange={e => handleCoverChange(e.target.files?.[0] ?? null)}
-              className="text-xs text-neutral-400"
+              className="text-xs text-neutral-500 dark:text-neutral-400"
             />
           </div>
         </div>
@@ -125,7 +125,7 @@ export default function ExportDialog({ onClose }: Props) {
             value={bitrate}
             onChange={e => setBitrate(Number(e.target.value))}
             disabled={busy}
-            className="w-full px-3 py-2 rounded bg-neutral-950 border border-neutral-800 text-sm outline-none"
+            className="w-full px-3 py-2 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-sm text-neutral-900 dark:text-neutral-100 outline-none"
           >
             <option value={128}>128 kbps</option>
             <option value={192}>192 kbps (recommended)</option>
@@ -134,14 +134,14 @@ export default function ExportDialog({ onClose }: Props) {
           </select>
         </div>
 
-        {errorMsg && <p className="text-xs text-red-400">{errorMsg}</p>}
+        {errorMsg && <p className="text-xs text-red-500 dark:text-red-400">{errorMsg}</p>}
 
-        {status === "done" && <p className="text-xs text-emerald-400">Download started.</p>}
+        {status === "done" && <p className="text-xs text-emerald-600 dark:text-emerald-400">Download started.</p>}
 
         <button
           onClick={handleExport}
           disabled={busy}
-          className="w-full px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm disabled:opacity-50"
+          className="w-full px-3 py-2 rounded bg-indigo-600 hover:bg-indigo-500 text-sm text-white disabled:opacity-50"
         >
           {status === "rendering" && "Rendering audio…"}
           {status === "encoding" && "Encoding MP3…"}

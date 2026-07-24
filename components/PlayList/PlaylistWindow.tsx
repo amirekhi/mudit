@@ -40,24 +40,24 @@ export default function PlaylistWindow() {
           animate={{ width: 300, opacity: 1 }}
           exit={{ width: 0, opacity: 0 }}
           transition={{ type: "tween", duration: 0.35 }}
-          className="shrink-0 flex flex-col border-l border-neutral-700 bg-neutral-900 overflow-hidden"
+          className="shrink-0 flex flex-col border-l border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 overflow-hidden transition-colors"
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-neutral-700">
-            <h2 className="text-lg font-semibold text-white">Playlist</h2>
+          <div className="flex items-center justify-between p-4 border-b border-neutral-200 dark:border-neutral-700">
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white">Playlist</h2>
             <div className="flex items-center gap-2">
               <button
                 onClick={handlePlayAll}
-                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-700 transition-colors"
+                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               >
-                <IconPlayerPlay className="w-4 h-4 text-white" />
-                <span className="text-sm text-white">Play All</span>
+                <IconPlayerPlay className="w-4 h-4 text-neutral-900 dark:text-white" />
+                <span className="text-sm text-neutral-900 dark:text-white">Play All</span>
               </button>
               <button
                 onClick={closeWindow}
-                className="p-1 rounded hover:bg-neutral-700 transition-colors"
+                className="p-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
               >
-                <IconX className="w-5 h-5 text-white" />
+                <IconX className="w-5 h-5 text-neutral-900 dark:text-white" />
               </button>
             </div>
           </div>

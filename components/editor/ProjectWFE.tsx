@@ -21,45 +21,45 @@ export default function ProjectWFE({ referenceLength }: { referenceLength: numbe
   const cb = "px-3 py-1.5 rounded text-xs font-medium transition-colors";
 
   return (
-    <section className="mt-6 rounded-xl border border-indigo-500/30 bg-indigo-500/5">
+    <section className="mt-6 rounded-xl border border-indigo-300/40 dark:border-indigo-500/30 bg-indigo-500/5">
 
       {/* Header */}
-      <div className="px-4 py-3 border-b border-indigo-500/20 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 sm:justify-between">
-        <span className="text-sm font-semibold text-indigo-300">Project Slates</span>
+      <div className="px-4 py-3 border-b border-indigo-300/30 dark:border-indigo-500/20 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 sm:justify-between">
+        <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Project Slates</span>
 
         {/* Button row — wraps on mobile, single row on sm+ */}
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => addSlate()}
-            className={`${cb} bg-neutral-800 hover:bg-neutral-700`}
+            className={`${cb} bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200`}
           >
             + New Slate
           </button>
           <button
             onClick={playProject}
             disabled={projectSlates.length === 0}
-            className={`${cb} bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40`}
+            className={`${cb} bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40`}
           >
             ▶ Play All
           </button>
           <button
             onClick={pause}
             disabled={!isPlaying}
-            className={`${cb} bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40`}
+            className={`${cb} bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 disabled:opacity-40`}
           >
             ⏸ Pause
           </button>
           <button
             onClick={reset}
             disabled={projectSlates.length === 0}
-            className={`${cb} bg-neutral-800 hover:bg-neutral-700 disabled:opacity-40`}
+            className={`${cb} bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-200 disabled:opacity-40`}
           >
             ↺ Reset
           </button>
           <button
             onClick={() => setExportOpen(true)}
             disabled={projectSlates.length === 0}
-            className={`${cb} bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40`}
+            className={`${cb} bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40`}
           >
             Export MP3
           </button>

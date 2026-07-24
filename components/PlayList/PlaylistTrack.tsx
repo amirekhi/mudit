@@ -31,7 +31,9 @@ export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrac
   return (
     <div
       className={`flex items-center justify-between p-2 rounded cursor-pointer transition-colors ${
-        isPlaying ? "bg-neutral-700" : "bg-neutral-800 hover:bg-neutral-700/50"
+        isPlaying
+          ? "bg-neutral-200 dark:bg-neutral-700"
+          : "bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700/50"
       }`}
     >
       {/* Left: Track info */}
@@ -40,8 +42,8 @@ export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrac
           <img src={track.image} alt={track.title} className="w-10 h-10 rounded" />
         )}
         <div className="flex flex-col">
-          <span className="text-white font-medium">{track.title}</span>
-          <span className="text-sm text-neutral-400">{track.artist}</span>
+          <span className="text-neutral-900 dark:text-white font-medium">{track.title}</span>
+          <span className="text-sm text-neutral-500 dark:text-neutral-400">{track.artist}</span>
         </div>
       </div>
 
@@ -52,12 +54,12 @@ export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrac
             e.stopPropagation();
             handlePlayPause();
           }}
-          className="p-1 rounded hover:bg-neutral-700 transition-colors"
+          className="p-1 rounded hover:bg-neutral-300 dark:hover:bg-neutral-700 transition-colors"
         >
           {isPlaying ? (
-            <IconPlayerPause className="w-5 h-5 text-white" />
+            <IconPlayerPause className="w-5 h-5 text-neutral-900 dark:text-white" />
           ) : (
-            <IconPlayerPlay className="w-5 h-5 text-white" />
+            <IconPlayerPlay className="w-5 h-5 text-neutral-900 dark:text-white" />
           )}
         </button>
 
@@ -66,9 +68,9 @@ export default function PlaylistTrack({ track, removeTrack , idx }: PlaylistTrac
             e.stopPropagation();
             removeTrack(track._id);
           }}
-          className="p-1 rounded hover:bg-red-700 transition-colors"
+          className="p-1 rounded hover:bg-red-200 dark:hover:bg-red-700 transition-colors"
         >
-          <IconX className="w-4 h-4 text-red-400" />
+          <IconX className="w-4 h-4 text-red-500 dark:text-red-400" />
         </button>
       </div>
     </div>

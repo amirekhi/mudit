@@ -97,8 +97,8 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
       regions = RegionsPlugin.create();
       ws = WaveSurfer.create({
         container: containerRef.current!,
-        waveColor: "#444", progressColor: "#6366f1",
-        cursorColor: "#fff", cursorWidth: 0,
+        waveColor: "#9ca3af", progressColor: "#6366f1",
+        cursorColor: "#6366f1", cursorWidth: 0,
         height: 120, normalize: true, interact: true,
         plugins: [regions],
       });
@@ -214,28 +214,28 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
   const selectedRegion = slate.regions.find(r => r.id === selectedRegionId);
 
   /* Shared button style */
-  const cb = "px-2.5 py-1.5 text-xs rounded bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 whitespace-nowrap transition-colors";
+  const cb = "px-2.5 py-1.5 text-xs rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 whitespace-nowrap transition-colors";
 
   return (
     <div className={`border rounded-lg transition-colors ${
       isPlayingHere ? "border-emerald-500 bg-emerald-500/10"
-      : isCurrent   ? "border-emerald-700/50 bg-emerald-500/5"
-      :                "border-neutral-800 bg-neutral-900/30"
+      : isCurrent   ? "border-emerald-600/50 dark:border-emerald-700/50 bg-emerald-500/5"
+      :                "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30"
     }`}>
 
       {/* ── Name + status row ── */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1 gap-2 flex-wrap">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-semibold text-neutral-200 truncate">{slate.name}</span>
+          <span className="text-sm font-semibold text-neutral-800 dark:text-neutral-200 truncate">{slate.name}</span>
           <span className="text-[10px] text-neutral-500 flex-shrink-0">
             {slate.kind === "single" ? "Source" : "Project"}
           </span>
-          {isPlayingHere && <span className="text-[10px] text-emerald-400 flex-shrink-0">● Playing</span>}
-          {isCurrent && !isPlaying && <span className="text-[10px] text-emerald-600 flex-shrink-0">● Paused</span>}
+          {isPlayingHere && <span className="text-[10px] text-emerald-600 dark:text-emerald-400 flex-shrink-0">● Playing</span>}
+          {isCurrent && !isPlaying && <span className="text-[10px] text-emerald-700 dark:text-emerald-600 flex-shrink-0">● Paused</span>}
         </div>
         <button
           onClick={() => removeSlate(slate.id)}
-          className="text-[10px] px-2 py-1 rounded bg-red-900/40 border border-red-800 text-red-300 hover:bg-red-900/60 flex-shrink-0"
+          className="text-[10px] px-2 py-1 rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-900/60 flex-shrink-0"
         >
           Delete Slate
         </button>
@@ -246,13 +246,13 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
         <div className="flex items-center gap-1.5 w-max">
 
           {/* Transport */}
-          <button onClick={() => { selectSlate(slate.id); playSlate(slate.id); }} className="px-2.5 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 whitespace-nowrap">
+          <button onClick={() => { selectSlate(slate.id); playSlate(slate.id); }} className="px-2.5 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap">
             ▶ Play
           </button>
           <button onClick={pauseEngine}  className={cb}>⏸ Pause</button>
           <button onClick={resetEngine}  className={cb}>↺ Reset</button>
 
-          <div className="w-px h-5 bg-neutral-700 mx-1 flex-shrink-0" />
+          <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
 
           {/* Length */}
           <label className="flex items-center gap-1 text-[10px] text-neutral-500 whitespace-nowrap">
@@ -261,7 +261,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
               type="number" min={0} step={0.5}
               value={slate.length}
               onChange={e => setSlateLength(slate.id, Number(e.target.value) || 0)}
-              className="w-14 px-1 py-1 rounded bg-neutral-950 border border-neutral-800 text-neutral-200 text-xs"
+              className="w-14 px-1 py-1 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs"
             />
             s
           </label>
@@ -273,18 +273,18 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
               type="number" min={0} step={0.1}
               value={Number(transportTime.toFixed(2))}
               onChange={e => seek(Number(e.target.value) || 0)}
-              className="w-16 px-1 py-1 rounded bg-neutral-950 border border-neutral-800 text-neutral-200 text-xs"
+              className="w-16 px-1 py-1 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs"
             />
             s
           </label>
 
-          <div className="w-px h-5 bg-neutral-700 mx-1 flex-shrink-0" />
+          <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
 
           {/* Clipboard */}
           {clipboard && (
             <button
               onClick={() => { selectSlate(slate.id); pasteRegion(slate.id, transportTime); }}
-              className="px-2.5 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 whitespace-nowrap"
+              className="px-2.5 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap"
             >
               Paste
             </button>
@@ -292,7 +292,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
 
           {/* Selection */}
           {!selection ? (
-            <button onClick={startSelectionMode} className="px-2.5 py-1.5 text-xs rounded bg-indigo-600 hover:bg-indigo-500 whitespace-nowrap">
+            <button onClick={startSelectionMode} className="px-2.5 py-1.5 text-xs rounded bg-indigo-600 hover:bg-indigo-500 text-white whitespace-nowrap">
               + Selection
             </button>
           ) : (
@@ -300,14 +300,14 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
               <select
                 value={targetSlateId}
                 onChange={e => setTargetSlateId(e.target.value)}
-                className="px-2 py-1.5 text-xs rounded bg-neutral-900 border border-neutral-800 max-w-[120px]"
+                className="px-2 py-1.5 text-xs rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 max-w-[120px]"
               >
                 <option value="">This slate</option>
                 {projectSlates.filter(s => s.id !== slate.id).map(s => (
                   <option key={s.id} value={s.id}>{s.name}</option>
                 ))}
               </select>
-              <button onClick={confirmSelection} className="px-2.5 py-1.5 text-xs rounded bg-emerald-700 hover:bg-emerald-600 whitespace-nowrap">
+              <button onClick={confirmSelection} className="px-2.5 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap">
                 ✓ Confirm
               </button>
               <button onClick={cancelSelection} className={cb}>✕ Cancel</button>
@@ -317,7 +317,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
           {/* Selected region actions */}
           {selectedRegion && (
             <>
-              <div className="w-px h-5 bg-neutral-700 mx-1 flex-shrink-0" />
+              <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
               <button
                 onClick={() => lockRegion(slate.id, selectedRegion.id, !selectedRegion.meta.locked)}
                 className={cb}
@@ -326,7 +326,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
               </button>
               <button
                 onClick={() => removeRegion(slate.id, selectedRegion.id)}
-                className="px-2.5 py-1.5 text-xs rounded bg-red-900/40 border border-red-800 text-red-300 whitespace-nowrap"
+                className="px-2.5 py-1.5 text-xs rounded bg-red-100 dark:bg-red-900/40 border border-red-300 dark:border-red-800 text-red-600 dark:text-red-300 whitespace-nowrap"
               >
                 Delete Region
               </button>
@@ -339,7 +339,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
       <div
         ref={rowRef}
         onClick={handleRowClick}
-        className="relative w-full h-[80px] md:h-[120px] bg-neutral-950 border-t border-neutral-800 overflow-hidden cursor-pointer rounded-b-lg"
+        className="relative w-full h-[80px] md:h-[120px] bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer rounded-b-lg"
       >
         <div
           className={`absolute top-0 left-0 h-full ${selection ? "z-30" : "z-0"}`}

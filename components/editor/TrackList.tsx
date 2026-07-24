@@ -50,15 +50,15 @@ export default function TrackList() {
         placeholder="Search tracks…"
         value={query}
         onChange={e => setQuery(e.target.value)}
-        className="w-full px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-800
-          text-sm text-white placeholder-neutral-500 outline-none
+        className="w-full px-3 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800
+          text-sm text-neutral-900 dark:text-white placeholder-neutral-500 outline-none
           focus:ring-2 focus:ring-indigo-500 flex-shrink-0"
       />
 
       {/* Track list */}
       <div className="flex-1 overflow-y-auto space-y-1 min-h-0">
         {filtered.length === 0 && (
-          <p className="text-xs text-neutral-600 text-center py-6">No tracks found</p>
+          <p className="text-xs text-neutral-400 dark:text-neutral-600 text-center py-6">No tracks found</p>
         )}
 
         {filtered.map(track => {
@@ -71,7 +71,7 @@ export default function TrackList() {
             <div
               key={track._id}
               className={`flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-colors
-                hover:bg-neutral-800 ${isArmed ? "bg-indigo-500/10 border border-indigo-500/20" : ""}`}
+                hover:bg-neutral-100 dark:hover:bg-neutral-800 ${isArmed ? "bg-indigo-500/10 border border-indigo-500/20" : ""}`}
             >
               {/* Arm checkbox — larger touch target on mobile */}
               <button
@@ -81,7 +81,7 @@ export default function TrackList() {
                   border transition-colors ${
                   isArmed
                     ? "bg-indigo-500 border-indigo-400"
-                    : "border-neutral-600 hover:border-neutral-400"
+                    : "border-neutral-300 dark:border-neutral-600 hover:border-neutral-500 dark:hover:border-neutral-400"
                 } ${isArming ? "opacity-40" : ""}`}
                 aria-label={isArmed ? "Unarm track" : "Arm track"}
               >
@@ -100,10 +100,10 @@ export default function TrackList() {
                 onClick={() => playTrack(track)}
                 className="flex-1 min-w-0 text-left"
               >
-                <div className="text-sm font-medium text-neutral-200 truncate flex items-center gap-1.5">
+                <div className="text-sm font-medium text-neutral-800 dark:text-neutral-200 truncate flex items-center gap-1.5">
                   {track.title}
                   {isPlaying && (
-                    <span className="text-[10px] text-indigo-400 flex-shrink-0">▶</span>
+                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 flex-shrink-0">▶</span>
                   )}
                 </div>
                 <div className="text-xs text-neutral-500 truncate">{track.artist}</div>

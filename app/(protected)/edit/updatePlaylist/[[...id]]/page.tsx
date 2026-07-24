@@ -11,6 +11,7 @@ import { Track } from "@/store/useAudioStore";
 import { Spinner } from "@/components/basics/Spinner";
 import { PlaylistDb } from "@/types/playlistTypes";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 import { useParams } from "next/navigation";
 
 function useDebounce<T>(value: T, delay = 300) {
@@ -154,8 +155,9 @@ export default function UpdatePlaylistPage() {
   const showSelector = !urlId;
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6 flex items-center justify-center py-8">
-      <div className="absolute top-4 right-4 z-50">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 px-6 flex items-center justify-center py-8 transition-colors">
+      <div className="absolute top-4 right-4 z-50 flex items-center gap-2">
+        <ThemeToggle />
         <BackButton />
       </div>
 
@@ -166,14 +168,14 @@ export default function UpdatePlaylistPage() {
           <motion.div
             initial={{ y: -20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
-            className="lg:col-span-1 rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-4 flex flex-col items-center"
+            className="lg:col-span-1 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-6 space-y-4 flex flex-col items-center transition-colors"
           >
-            <h2 className="text-lg font-semibold text-white text-center">Select Playlist</h2>
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-white text-center">Select Playlist</h2>
             <input
               placeholder="Search playlists..."
               value={searchPlaylist}
               onChange={e => setSearchPlaylist(e.target.value)}
-              className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white mb-2"
+              className="w-full rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-neutral-900 dark:text-white mb-2"
             />
             <ul className="space-y-2 max-h-96 overflow-y-auto w-full">
               {filteredPlaylists.map(p => (
@@ -182,8 +184,8 @@ export default function UpdatePlaylistPage() {
                   onClick={() => setActivePlaylist(p)}
                   className={`cursor-pointer px-3 py-2 rounded-lg w-full text-center ${
                     activePlaylist?._id === p._id
-                      ? "bg-white text-neutral-900"
-                      : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                      ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   }`}
                 >
                   {p.title}
@@ -198,30 +200,30 @@ export default function UpdatePlaylistPage() {
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ type: "spring", stiffness: 300, damping: 30 }}
-          className={`rounded-2xl border border-neutral-800 bg-neutral-900 p-8 space-y-6 min-h-[400px] ${showSelector ? "lg:col-span-2" : ""}`}
+          className={`rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-8 space-y-6 min-h-[400px] transition-colors ${showSelector ? "lg:col-span-2" : ""}`}
         >
           {activePlaylist ? (
             <>
-              <h1 className="text-2xl font-semibold text-white">Update Playlist</h1>
+              <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Update Playlist</h1>
 
               <input
                 placeholder="Playlist Name"
                 value={playlistName}
                 onChange={e => { setPlaylistName(e.target.value); setIsDirty(true); }}
-                className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white placeholder-neutral-500"
+                className="w-full rounded-lg bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-neutral-900 dark:text-white placeholder-neutral-500"
               />
 
               {!userLoading && isAdmin && (
                 <div className="flex items-center gap-4">
-                  <span className="text-white text-sm">Visibility</span>
+                  <span className="text-neutral-900 dark:text-white text-sm">Visibility</span>
                   <div
                     onClick={() => setVisibility(v => v === "private" ? "public" : "private")}
-                    className="relative w-36 h-9 bg-neutral-800 rounded-full cursor-pointer border border-neutral-700"
+                    className="relative w-36 h-9 bg-neutral-200 dark:bg-neutral-800 rounded-full cursor-pointer border border-neutral-300 dark:border-neutral-700"
                   >
                     <motion.div
                       animate={{ x: visibility === "public" ? "100%" : "0%" }}
                       transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      className="absolute top-1 left-1 h-7 w-[calc(50%-4px)] bg-white rounded-full"
+                      className="absolute top-1 left-1 h-7 w-[calc(50%-4px)] bg-white rounded-full shadow"
                     />
                     <div className="relative z-10 flex h-full text-xs font-medium select-none">
                       <div className="w-1/2 flex items-center justify-center text-black">Private</div>
@@ -231,28 +233,28 @@ export default function UpdatePlaylistPage() {
                 </div>
               )}
 
-              <label className="cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-4 transition">
+              <label className="cursor-pointer w-full flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 p-4 transition">
                 <input type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
                 {imagePreview
                   ? <Image src={imagePreview} alt="Playlist cover" width={120} height={120} className="rounded-lg object-cover" />
-                  : <span className="text-neutral-400">Select playlist image</span>
+                  : <span className="text-neutral-500 dark:text-neutral-400">Select playlist image</span>
                 }
               </label>
 
-              <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-6 space-y-3">
+              <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 p-6 space-y-3 transition-colors">
                 <input
                   placeholder="Search tracks to add..."
                   value={trackSearch}
                   onChange={e => setTrackSearch(e.target.value)}
-                  className="w-full rounded-lg bg-neutral-800 border border-neutral-700 px-3 py-2 text-white mb-3"
+                  className="w-full rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 px-3 py-2 text-neutral-900 dark:text-white mb-3"
                 />
                 {trackSearch && filteredTracks.length > 0 && (
-                  <ul className="max-h-64 overflow-y-auto space-y-1 border border-neutral-700 p-2 rounded-lg bg-neutral-800">
+                  <ul className="max-h-64 overflow-y-auto space-y-1 border border-neutral-200 dark:border-neutral-700 p-2 rounded-lg bg-white dark:bg-neutral-800">
                     {filteredTracks.map(t => (
                       <li
                         key={t._id}
                         onClick={() => { setSelectedTracks(prev => [...prev, t]); setTrackSearch(""); }}
-                        className="cursor-pointer px-2 py-1 rounded hover:bg-neutral-700 text-white"
+                        className="cursor-pointer px-2 py-1 rounded hover:bg-neutral-100 dark:hover:bg-neutral-700 text-neutral-900 dark:text-white"
                       >
                         {t.title} - {t.artist}
                       </li>
@@ -269,7 +271,7 @@ export default function UpdatePlaylistPage() {
                     <Reorder.Item
                       key={track._id}
                       value={track}
-                      className="px-3 py-2 rounded-lg bg-neutral-800 text-white cursor-pointer hover:bg-neutral-700"
+                      className="px-3 py-2 rounded-lg bg-white dark:bg-neutral-800 border border-neutral-200 dark:border-transparent text-neutral-900 dark:text-white cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700"
                     >
                       {track.title} - {track.artist}
                     </Reorder.Item>
@@ -285,7 +287,7 @@ export default function UpdatePlaylistPage() {
                     ? "bg-green-500 text-white cursor-not-allowed"
                     : playlistName && selectedTracks.length
                     ? "bg-green-500 hover:bg-green-600 text-white"
-                    : "bg-neutral-700 text-neutral-400 pointer-events-none"
+                    : "bg-neutral-200 dark:bg-neutral-700 text-neutral-400 pointer-events-none"
                 }`}
               >
                 {handleUpdatePlaylist.isPending ? <><Spinner size={18} /> Saving...</> : "Save Playlist"}
@@ -302,7 +304,7 @@ export default function UpdatePlaylistPage() {
               )}
             </>
           ) : (
-            <div className="flex items-center justify-center h-full text-neutral-400 text-lg">
+            <div className="flex items-center justify-center h-full text-neutral-500 dark:text-neutral-400 text-lg">
               Select a playlist to start editing
             </div>
           )}

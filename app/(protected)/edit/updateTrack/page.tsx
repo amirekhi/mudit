@@ -10,6 +10,7 @@ import { storage } from "@/lib/storage/storage";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { Track, useAudioStore } from "@/store/useAudioStore";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 
 function useDebounce<T>(value: T, delay = 400) {
   const [debounced, setDebounced] = useState(value);
@@ -148,11 +149,11 @@ function UpdateTrackPageInner() {
   });
 
   const inputCls =
-    "w-full rounded-xl bg-neutral-800 border border-neutral-700 px-3 py-2.5 text-sm " +
-    "text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500";
+    "w-full rounded-xl bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 px-3 py-2.5 text-sm " +
+    "text-neutral-900 dark:text-white placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-indigo-500";
 
   return (
-    <div className="min-h-full overflow-x-hidden">
+    <div className="min-h-full overflow-x-hidden bg-white dark:bg-transparent transition-colors">
       <div className="p-4 sm:p-6 pb-10 flex flex-col gap-4">
 
         <div className="flex items-center justify-between">
@@ -160,14 +161,17 @@ function UpdateTrackPageInner() {
             {showEditor && (
               <button
                 onClick={() => setShowEditor(false)}
-                className="sm:hidden text-sm text-neutral-400 hover:text-white transition"
+                className="sm:hidden text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition"
               >
                 ← Tracks
               </button>
             )}
-            <h1 className="text-2xl font-semibold text-white hidden sm:block">Edit Tracks</h1>
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white hidden sm:block">Edit Tracks</h1>
           </div>
-          <BackButton />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <BackButton />
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
@@ -176,10 +180,10 @@ function UpdateTrackPageInner() {
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            className={`sm:col-span-2 rounded-2xl border border-neutral-800 bg-neutral-900 p-5
+            className={`sm:col-span-2 rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 transition-colors
               ${showEditor ? "hidden sm:block" : "block"}`}
           >
-            <h2 className="text-base font-semibold text-white mb-3">Your Tracks</h2>
+            <h2 className="text-base font-semibold text-neutral-900 dark:text-white mb-3">Your Tracks</h2>
 
             <input
               placeholder="Search tracks…"
@@ -195,8 +199,8 @@ function UpdateTrackPageInner() {
                   onClick={() => selectTrack(t)}
                   className={`cursor-pointer rounded-xl px-4 py-3 transition ${
                     activeTrack?._id === t._id
-                      ? "bg-white text-neutral-900"
-                      : "bg-neutral-800 text-neutral-300 hover:bg-neutral-700"
+                      ? "bg-neutral-900 dark:bg-white text-white dark:text-neutral-900"
+                      : "bg-neutral-100 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                   }`}
                 >
                   <p className="font-medium text-sm truncate">{t.title}</p>
@@ -212,10 +216,10 @@ function UpdateTrackPageInner() {
             <motion.div
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
+              className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 transition-colors"
             >
               <fieldset disabled={!activeTrack} className="space-y-3 disabled:opacity-40">
-                <h2 className="text-base font-semibold text-white">Edit Track</h2>
+                <h2 className="text-base font-semibold text-neutral-900 dark:text-white">Edit Track</h2>
 
                 <input
                   value={form.title}
@@ -233,22 +237,22 @@ function UpdateTrackPageInner() {
 
                 {!userLoading && isAdmin && (
                   <div>
-                    <span className="text-xs text-neutral-400 block mb-1.5">Visibility</span>
+                    <span className="text-xs text-neutral-500 dark:text-neutral-400 block mb-1.5">Visibility</span>
                     <div
                       onClick={() => {
                         isDirty.current = true;
                         setForm(f => ({ ...f, visibility: f.visibility === "public" ? "private" : "public" }));
                       }}
-                      className="relative w-40 h-10 rounded-full bg-neutral-800 cursor-pointer select-none"
+                      className="relative w-40 h-10 rounded-full bg-neutral-200 dark:bg-neutral-800 cursor-pointer select-none"
                     >
-                      <div className={`absolute top-0 left-0 h-full w-1/2 bg-white rounded-full transition-transform ${
+                      <div className={`absolute top-0 left-0 h-full w-1/2 bg-white dark:bg-neutral-900 rounded-full transition-transform shadow ${
                         form.visibility === "public" ? "translate-x-full" : "translate-x-0"
                       }`} />
                       <div className="relative z-10 flex h-full text-xs font-medium">
-                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "private" ? "text-neutral-900" : "text-white"}`}>
+                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "private" ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"}`}>
                           Private
                         </div>
-                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "public" ? "text-neutral-900" : "text-white"}`}>
+                        <div className={`w-1/2 flex items-center justify-center ${form.visibility === "public" ? "text-neutral-900 dark:text-white" : "text-neutral-500 dark:text-neutral-400"}`}>
                           Public
                         </div>
                       </div>
@@ -256,7 +260,7 @@ function UpdateTrackPageInner() {
                   </div>
                 )}
 
-                <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed rounded-2xl p-4 text-neutral-500 text-sm hover:border-neutral-500 transition">
+                <label className="cursor-pointer flex flex-col items-center justify-center border-2 border-dashed border-neutral-300 dark:border-neutral-700 rounded-2xl p-4 text-neutral-500 text-sm hover:border-neutral-400 dark:hover:border-neutral-500 transition">
                   <input
                     type="file"
                     accept="image/*"
@@ -283,9 +287,9 @@ function UpdateTrackPageInner() {
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.05 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5"
+              className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 transition-colors"
             >
-              <h2 className="text-base font-semibold text-white mb-3">Add to Playlists</h2>
+              <h2 className="text-base font-semibold text-neutral-900 dark:text-white mb-3">Add to Playlists</h2>
               <ul className="space-y-1.5 max-h-40 overflow-y-auto">
                 {playlists.map(p => {
                   const checked = selectedPlaylists.includes(p._id);
@@ -298,10 +302,10 @@ function UpdateTrackPageInner() {
                           checked ? prev.filter(id => id !== p._id) : [...prev, p._id]
                         );
                       }}
-                      className="flex justify-between items-center cursor-pointer px-3 py-2 rounded-lg text-sm text-neutral-300 hover:bg-neutral-800 transition"
+                      className="flex justify-between items-center cursor-pointer px-3 py-2 rounded-lg text-sm text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
                     >
                       <span className="truncate">{p.title}</span>
-                      {checked && <span className="text-indigo-400 flex-shrink-0 ml-2">✓</span>}
+                      {checked && <span className="text-indigo-600 dark:text-indigo-400 flex-shrink-0 ml-2">✓</span>}
                     </li>
                   );
                 })}
@@ -313,14 +317,14 @@ function UpdateTrackPageInner() {
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-2xl border border-neutral-800 bg-neutral-900 p-5 space-y-3"
+              className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-5 space-y-3 transition-colors"
             >
               <button
                 disabled={!activeTrack || updateMutation.isPending}
                 onClick={() => updateMutation.mutate()}
                 className="w-full rounded-xl py-3 font-medium text-sm transition
-                  disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed
-                  enabled:bg-white enabled:text-neutral-900 enabled:hover:bg-neutral-200"
+                  disabled:bg-neutral-200 dark:disabled:bg-neutral-700 disabled:text-neutral-400 disabled:cursor-not-allowed
+                  enabled:bg-neutral-900 dark:enabled:bg-white enabled:text-white dark:enabled:text-neutral-900 enabled:hover:bg-neutral-700 dark:enabled:hover:bg-neutral-200"
               >
                 {updateMutation.isPending ? "Saving…" : "Update Track"}
               </button>

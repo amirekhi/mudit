@@ -10,7 +10,7 @@ interface SpinnerProps {
 export function Spinner({ size = 18, className = "" }: SpinnerProps) {
   return (
     <motion.div
-      className={`rounded-full border-2 border-white/30 border-t-white ${className}`}
+      className={`rounded-full border-2 border-current/30 border-t-current ${className}`}
       style={{ width: size, height: size }}
       animate={{ rotate: 360 }}
       transition={{

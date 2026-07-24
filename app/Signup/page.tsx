@@ -14,6 +14,7 @@ import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 
 export default function SignupPage() {
   const [username, setUsername] = useState("");
@@ -59,7 +60,8 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-full overflow-x-hidden flex items-center justify-center
-      bg-gradient-to-b from-black via-zinc-950 to-zinc-900 px-4 py-10">
+      bg-gradient-to-b from-white via-neutral-50 to-neutral-100
+      dark:from-black dark:via-zinc-950 dark:to-zinc-900 px-4 py-10 transition-colors">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -69,21 +71,25 @@ export default function SignupPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Sign up</h1>
-            <p className="text-sm text-zinc-400 mt-0.5">Create your account</p>
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Sign up</h1>
+            <p className="text-sm text-neutral-500 dark:text-zinc-400 mt-0.5">Create your account</p>
           </div>
-          <BackButton />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <BackButton />
+          </div>
         </div>
 
-        <div className="bg-zinc-950/70 backdrop-blur-xl border border-zinc-800 rounded-3xl
+        <div className="bg-white/80 dark:bg-zinc-950/70 backdrop-blur-xl border
+          border-neutral-200 dark:border-zinc-800 rounded-3xl
           shadow-2xl p-6 sm:p-8 space-y-5">
 
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-2">
-              <IconMusic className="w-7 h-7 text-purple-400" />
-              <h1 className="text-xl font-semibold tracking-tight text-white">Mudit</h1>
+              <IconMusic className="w-7 h-7 text-purple-500 dark:text-purple-400" />
+              <h1 className="text-xl font-semibold tracking-tight text-neutral-900 dark:text-white">Mudit</h1>
             </div>
-            <p className="text-sm text-zinc-400">Create your account</p>
+            <p className="text-sm text-neutral-500 dark:text-zinc-400">Create your account</p>
           </div>
 
           {/* Profile image */}
@@ -92,7 +98,7 @@ export default function SignupPage() {
               <img
                 src={profilePreview || "/userAvatar.webp"}
                 alt="Profile"
-                className="h-20 w-20 rounded-full object-cover border border-zinc-700 transition group-hover:opacity-70"
+                className="h-20 w-20 rounded-full object-cover border border-neutral-200 dark:border-zinc-700 transition group-hover:opacity-70"
               />
               <div className="absolute inset-0 flex items-center justify-center rounded-full
                 bg-black/50 opacity-0 group-hover:opacity-100 transition">
@@ -110,48 +116,48 @@ export default function SignupPage() {
                 }}
               />
             </label>
-            <span className="text-xs text-zinc-500">Optional profile photo</span>
+            <span className="text-xs text-neutral-400 dark:text-zinc-500">Optional profile photo</span>
           </div>
 
           {mutation.isError && (
-            <p className="text-red-400 text-sm text-center">{(mutation.error as Error).message}</p>
+            <p className="text-red-500 dark:text-red-400 text-sm text-center">{(mutation.error as Error).message}</p>
           )}
           {passwordError && (
-            <p className="text-red-400 text-sm text-center">{passwordError}</p>
+            <p className="text-red-500 dark:text-red-400 text-sm text-center">{passwordError}</p>
           )}
 
           <div className="space-y-3">
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Username</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Username</Label>
               <Input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="bg-zinc-900/60 border-zinc-700 rounded-xl h-10 text-sm"
+                className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 rounded-xl h-10 text-sm"
               />
             </div>
 
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Email</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Email</Label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="bg-zinc-900/60 border-zinc-700 rounded-xl h-10 text-sm"
+                className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 rounded-xl h-10 text-sm"
               />
             </div>
 
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Password</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Password</Label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="bg-zinc-900/60 border-zinc-700 pr-10 rounded-xl h-10 text-sm"
+                  className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 pr-10 rounded-xl h-10 text-sm"
                 />
                 <button
                   type="button"
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-zinc-400 hover:text-neutral-700 dark:hover:text-white"
                   onClick={() => setShowPassword(!showPassword)}
                 >
                   {showPassword ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
@@ -165,7 +171,7 @@ export default function SignupPage() {
                       "bg-red-500": strength >= lvl && lvl === 1,
                       "bg-yellow-500": strength >= lvl && lvl === 2,
                       "bg-green-500": strength >= lvl && lvl === 3,
-                      "bg-zinc-700": strength < lvl,
+                      "bg-neutral-200 dark:bg-zinc-700": strength < lvl,
                     })}
                   />
                 ))}
@@ -173,12 +179,12 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Confirm Password</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Confirm Password</Label>
               <Input
                 type={showPassword ? "text" : "password"}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className="bg-zinc-900/60 border-zinc-700 rounded-xl h-10 text-sm"
+                className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 rounded-xl h-10 text-sm"
               />
             </div>
 
@@ -190,9 +196,9 @@ export default function SignupPage() {
               {mutation.isPending ? "Creating account…" : "Sign Up"}
             </Button>
 
-            <p className="text-sm text-center text-zinc-400">
+            <p className="text-sm text-center text-neutral-500 dark:text-zinc-400">
               Already have an account?{" "}
-              <Link href="/login" className="text-purple-400 hover:text-purple-300 font-medium">
+              <Link href="/login" className="text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-medium">
                 Log in
               </Link>
             </p>

@@ -14,10 +14,10 @@ export default function BackButton() {
           w-12 h-12
           flex items-center justify-center
           rounded-full
-          bg-neutral-900/80 text-white
-          hover:bg-neutral-800
+          bg-neutral-200/80 dark:bg-neutral-900/80 text-neutral-900 dark:text-white
+          hover:bg-neutral-300 dark:hover:bg-neutral-800
           active:scale-95
-          transition
+          transition-colors
         "
       >
         <GoBackArrow />

@@ -8,6 +8,7 @@ import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useAudioStore } from "@/store/useAudioStore";
 import { IconSearch, IconMusic, IconLock, IconWorld, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 
 export default function MyTracksPage() {
   const router = useRouter();
@@ -43,31 +44,34 @@ export default function MyTracksPage() {
     `px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex-shrink-0 ${
       active
         ? "bg-indigo-600 text-white"
-        : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"
+        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white"
     }`;
 
   return (
-    <div className="min-h-full overflow-x-hidden">
+    <div className="min-h-full overflow-x-hidden bg-white dark:bg-transparent transition-colors">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 pb-32 flex flex-col gap-6">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white">My Tracks</h1>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">My Tracks</h1>
             {!isLoading && (
               <p className="text-sm text-neutral-500 mt-0.5">
                 {tracks.length} {tracks.length === 1 ? "track" : "tracks"}
               </p>
             )}
           </div>
-          <Link
-            href="/createSong"
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600
-              hover:bg-indigo-500 text-white text-sm font-medium transition-colors flex-shrink-0"
-          >
-            <IconPlus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Track</span>
-          </Link>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href="/createSong"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600
+                hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+            >
+              <IconPlus className="w-4 h-4" />
+              <span className="hidden sm:inline">Add Track</span>
+            </Link>
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Search + filters */}
@@ -79,8 +83,8 @@ export default function MyTracksPage() {
               placeholder="Search your tracks…"
               value={query}
               onChange={e => setQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-900 border border-neutral-800
-                text-sm text-white placeholder-neutral-500 focus:outline-none focus:ring-2
+              className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800
+                text-sm text-neutral-900 dark:text-white placeholder-neutral-500 focus:outline-none focus:ring-2
                 focus:ring-indigo-500 transition"
             />
           </div>
@@ -103,12 +107,12 @@ export default function MyTracksPage() {
         {/* Empty */}
         {!isLoading && tracks.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 gap-4">
-            <div className="w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-800
+            <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800
               flex items-center justify-center">
-              <IconMusic className="w-7 h-7 text-neutral-700" />
+              <IconMusic className="w-7 h-7 text-neutral-400 dark:text-neutral-700" />
             </div>
-            <p className="text-neutral-300 font-medium">No tracks yet</p>
-            <p className="text-neutral-600 text-sm text-center">
+            <p className="text-neutral-700 dark:text-neutral-300 font-medium">No tracks yet</p>
+            <p className="text-neutral-400 dark:text-neutral-600 text-sm text-center">
               Upload your first track to get started
             </p>
             <Link
@@ -139,7 +143,7 @@ export default function MyTracksPage() {
                   className={`flex items-center gap-3 p-3 rounded-xl transition-colors group
                     border ${isActive
                       ? "bg-indigo-600/10 border-indigo-500/30"
-                      : "bg-neutral-900/50 border-neutral-800 hover:bg-neutral-900"
+                      : "bg-neutral-50 dark:bg-neutral-900/50 border-neutral-200 dark:border-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-900"
                     }`}
                 >
                   {/* Index / play indicator */}
@@ -150,19 +154,19 @@ export default function MyTracksPage() {
                         else playTrack(track);
                       }}
                       className="w-8 h-8 rounded-full flex items-center justify-center
-                        bg-neutral-800 hover:bg-indigo-600 transition-colors"
+                        bg-neutral-200 dark:bg-neutral-800 hover:bg-indigo-600 transition-colors"
                     >
                       {isActive && isPlaying ? (
                         <span className="flex gap-0.5 items-end h-3">
-                          <span className="w-0.5 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-                          <span className="w-0.5 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-                          <span className="w-0.5 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+                          <span className="w-0.5 h-3 bg-indigo-500 dark:bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+                          <span className="w-0.5 h-2 bg-indigo-500 dark:bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+                          <span className="w-0.5 h-3 bg-indigo-500 dark:bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
                         </span>
                       ) : (
-                        <span className="text-[10px] text-neutral-400 group-hover:hidden">{i + 1}</span>
+                        <span className="text-[10px] text-neutral-500 dark:text-neutral-400 group-hover:hidden">{i + 1}</span>
                       )}
                       {!isActive && (
-                        <svg className="hidden group-hover:block w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                        <svg className="hidden group-hover:block w-3.5 h-3.5 text-neutral-900 dark:text-white" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M8 5v14l11-7z" />
                         </svg>
                       )}
@@ -173,12 +177,12 @@ export default function MyTracksPage() {
                   <img
                     src={track.image || "/test.jpg"}
                     alt={track.title}
-                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-neutral-800"
+                    className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-800"
                   />
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className={`text-sm font-medium truncate ${isActive ? "text-indigo-300" : "text-white"}`}>
+                    <div className={`text-sm font-medium truncate ${isActive ? "text-indigo-600 dark:text-indigo-300" : "text-neutral-900 dark:text-white"}`}>
                       {track.title}
                     </div>
                     <div className="text-xs text-neutral-500 truncate">{track.artist}</div>
@@ -186,7 +190,7 @@ export default function MyTracksPage() {
 
                   {/* Visibility badge */}
                   <div className="flex-shrink-0 hidden sm:flex items-center gap-1 px-2 py-1
-                    rounded-full bg-neutral-800 text-neutral-400 text-[10px] font-medium">
+                    rounded-full bg-neutral-200 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 text-[10px] font-medium">
                     {track.visibility === "public"
                       ? <><IconWorld className="w-3 h-3" /> Public</>
                       : <><IconLock className="w-3 h-3" /> Private</>
@@ -196,8 +200,8 @@ export default function MyTracksPage() {
                   {/* Detail link */}
                   <Link
                     href={`/tracks/${track._id}`}
-                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs text-neutral-400
-                      hover:text-white hover:bg-neutral-800 transition-colors"
+                    className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs text-neutral-500 dark:text-neutral-400
+                      hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-800 transition-colors"
                     onClick={e => e.stopPropagation()}
                   >
                     View

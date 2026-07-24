@@ -5,7 +5,8 @@ import PlaylistPlayButton from "./PlaylistPlayButton";
 
 export default function PublicPlaylistCard({ playlist }: { playlist: Playlist }) {
   return (
-    <div className="group relative w-72 min-w-[18rem] min-h-[300px] bg-neutral-900 hover:bg-neutral-800 transition-colors rounded-2xl cursor-pointer overflow-hidden
+    <div className="group relative w-72 min-w-[18rem] min-h-[300px] bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent
+                    hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors rounded-2xl cursor-pointer overflow-hidden
                     max-md:w-60 max-md:min-w-[15rem] max-md:min-h-[250px]">
       <div className="relative">
         <img
@@ -20,8 +21,8 @@ export default function PublicPlaylistCard({ playlist }: { playlist: Playlist })
       </div>
 
       <div className="p-4 max-md:p-2">
-        <h3 className="text-lg font-semibold text-white max-md:text-sm">{playlist.title}</h3>
-        <p className="text-sm text-neutral-400 mt-1 line-clamp-2 max-md:text-xs">
+        <h3 className="text-lg font-semibold text-neutral-900 dark:text-white max-md:text-sm">{playlist.title}</h3>
+        <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-1 line-clamp-2 max-md:text-xs">
           {playlist.description}
         </p>
       </div>

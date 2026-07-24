@@ -44,7 +44,7 @@ export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselP
       </button>
 
       {/* Title */}
-      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl">{title}</h2>}
+      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl text-neutral-900 dark:text-white">{title}</h2>}
 
       {/* Carousel container */}
       <div
@@ -55,9 +55,9 @@ export default function PlaylistCarousel({ title, playlists }: PlaylistCarouselP
         <Link
           href="/createPlaylist"
           className="shrink-0 w-[180px] h-[240px] max-md:w-[140px] max-md:h-[180px] rounded-xl
-                     border-2 border-dashed border-neutral-400/50
+                     border-2 border-dashed border-neutral-300 dark:border-neutral-400/50
                      flex flex-col items-center justify-center
-                     text-neutral-500 hover:text-white hover:border-white transition-colors"
+                     text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-white hover:border-neutral-500 dark:hover:border-white transition-colors"
         >
           <IconPlus className="w-10 h-10 max-md:w-8 max-md:h-8 mb-2" />
           <span className="text-sm font-medium max-md:text-xs">Create Playlist</span>

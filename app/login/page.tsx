@@ -12,6 +12,7 @@ import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -31,7 +32,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen overflow-x-hidden flex items-center justify-center
-      bg-gradient-to-b from-black to-zinc-900 px-4 py-10">
+      bg-gradient-to-b from-neutral-100 to-white dark:from-black dark:to-zinc-900 px-4 py-10 transition-colors">
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
@@ -41,53 +42,57 @@ export default function LoginPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Sign in</h1>
-            <p className="text-sm text-zinc-400 mt-0.5">Welcome back</p>
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Sign in</h1>
+            <p className="text-sm text-neutral-500 dark:text-zinc-400 mt-0.5">Welcome back</p>
           </div>
-          <BackButton />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <BackButton />
+          </div>
         </div>
 
-        <div className="bg-zinc-950/60 backdrop-blur-xl border border-zinc-800
+        <div className="bg-white/80 dark:bg-zinc-950/60 backdrop-blur-xl border
+          border-neutral-200 dark:border-zinc-800
           rounded-2xl shadow-xl p-6 sm:p-8 space-y-5">
 
           <div className="flex flex-col items-center gap-1.5">
             <div className="flex items-center gap-2">
-              <IconMusic className="w-7 h-7 text-purple-400" />
-              <h1 className="text-xl font-semibold text-white">Mudit</h1>
+              <IconMusic className="w-7 h-7 text-purple-500 dark:text-purple-400" />
+              <h1 className="text-xl font-semibold text-neutral-900 dark:text-white">Mudit</h1>
             </div>
-            <h2 className="text-sm text-zinc-400">Sign in to your account</h2>
+            <h2 className="text-sm text-neutral-500 dark:text-zinc-400">Sign in to your account</h2>
           </div>
 
           {isError && (
-            <p className="text-red-400 text-sm text-center">{(error as Error).message}</p>
+            <p className="text-red-500 dark:text-red-400 text-sm text-center">{(error as Error).message}</p>
           )}
 
           <div className="space-y-3">
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Email</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Email</Label>
               <Input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="your@email.com"
-                className="bg-zinc-900/60 border-zinc-700 rounded-xl h-10 text-sm"
+                className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 rounded-xl h-10 text-sm"
               />
             </div>
 
             <div>
-              <Label className="text-zinc-400 text-xs mb-1 block">Password</Label>
+              <Label className="text-neutral-500 dark:text-zinc-400 text-xs mb-1 block">Password</Label>
               <div className="relative">
                 <Input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="bg-zinc-900/60 border-zinc-700 pr-10 rounded-xl h-10 text-sm"
+                  className="bg-white dark:bg-zinc-900/60 border-neutral-200 dark:border-zinc-700 pr-10 rounded-xl h-10 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-white"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-zinc-400 hover:text-neutral-700 dark:hover:text-white"
                 >
                   {showPassword ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
                 </button>
@@ -103,9 +108,9 @@ export default function LoginPage() {
               {isPending ? "Signing in…" : "Login"}
             </Button>
 
-            <p className="text-sm text-center text-zinc-400">
+            <p className="text-sm text-center text-neutral-500 dark:text-zinc-400">
               No account?{" "}
-              <Link href="/Signup" className="text-purple-400 hover:text-purple-300 font-medium">
+              <Link href="/signup" className="text-purple-600 dark:text-purple-400 hover:text-purple-500 dark:hover:text-purple-300 font-medium">
                 Sign up
               </Link>
             </p>

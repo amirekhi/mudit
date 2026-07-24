@@ -94,8 +94,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
       title="Toggle playlist"
       className={`relative p-2 rounded-full transition-colors ${
         isOpen
-          ? "text-indigo-400 bg-indigo-500/15 hover:bg-indigo-500/25"
-          : "hover:bg-neutral-700 text-neutral-300"
+          ? "text-indigo-600 dark:text-indigo-400 bg-indigo-500/15 hover:bg-indigo-500/25"
+          : "hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-600 dark:text-neutral-300"
       } ${className}`}
     >
       <IconPlaylist className="w-5 h-5" />
@@ -118,8 +118,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         initial={{ height: "0px", opacity: 0 }}
         animate={{ height: currentTrack ? "80px" : 0, opacity: currentTrack ? 1 : 0 }}
         transition={{ duration: 0.4 }}
-        className="hidden md:flex overflow-hidden bg-neutral-800 text-white w-full flex-row
-          items-center justify-between px-4 md:px-8 shadow-lg rounded-full m-1"
+        className="hidden md:flex overflow-hidden bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white w-full flex-row
+          items-center justify-between px-4 md:px-8 shadow-lg rounded-full m-1 border border-neutral-200 dark:border-transparent transition-colors"
       >
         {/* Track Info */}
     
@@ -127,7 +127,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
           <div className="flex flex-col min-w-0">
             <span className="font-semibold text-lg truncate">{currentTrack.title}</span>
             {currentTrack.artist && (
-              <span className="text-sm text-gray-400 truncate">{currentTrack.artist}</span>
+              <span className="text-sm text-neutral-500 dark:text-gray-400 truncate">{currentTrack.artist}</span>
             )}
           </div>
           {currentTrack.image && (
@@ -139,8 +139,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
           <Link
             href={`/tracks/${currentTrack._id}`}
             className="flex-shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg
-              bg-neutral-700 hover:bg-neutral-600 text-xs text-neutral-300
-              hover:text-white transition-colors"
+              bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 text-xs text-neutral-600 dark:text-neutral-300
+              hover:text-neutral-900 dark:hover:text-white transition-colors"
           >
             <IconExternalLink className="w-3.5 h-3.5" />
             View
@@ -152,7 +152,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
             value={isNaN(progress) ? 0 : progress}
             onChange={handleSeek}
             className="w-full h-1 accent-indigo-500" />
-          <div className="flex justify-between text-xs text-gray-400 mt-1">
+          <div className="flex justify-between text-xs text-neutral-500 dark:text-gray-400 mt-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
@@ -160,28 +160,28 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
 
         {/* Controls */}
         <div className="flex items-center gap-2">
-          <button className="p-2 hover:bg-neutral-700 rounded-full">
+          <button className="p-2 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full">
             <IconArrowsShuffle className="w-5 h-5" />
           </button>
           <button onClick={handlePrevTrack} disabled={!currentPlaylist}
-            className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
+            className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-200 dark:hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
             <IconPlayerSkipBack className="w-5 h-5" />
           </button>
           <button onClick={togglePlay}
-            className="p-3 bg-neutral-700 hover:bg-neutral-600 rounded-full">
+            className="p-3 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-full">
             {isPlaying ? <IconPlayerPause className="w-6 h-6" /> : <IconPlayerPlay className="w-6 h-6" />}
           </button>
           <button onClick={handleNextTrack} disabled={!currentPlaylist}
-            className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
+            className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-200 dark:hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
             <IconPlayerSkipForward className="w-5 h-5" />
           </button>
         </div>
 
         {/* Volume */}
         <div className="hidden md:flex items-center gap-2 w-40">
-          <button onClick={handleToggleMute} className="p-1 hover:bg-neutral-700 rounded-full">
+          <button onClick={handleToggleMute} className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full">
             {isMuted
-              ? <IconVolumeOff className="w-5 h-5 text-gray-400" />
+              ? <IconVolumeOff className="w-5 h-5 text-neutral-400 dark:text-gray-400" />
               : <IconVolume className="w-5 h-5" />}
           </button>
           <input type="range" min={0} max={1} step={0.01}
@@ -194,7 +194,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
 
         {/* Close */}
         <div className="hidden md:block ml-1">
-          <button onClick={handleClose} className="p-2 rounded-full hover:bg-neutral-700">
+          <button onClick={handleClose} className="p-2 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700">
             <IconX className="w-5 h-5" />
           </button>
         </div>
@@ -205,7 +205,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         {!expanded && (
           <motion.div
             ref={miniRef}
-            className="md:hidden fixed bottom-4 left-4 w-60 bg-neutral-900 rounded-xl
+            className="md:hidden fixed bottom-4 left-4 w-60 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent rounded-xl
               shadow-xl flex items-center p-2 cursor-grab z-50"
             drag
             dragConstraints={{
@@ -227,18 +227,18 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
                 className="w-14 h-14 rounded-lg object-cover" />
             )}
             <div className="ml-2 flex-1 overflow-hidden">
-              <p className="text-sm font-semibold truncate">{currentTrack.title}</p>
+              <p className="text-sm font-semibold truncate text-neutral-900 dark:text-white">{currentTrack.title}</p>
               {currentTrack.artist && (
-                <p className="text-xs text-gray-400 truncate">{currentTrack.artist}</p>
+                <p className="text-xs text-neutral-500 dark:text-gray-400 truncate">{currentTrack.artist}</p>
               )}
             </div>
             <button onClick={e => { e.stopPropagation(); togglePlay(); }}
-              className="ml-2 p-2 bg-neutral-700 hover:bg-neutral-600 rounded-full">
-              {isPlaying ? <IconPlayerPause className="w-5 h-5" /> : <IconPlayerPlay className="w-5 h-5" />}
+              className="ml-2 p-2 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-full">
+              {isPlaying ? <IconPlayerPause className="w-5 h-5 text-neutral-900 dark:text-white" /> : <IconPlayerPlay className="w-5 h-5 text-neutral-900 dark:text-white" />}
             </button>
             <button onClick={e => { e.stopPropagation(); handleClose(); }}
-              className="ml-1 p-2 hover:bg-neutral-700 rounded-full">
-              <IconX className="w-4 h-4" />
+              className="ml-1 p-2 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded-full">
+              <IconX className="w-4 h-4 text-neutral-600 dark:text-neutral-300" />
             </button>
           </motion.div>
         )}
@@ -246,7 +246,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
         {/* Expanded Mobile Card */}
 {expanded && (
           <motion.div
-            className="md:hidden fixed bottom-4 left-2 right-2 bg-neutral-900 rounded-xl
+            className="md:hidden fixed bottom-4 left-2 right-2 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent rounded-xl
               shadow-2xl p-4 z-50 flex flex-col gap-3"
             initial={{ y: 300, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
@@ -264,7 +264,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
                   <div className="flex items-center gap-1 min-w-0">
                     <motion.div className="overflow-hidden whitespace-nowrap flex-1 min-w-0">
                       <motion.p
-                        className="text-sm font-semibold whitespace-nowrap"
+                        className="text-sm font-semibold whitespace-nowrap text-neutral-900 dark:text-white"
                         animate={{ x: ["0%", "-100%"] }}
                         transition={{ duration: 8, repeat: Infinity, ease: "linear", repeatDelay: 1 }}
                       >
@@ -274,14 +274,14 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
                     <Link
                       href={`/tracks/${currentTrack._id}`}
                       onClick={e => e.stopPropagation()}
-                      className="flex-shrink-0 p-1 rounded-md hover:bg-neutral-700
-                        text-neutral-500 hover:text-white transition-colors"
+                      className="flex-shrink-0 p-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700
+                        text-neutral-400 dark:text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors"
                     >
                       <IconExternalLink className="w-3.5 h-3.5" />
                     </Link>
                   </div>
                   {currentTrack.artist && (
-                    <p className="text-xs text-gray-400 truncate">{currentTrack.artist}</p>
+                    <p className="text-xs text-neutral-500 dark:text-gray-400 truncate">{currentTrack.artist}</p>
                   )}
                 </div>
               </div>
@@ -289,8 +289,8 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
               <div className="flex items-center gap-1 flex-shrink-0">
                 <PlaylistToggle />
                 <button onClick={() => setExpanded(false)}
-                  className="p-2 hover:bg-neutral-700 rounded-full">
-                  <IconX className="w-5 h-5" />
+                  className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-full">
+                  <IconX className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />
                 </button>
               </div>
             </div>
@@ -300,7 +300,7 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
               value={isNaN(progress) ? 0 : progress}
               onChange={handleSeek}
               className="w-full h-1 accent-indigo-500" />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
+            <div className="flex justify-between text-xs text-neutral-500 dark:text-gray-400 mt-1">
               <span>{formatTime(currentTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
@@ -308,29 +308,29 @@ export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void 
             {/* Controls */}
             <div className="flex items-center justify-between mt-2">
               <div className="flex items-center gap-2">
-                <button className="p-2 hover:bg-neutral-700 rounded-full">
-                  <IconArrowsShuffle className="w-5 h-5" />
+                <button className="p-2 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-full">
+                  <IconArrowsShuffle className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />
                 </button>
                 <button onClick={handlePrevTrack} disabled={!currentPlaylist}
-                  className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
+                  className={`p-2 rounded-full text-neutral-700 dark:text-neutral-200 ${currentPlaylist ? "hover:bg-neutral-100 dark:hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
                   <IconPlayerSkipBack className="w-5 h-5" />
                 </button>
                 <button onClick={togglePlay}
-                  className="p-3 bg-neutral-700 hover:bg-neutral-600 rounded-full">
-                  {isPlaying ? <IconPlayerPause className="w-6 h-6" /> : <IconPlayerPlay className="w-6 h-6" />}
+                  className="p-3 bg-neutral-200 dark:bg-neutral-700 hover:bg-neutral-300 dark:hover:bg-neutral-600 rounded-full">
+                  {isPlaying ? <IconPlayerPause className="w-6 h-6 text-neutral-900 dark:text-white" /> : <IconPlayerPlay className="w-6 h-6 text-neutral-900 dark:text-white" />}
                 </button>
                 <button onClick={handleNextTrack} disabled={!currentPlaylist}
-                  className={`p-2 rounded-full ${currentPlaylist ? "hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
+                  className={`p-2 rounded-full text-neutral-700 dark:text-neutral-200 ${currentPlaylist ? "hover:bg-neutral-100 dark:hover:bg-neutral-700" : "opacity-40 cursor-not-allowed"}`}>
                   <IconPlayerSkipForward className="w-5 h-5" />
                 </button>
               </div>
 
               {/* Volume */}
               <div className="flex items-center gap-2 w-32">
-                <button onClick={handleToggleMute} className="p-1 hover:bg-neutral-700 rounded-full">
+                <button onClick={handleToggleMute} className="p-1 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-full">
                   {isMuted
-                    ? <IconVolumeOff className="w-5 h-5 text-gray-400" />
-                    : <IconVolume className="w-5 h-5" />}
+                    ? <IconVolumeOff className="w-5 h-5 text-neutral-400 dark:text-gray-400" />
+                    : <IconVolume className="w-5 h-5 text-neutral-700 dark:text-neutral-200" />}
                 </button>
                 <input type="range" min={0} max={1} step={0.01}
                   value={volume} onChange={handleVolumeChange}

@@ -73,14 +73,15 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
           onChange={e => { setQuery(e.target.value); setOpen(true); }}
           onFocus={() => { if (trimmed.length >= 2) setOpen(true); }}
           onKeyDown={handleKeyDown}
-          className="w-full rounded-full border border-neutral-700 bg-neutral-800
-            pl-11 pr-20 py-3 text-sm text-white placeholder-neutral-500
-            focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+          className="w-full rounded-full border border-neutral-200 dark:border-neutral-700
+            bg-neutral-100 dark:bg-neutral-800
+            pl-11 pr-20 py-3 text-sm text-neutral-900 dark:text-white placeholder-neutral-500
+            focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors"
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {query && (
-            <button onClick={clear} className="p-1.5 rounded-full hover:bg-neutral-700 transition">
-              <IconX className="w-3.5 h-3.5 text-neutral-400" />
+            <button onClick={clear} className="p-1.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
+              <IconX className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
             </button>
           )}
           <button
@@ -97,12 +98,12 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
       {/* Dropdown */}
       {open && suggestions.length > 0 && (
         <div className="absolute top-full mt-2 left-0 right-0 z-50
-          bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl overflow-hidden">
+          bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden">
           {suggestions.map(track => (
             <div
               key={track._id}
               className="flex items-center gap-3 px-4 py-3
-                hover:bg-neutral-800 cursor-pointer transition"
+                hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
               onMouseDown={e => e.preventDefault()} // prevent input blur before click
               onClick={() => {
                 playTrack(track);
@@ -112,11 +113,11 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
               <img
                 src={track.image || "/test.jpg"}
                 alt={track.title}
-                className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-700"
+                className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
               />
               <div className="min-w-0 flex-1">
-                <div className="text-sm text-white font-medium truncate">{track.title}</div>
-                <div className="text-xs text-neutral-400 truncate">{track.artist}</div>
+                <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
               </div>
             </div>
           ))}
@@ -126,8 +127,9 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
             onMouseDown={e => e.preventDefault()}
             onClick={handleSubmit}
             className="w-full flex items-center justify-center gap-2 px-4 py-3
-              border-t border-neutral-800 text-xs text-indigo-400 hover:bg-neutral-800
-              transition font-medium"
+              border-t border-neutral-200 dark:border-neutral-800 text-xs text-indigo-600 dark:text-indigo-400
+              hover:bg-neutral-100 dark:hover:bg-neutral-800
+              transition-colors font-medium"
           >
             <IconSearch className="w-3.5 h-3.5" />
             Search all results for "{trimmed}"
@@ -138,16 +140,17 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
       {/* No results hint */}
       {open && trimmed.length >= 2 && suggestions.length === 0 && (
         <div className="absolute top-full mt-2 left-0 right-0 z-50
-          bg-neutral-900 border border-neutral-800 rounded-2xl shadow-xl">
-          <div className="px-4 py-4 text-sm text-neutral-500 text-center">
+          bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl">
+          <div className="px-4 py-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
             No tracks found for "{trimmed}"
           </div>
           <button
             onMouseDown={e => e.preventDefault()}
             onClick={handleSubmit}
             className="w-full flex items-center justify-center gap-2 px-4 py-3
-              border-t border-neutral-800 text-xs text-indigo-400 hover:bg-neutral-800
-              transition font-medium"
+              border-t border-neutral-200 dark:border-neutral-800 text-xs text-indigo-600 dark:text-indigo-400
+              hover:bg-neutral-100 dark:hover:bg-neutral-800
+              transition-colors font-medium"
           >
             <IconSearch className="w-3.5 h-3.5" />
             Search anyway

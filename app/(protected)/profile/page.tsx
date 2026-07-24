@@ -12,6 +12,7 @@ import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
 import { uploadImage } from "@/lib/firebase/uploadImage";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 import { IconX, IconCamera, IconCheck, IconEye, IconEyeOff } from "@tabler/icons-react";
 
 type Modal = "edit" | "password" | null;
@@ -46,7 +47,10 @@ export default function ProfilePage() {
           <h1 className="text-2xl font-semibold">Profile</h1>
           <p className="text-sm text-muted-foreground mt-0.5">Manage your account</p>
         </div>
-        <BackButton />
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <BackButton />
+        </div>
       </div>
 
       <motion.div
@@ -183,7 +187,7 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
           value={username}
           onChange={e => setUsername(e.target.value)}
           placeholder="Enter new username"
-          className="bg-neutral-900/60 border-neutral-700 rounded-xl"
+          className="bg-neutral-100 dark:bg-neutral-900/60 border-neutral-200 dark:border-neutral-700 rounded-xl"
         />
       </div>
 
@@ -192,14 +196,14 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
         <Input
           value={user.email}
           disabled
-          className="bg-neutral-900/40 border-neutral-800 rounded-xl opacity-50 cursor-not-allowed"
+          className="bg-neutral-100 dark:bg-neutral-900/40 border-neutral-200 dark:border-neutral-800 rounded-xl opacity-50 cursor-not-allowed"
         />
         <p className="text-[10px] text-muted-foreground">Email cannot be changed here</p>
       </div>
 
-      {error   && <p className="text-sm text-red-400 text-center">{error}</p>}
+      {error   && <p className="text-sm text-red-500 dark:text-red-400 text-center">{error}</p>}
       {success && (
-        <p className="text-sm text-emerald-400 text-center flex items-center justify-center gap-1">
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 text-center flex items-center justify-center gap-1">
           <IconCheck className="w-4 h-4" /> Saved!
         </p>
       )}
@@ -253,7 +257,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
     <button
       type="button"
       onClick={() => setShow(s => !s)}
-      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+      className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-white"
     >
       {show ? <IconEyeOff className="w-4 h-4" /> : <IconEye className="w-4 h-4" />}
     </button>
@@ -268,7 +272,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             type={show ? "text" : "password"}
             value={current}
             onChange={e => setCurrent(e.target.value)}
-            className="bg-neutral-900/60 border-neutral-700 rounded-xl pr-10"
+            className="bg-neutral-100 dark:bg-neutral-900/60 border-neutral-200 dark:border-neutral-700 rounded-xl pr-10"
           />
           {eyeBtn}
         </div>
@@ -281,7 +285,7 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             type={show ? "text" : "password"}
             value={next}
             onChange={e => setNext(e.target.value)}
-            className="bg-neutral-900/60 border-neutral-700 rounded-xl pr-10"
+            className="bg-neutral-100 dark:bg-neutral-900/60 border-neutral-200 dark:border-neutral-700 rounded-xl pr-10"
           />
           {eyeBtn}
         </div>
@@ -294,15 +298,15 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
             type={show ? "text" : "password"}
             value={confirm}
             onChange={e => setConfirm(e.target.value)}
-            className="bg-neutral-900/60 border-neutral-700 rounded-xl pr-10"
+            className="bg-neutral-100 dark:bg-neutral-900/60 border-neutral-200 dark:border-neutral-700 rounded-xl pr-10"
           />
           {eyeBtn}
         </div>
       </div>
 
-      {error   && <p className="text-sm text-red-400 text-center">{error}</p>}
+      {error   && <p className="text-sm text-red-500 dark:text-red-400 text-center">{error}</p>}
       {success && (
-        <p className="text-sm text-emerald-400 text-center flex items-center justify-center gap-1">
+        <p className="text-sm text-emerald-600 dark:text-emerald-400 text-center flex items-center justify-center gap-1">
           <IconCheck className="w-4 h-4" /> Password updated!
         </p>
       )}
@@ -338,12 +342,12 @@ function ModalShell({ onClose, title, children }: {
         exit={{ opacity: 0, y: 40 }}
         transition={{ type: "spring", stiffness: 400, damping: 32 }}
         onClick={e => e.stopPropagation()}
-        className="w-full max-w-sm bg-zinc-950 border border-zinc-800 rounded-2xl
+        className="w-full max-w-sm bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-zinc-800 rounded-2xl
           shadow-2xl p-6 space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <button onClick={onClose} className="p-1 rounded-lg hover:bg-neutral-800 transition">
+          <h2 className="text-base font-semibold text-neutral-900 dark:text-white">{title}</h2>
+          <button onClick={onClose} className="p-1 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800 transition">
             <IconX className="w-4 h-4 text-neutral-400" />
           </button>
         </div>

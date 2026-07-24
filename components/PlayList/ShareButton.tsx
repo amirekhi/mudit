@@ -89,8 +89,8 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
     <>
       <button
         onClick={handleOpen}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-700
-          bg-neutral-800 text-white text-sm hover:bg-neutral-700 transition"
+        className="flex items-center gap-2 px-4 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700
+          bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
       >
         <IconShare className="w-4 h-4" />
         Share
@@ -103,16 +103,16 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-5"
+              className="bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl p-6 w-full max-w-md space-y-5"
             >
               <div className="flex items-center justify-between">
-                <h3 className="text-white font-semibold text-lg">Share Playlist</h3>
-                <button onClick={() => setOpen(false)} className="text-neutral-400 hover:text-white text-xl leading-none">✕</button>
+                <h3 className="text-neutral-900 dark:text-white font-semibold text-lg">Share Playlist</h3>
+                <button onClick={() => setOpen(false)} className="text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-white text-xl leading-none">✕</button>
               </div>
 
               {playlistVisibility === "public" ? (
                 <div className="space-y-3">
-                  <p className="text-neutral-400 text-sm">This playlist is public — anyone with the link can access it.</p>
+                  <p className="text-neutral-500 dark:text-neutral-400 text-sm">This playlist is public — anyone with the link can access it.</p>
                   <button
                     onClick={handleCreate}
                     className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition"
@@ -123,7 +123,7 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <p className="text-neutral-400 text-sm">This playlist is private. Create a time-limited link to share it.</p>
+                  <p className="text-neutral-500 dark:text-neutral-400 text-sm">This playlist is private. Create a time-limited link to share it.</p>
 
                   {/* Expiry picker */}
                   <div className="space-y-2">
@@ -136,7 +136,7 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
                           className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
                             selectedHours === opt.hours
                               ? "bg-indigo-600 text-white"
-                              : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white"
                           }`}
                         >
                           {opt.label}
@@ -160,9 +160,9 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
                     <div className="space-y-2">
                       <span className="text-xs text-neutral-500 uppercase tracking-wide font-medium">Active links</span>
                       {sessions.map((s) => (
-                        <div key={s.cryptoId} className="flex items-center gap-2 bg-neutral-800 rounded-xl px-3 py-2">
+                        <div key={s.cryptoId} className="flex items-center gap-2 bg-neutral-100 dark:bg-neutral-800 rounded-xl px-3 py-2">
                           <div className="flex-1 min-w-0">
-                            <p className="text-white text-xs font-mono truncate">{`/share/${s.cryptoId.slice(0, 16)}…`}</p>
+                            <p className="text-neutral-900 dark:text-white text-xs font-mono truncate">{`/share/${s.cryptoId.slice(0, 16)}…`}</p>
                             <div className="flex items-center gap-1 text-neutral-500 text-xs mt-0.5">
                               <IconClock className="w-3 h-3" />
                               <span>Expires {new Date(s.expiresAt).toLocaleDateString()}</span>
@@ -170,13 +170,13 @@ export default function ShareButton({ playlistId, playlistVisibility }: ShareBut
                           </div>
                           <button
                             onClick={() => handleCopy(s.cryptoId)}
-                            className="p-1.5 rounded-lg hover:bg-neutral-700 text-neutral-400 hover:text-white transition"
+                            className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
                           >
-                            {copiedId === s.cryptoId ? <IconCheck className="w-4 h-4 text-green-400" /> : <IconLink className="w-4 h-4" />}
+                            {copiedId === s.cryptoId ? <IconCheck className="w-4 h-4 text-green-600 dark:text-green-400" /> : <IconLink className="w-4 h-4" />}
                           </button>
                           <button
                             onClick={() => handleDelete(s.cryptoId)}
-                            className="p-1.5 rounded-lg hover:bg-neutral-700 text-red-400 hover:text-red-300 transition"
+                            className="p-1.5 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-700 text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition-colors"
                           >
                             <IconTrash className="w-4 h-4" />
                           </button>

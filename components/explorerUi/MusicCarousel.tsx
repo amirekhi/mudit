@@ -47,7 +47,7 @@ export default function MusicCarousel({ tracks, title }: MusicCarouselProps) {
       </button>
 
       {/* Title */}
-      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl">{title}</h2>}
+      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl text-neutral-900 dark:text-white">{title}</h2>}
 
       {/* Carousel container */}
       <div
@@ -59,9 +59,9 @@ export default function MusicCarousel({ tracks, title }: MusicCarouselProps) {
           <motion.div
             whileHover={{ scale: 1.05 }}
             className="flex-shrink-0 w-60 min-w-[240px] h-60 max-md:w-44 max-md:min-w-[180px] max-md:h-48
-                       bg-neutral-900 rounded-xl p-4 flex flex-col justify-center items-center cursor-pointer
-                       shadow-lg hover:shadow-2xl border-2 border-dashed border-neutral-700 hover:border-white
-                       text-neutral-500 hover:text-white transition-colors"
+                       bg-white dark:bg-neutral-900 rounded-xl p-4 flex flex-col justify-center items-center cursor-pointer
+                       shadow-lg hover:shadow-2xl border-2 border-dashed border-neutral-300 dark:border-neutral-700 hover:border-neutral-500 dark:hover:border-white
+                       text-neutral-400 dark:text-neutral-500 hover:text-neutral-700 dark:hover:text-white transition-colors"
           >
             <IconPlus className="w-12 h-12 max-md:w-8 max-md:h-8 mb-2" />
             <span className="text-center font-semibold max-md:text-sm">Add Track</span>

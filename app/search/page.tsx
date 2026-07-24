@@ -8,6 +8,7 @@ import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import SearchMusicCard from "@/components/basics/SearchMusicCard";
 import SearchBar from "@/components/basics/SearchBar";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 import { IconSearch, IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import MusicCard from "@/components/explorerUi/MusicCard";
 
@@ -67,16 +68,19 @@ function SearchResults() {
     `px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
       active
         ? "bg-indigo-600 text-white"
-        : "bg-neutral-800 text-neutral-400 hover:bg-neutral-700 hover:text-white"
+        : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-neutral-900 dark:hover:text-white"
     }`;
 
   return (
-    <div className="min-h-full overflow-x-hidden">
+    <div className="min-h-full overflow-x-hidden bg-white dark:bg-transparent transition-colors">
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8 pb-32 flex flex-col gap-6">
 
         {/* Search bar for further searches */}
-        <div className="w-full max-w-xl mx-auto">
-          <SearchBar tracks={allTracks} placeholder={`Search again…`} />
+        <div className="flex items-center gap-3 w-full max-w-xl mx-auto">
+          <div className="flex-1">
+            <SearchBar tracks={allTracks} placeholder={`Search again…`} />
+          </div>
+          <ThemeToggle />
         </div>
 
         {/* Header */}
@@ -86,7 +90,7 @@ function SearchResults() {
               <IconSearch className="w-3.5 h-3.5" />
               <span>Results for</span>
             </div>
-            <h1 className="text-2xl font-bold text-white">"{q}"</h1>
+            <h1 className="text-2xl font-bold text-neutral-900 dark:text-white">"{q}"</h1>
             {!isLoading && (
               <p className="text-sm text-neutral-500 mt-1">
                 {results.length} {results.length === 1 ? "track" : "tracks"} found
@@ -100,8 +104,8 @@ function SearchResults() {
             className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium
               border transition-colors ${
               filtersOpen
-                ? "bg-indigo-600/20 border-indigo-500/40 text-indigo-300"
-                : "bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white"
+                ? "bg-indigo-600/10 dark:bg-indigo-600/20 border-indigo-400/40 dark:border-indigo-500/40 text-indigo-600 dark:text-indigo-300"
+                : "bg-white dark:bg-neutral-900 border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white"
             }`}
           >
             <IconAdjustmentsHorizontal className="w-4 h-4" />
@@ -114,7 +118,7 @@ function SearchResults() {
 
         {/* Filter panel */}
         {filtersOpen && (
-          <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-4 flex flex-col sm:flex-row gap-5">
+          <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/60 p-4 flex flex-col sm:flex-row gap-5">
 
             {/* Sort */}
             <div className="flex flex-col gap-2">
@@ -132,7 +136,7 @@ function SearchResults() {
               </div>
             </div>
 
-            <div className="w-px bg-neutral-800 hidden sm:block" />
+            <div className="w-px bg-neutral-200 dark:bg-neutral-800 hidden sm:block" />
 
             {/* Visibility */}
             <div className="flex flex-col gap-2">
@@ -154,7 +158,7 @@ function SearchResults() {
             {(sort !== "relevance" || visibility !== "all") && (
               <button
                 onClick={() => { setSort("relevance"); setVisibility("all"); }}
-                className="sm:ml-auto self-end text-xs text-neutral-500 hover:text-white transition-colors"
+                className="sm:ml-auto self-end text-xs text-neutral-500 hover:text-neutral-900 dark:hover:text-white transition-colors"
               >
                 Reset filters
               </button>
@@ -172,11 +176,11 @@ function SearchResults() {
         {/* No results */}
         {!isLoading && results.length === 0 && q && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <div className="w-16 h-16 rounded-2xl bg-neutral-900 border border-neutral-800 flex items-center justify-center">
-              <IconSearch className="w-7 h-7 text-neutral-700" />
+            <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center">
+              <IconSearch className="w-7 h-7 text-neutral-400 dark:text-neutral-700" />
             </div>
-            <p className="text-neutral-300 font-medium">No tracks matched "{q}"</p>
-            <p className="text-neutral-600 text-sm">Try a different title or artist name</p>
+            <p className="text-neutral-700 dark:text-neutral-300 font-medium">No tracks matched "{q}"</p>
+            <p className="text-neutral-400 dark:text-neutral-600 text-sm">Try a different title or artist name</p>
           </div>
         )}
 

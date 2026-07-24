@@ -47,7 +47,7 @@ export default function PublicMusicCarousel({ tracks, title }: PublicMusicCarous
       </button>
 
       {/* Title */}
-      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl">{title}</h2>}
+      {title && <h2 className="px-8 p-3 text-2xl font-bold max-md:text-xl text-neutral-900 dark:text-white">{title}</h2>}
 
       {/* Carousel container */}
       <div

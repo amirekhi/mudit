@@ -6,6 +6,7 @@ import { IconTrash, IconEdit, IconLock, IconWorld } from "@tabler/icons-react";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { Playlist } from "@/components/PlayList/PlaylistCard";
 import BackButton from "@/components/basics/BackButton";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 import ShareButton from "@/components/PlayList/ShareButton";
 import Link from "next/link";
 
@@ -30,22 +31,23 @@ export default function PlaylistsPage() {
   });
 
   return (
-    <div className="min-h-screen bg-neutral-950 px-6">
+    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 px-6 transition-colors">
       <div className="max-w-5xl mx-auto w-full my-12">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-8 md:mb-10">
           <div>
-            <h1 className="text-2xl font-semibold text-white">Your Playlists</h1>
-            <p className="text-sm text-neutral-400 mt-0.5">{playlists.length} playlist{playlists.length !== 1 ? "s" : ""}</p>
+            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Your Playlists</h1>
+            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">{playlists.length} playlist{playlists.length !== 1 ? "s" : ""}</p>
           </div>
           <div className="flex items-center gap-3">
             <Link
               href="/createPlaylist"
-              className="px-4 py-2 rounded-xl bg-white text-neutral-900 text-sm font-medium hover:bg-neutral-200 transition"
+              className="px-4 py-2 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-sm font-medium hover:bg-neutral-700 dark:hover:bg-neutral-200 transition"
             >
               + New
             </Link>
+            <ThemeToggle />
             <BackButton />
           </div>
         </div>
@@ -54,8 +56,8 @@ export default function PlaylistsPage() {
           <div className="text-neutral-500 text-center py-24">Loading…</div>
         ) : playlists.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
-            <p className="text-neutral-300 font-medium">No playlists yet</p>
-            <Link href="/createPlaylist" className="text-indigo-400 text-sm hover:text-indigo-300">
+            <p className="text-neutral-700 dark:text-neutral-300 font-medium">No playlists yet</p>
+            <Link href="/createPlaylist" className="text-indigo-600 dark:text-indigo-400 text-sm hover:text-indigo-500 dark:hover:text-indigo-300">
               Create your first playlist
             </Link>
           </div>
@@ -67,7 +69,7 @@ export default function PlaylistsPage() {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="rounded-2xl border border-neutral-800 bg-neutral-900 overflow-hidden"
+                className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 overflow-hidden transition-colors"
               >
                 <img
                   src={playlist.image || "/test.jpg"}
@@ -77,15 +79,15 @@ export default function PlaylistsPage() {
                 <div className="p-4 space-y-3">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <h3 className="text-white font-semibold truncate">{playlist.title}</h3>
+                      <h3 className="text-neutral-900 dark:text-white font-semibold truncate">{playlist.title}</h3>
                       {playlist.description && (
-                        <p className="text-neutral-400 text-xs mt-0.5 line-clamp-2">{playlist.description}</p>
+                        <p className="text-neutral-500 dark:text-neutral-400 text-xs mt-0.5 line-clamp-2">{playlist.description}</p>
                       )}
                     </div>
                     <span className="shrink-0 mt-0.5">
                       {playlist.visibility === "public"
-                        ? <IconWorld className="w-4 h-4 text-indigo-400" />
-                        : <IconLock className="w-4 h-4 text-neutral-500" />}
+                        ? <IconWorld className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
+                        : <IconLock className="w-4 h-4 text-neutral-400 dark:text-neutral-500" />}
                     </span>
                   </div>
 
@@ -96,8 +98,8 @@ export default function PlaylistsPage() {
                     <ShareButton playlistId={playlist._id} playlistVisibility={playlist.visibility} />
                     <Link
                       href={`/edit/updatePlaylist/${playlist._id}`}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-700
-                        bg-neutral-800 text-white text-sm hover:bg-neutral-700 transition"
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-neutral-200 dark:border-neutral-700
+                        bg-neutral-100 dark:bg-neutral-800 text-neutral-900 dark:text-white text-sm hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
                     >
                       <IconEdit className="w-4 h-4" />
                       Edit
@@ -106,8 +108,8 @@ export default function PlaylistsPage() {
                       onClick={() => {
                         if (confirm("Delete this playlist?")) deleteMutation.mutate(playlist._id);
                       }}
-                      className="p-2 rounded-xl border border-neutral-700 bg-neutral-800
-                        text-red-400 hover:bg-neutral-700 hover:text-red-300 transition"
+                      className="p-2 rounded-xl border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800
+                        text-red-500 dark:text-red-400 hover:bg-neutral-200 dark:hover:bg-neutral-700 hover:text-red-600 dark:hover:text-red-300 transition-colors"
                     >
                       <IconTrash className="w-4 h-4" />
                     </button>

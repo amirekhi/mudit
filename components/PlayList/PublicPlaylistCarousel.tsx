@@ -44,7 +44,7 @@ export default function PublicPlaylistCarousel({ playlists, title }: PublicPlayl
         <IconChevronRight className="w-5 h-5 text-black dark:text-white" />
       </button>
 
-      {title && <h2 className="px-8 p-3 text-2xl font-bold">{title}</h2>}
+      {title && <h2 className="px-8 p-3 text-2xl font-bold text-neutral-900 dark:text-white">{title}</h2>}
 
       <div
         ref={containerRef}

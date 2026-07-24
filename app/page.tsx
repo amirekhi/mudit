@@ -8,7 +8,8 @@ import MusicCarousel from "@/components/explorerUi/MusicCarousel";
 import PublicMusicCarousel from "@/components/PlayList/PublicMusicCarousel";
 import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
 import PublicPlaylistCarousel from "@/components/PlayList/PublicPlaylistCarousel";
-import SearchBar from "@/components/basics/SearchBar"; // 👈 new
+import SearchBar from "@/components/basics/SearchBar";
+import ThemeToggle from "@/components/basics/ThemeToggle";
 
 import { Track } from "@/store/useAudioStore";
 import { Playlist } from "@/components/PlayList/PlaylistCard";
@@ -73,11 +74,12 @@ export default function Home() {
 
   const secondaryBtn =
     "relative inline-flex items-center gap-2 h-10 px-5 rounded-full " +
-    "bg-white/5 backdrop-blur border border-white/10 text-white font-medium " +
-    "hover:bg-white/10 hover:border-white/20 active:scale-[0.98] transition-all text-sm";
+    "bg-neutral-100 border border-neutral-200 text-neutral-700 hover:bg-neutral-200 " +
+    "dark:bg-white/5 dark:backdrop-blur dark:border-white/10 dark:text-white dark:hover:bg-white/10 dark:hover:border-white/20 " +
+    "active:scale-[0.98] transition-all text-sm font-medium";
 
   return (
-    <div className="relative w-full overflow-x-hidden pb-32">
+    <div className="relative w-full overflow-x-hidden pb-32 bg-white dark:bg-transparent transition-colors">
       <div className="p-3 md:p-6 pb-48 flex flex-col gap-4 md:gap-8">
 
         {/* Mobile-only button row */}
@@ -91,11 +93,17 @@ export default function Home() {
                 <button onClick={() => router.push("/edit")} className={secondaryBtn}>
                   <IconEdit className="w-4 h-4" /> Edit
                 </button>
+                <div className="ml-auto">
+                  <ThemeToggle />
+                </div>
               </>
             ) : (
               <>
                 <button onClick={() => router.push("/login")} className={secondaryBtn}>Login</button>
                 <button onClick={() => router.push("/signup")} className={primaryBtn}>Sign up</button>
+                <div className="ml-auto">
+                  <ThemeToggle />
+                </div>
               </>
             )
           )}
@@ -117,11 +125,13 @@ export default function Home() {
                 <button onClick={() => router.push("/edit")} className={secondaryBtn}>
                   <IconEdit className="w-4 h-4" /> Edit
                 </button>
+                <ThemeToggle />
               </>
             ) : (
               <>
                 <button onClick={() => router.push("/login")} className={secondaryBtn}>Login</button>
                 <button onClick={() => router.push("/signup")} className={primaryBtn}>Sign up</button>
+                <ThemeToggle />
               </>
             )
           )}

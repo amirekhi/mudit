@@ -27,8 +27,8 @@ export default function MusicCard({ track }: MusicCardProps) {
     <motion.div
       whileHover={{ scale: 1.05 }}
       onClick={handleCardClick}
-      className="relative w-60 min-w-[240px] h-60 bg-neutral-900 rounded-xl p-4 flex flex-col
-        justify-between cursor-pointer shadow-lg hover:shadow-2xl
+      className="group relative w-60 min-w-[240px] h-60 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent rounded-xl p-4 flex flex-col
+        justify-between cursor-pointer shadow-lg hover:shadow-2xl transition-colors
         max-md:w-44 max-md:min-w-[180px] max-md:h-48 max-md:p-2"
     >
       <div>
@@ -37,10 +37,10 @@ export default function MusicCard({ track }: MusicCardProps) {
           width={240}
           height={144}
           alt={track.title}
-          className="object-cover h-36 w-full bg-neutral-700 rounded-lg mb-2 max-md:h-28"
+          className="object-cover h-36 w-full bg-neutral-200 dark:bg-neutral-700 rounded-lg mb-2 max-md:h-28"
         />
-        <h3 className="text-white font-semibold truncate max-md:text-sm">{track.title}</h3>
-        <p className="text-gray-400 text-sm truncate max-md:text-xs">{track.artist}</p>
+        <h3 className="text-neutral-900 dark:text-white font-semibold truncate max-md:text-sm">{track.title}</h3>
+        <p className="text-neutral-500 dark:text-gray-400 text-sm truncate max-md:text-xs">{track.artist}</p>
       </div>
 
       {/* Play button */}
@@ -52,8 +52,8 @@ export default function MusicCard({ track }: MusicCardProps) {
       <Link
         href={`/tracks/${track._id}`}
         onClick={e => e.stopPropagation()}
-        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/40 text-neutral-400
-          hover:text-white hover:bg-black/70 opacity-0 group-hover:opacity-100
+        className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/30 dark:bg-black/40 text-neutral-200 dark:text-neutral-400
+          hover:text-white hover:bg-black/60 dark:hover:bg-black/70 opacity-0 group-hover:opacity-100
           transition-all"
       >
         <IconExternalLink className="w-3.5 h-3.5" />
