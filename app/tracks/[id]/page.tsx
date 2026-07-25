@@ -14,6 +14,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import ThemeToggle from "@/components/basics/ThemeToggle";
+import LyricsView from "@/components/lyrics/LyricsView";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -229,7 +230,7 @@ export default function TrackDetailPage({ params }: Props) {
 
         <div className="rounded-2xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/60 px-5 py-4">
           <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Lyrics</h2>
-          <p className="text-sm text-neutral-400 dark:text-neutral-600 italic">No lyrics added yet.</p>
+          <LyricsView trackId={track._id} title={track.title} artist={track.artist} />
         </div>
 
       </div>
