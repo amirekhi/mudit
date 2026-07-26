@@ -1,13 +1,16 @@
 "use client";
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { IconPlus, IconEdit } from "@tabler/icons-react";
 
-import MusicCarousel from "@/components/explorerUi/MusicCarousel";
-import PublicMusicCarousel from "@/components/PlayList/PublicMusicCarousel";
-import PlaylistCarousel from "@/components/PlayList/PlaylistCarousel";
-import PublicPlaylistCarousel from "@/components/PlayList/PublicPlaylistCarousel";
+import HeroPlaylistCarousel from "@/components/PlayList/HeroPlaylistCarousel";
+import ShelfPlaylistCarousel from "@/components/PlayList/ShelfPlaylistCarousel";
+import ChartCarousel from "@/components/explorerUi/ChartCarousel";
+import VinylCarousel from "@/components/explorerUi/VinylCarousel";
+import ArtistCarousel from "@/components/artists/ArtistCarousel";
+import { ArtistSummary } from "@/components/artists/ArtistCarouselCard";
 import SearchBar from "@/components/basics/SearchBar";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 
@@ -17,6 +20,7 @@ import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+import { shuffleArray } from "@/util/shuffle";
 
 export default function Home() {
   const router = useRouter();
@@ -52,13 +56,39 @@ export default function Home() {
       },
     });
 
-  // All tracks merged for the SearchBar dropdown
+  const { data: artists = [], isLoading: artistsLoading } =
+    useQuery<ArtistSummary[], Error>({
+      queryKey: ["artists"],
+      queryFn: async () => {
+        try {
+          const res = await fetch("/api/artists");
+          if (!res.ok) throw new Error();
+          return res.json() as Promise<ArtistSummary[]>;
+        } catch { return []; }
+      },
+    });
+
+  // Shuffled once per fetch (not on every re-render) so the feed order
+  // actually varies between visits instead of always matching DB order.
+  const shuffledHotPlaylists = useMemo(() => shuffleArray(publicPlaylists), [publicPlaylists]);
+  const shuffledTrending = useMemo(() => shuffleArray(tracks), [tracks]);
+  const shuffledYourPlaylists = useMemo(() => shuffleArray(userPlaylists), [userPlaylists]);
+  const shuffledYourTracks = useMemo(() => shuffleArray(userTracks), [userTracks]);
+
+  // All tracks merged for the SearchBar dropdown — left unshuffled on purpose,
+  // search results should stay predictable even if the feed doesn't.
   const allTracks = [
     ...tracks,
     ...userTracks.filter(ut => !tracks.some(t => t._id === ut._id)),
   ];
 
-  if (publicPlaylistsLoading || userPlaylistsLoading || tracksLoading || userTracksLoading) {
+  if (
+    publicPlaylistsLoading ||
+    userPlaylistsLoading ||
+    tracksLoading ||
+    userTracksLoading ||
+    artistsLoading
+  ) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-500">
         Loading…
@@ -80,7 +110,7 @@ export default function Home() {
 
   return (
     <div className="relative w-full overflow-x-hidden pb-32 bg-white dark:bg-transparent transition-colors">
-      <div className="p-3 md:p-6 pb-48 flex flex-col gap-4 md:gap-8">
+      <div className="p-3 md:p-6 pb-48 flex flex-col gap-6 md:gap-10">
 
         {/* Mobile-only button row */}
         <div className="flex items-center gap-2 md:hidden">
@@ -137,14 +167,19 @@ export default function Home() {
           )}
         </div>
 
-        {/* Carousels — completely unchanged */}
-        <PublicPlaylistCarousel title="Hot Playlists" playlists={publicPlaylists} />
-        {userPlaylists.length > 0 && (
-          <PlaylistCarousel title="Your Playlists" playlists={userPlaylists} />
+        {/* ── People — moved to the very top of the feed ── */}
+        <ArtistCarousel title="Artists" artists={artists} />
+
+        {/* ── Discover (public) ── */}
+        <HeroPlaylistCarousel title="Hot Playlists" playlists={shuffledHotPlaylists} />
+        <ChartCarousel title="Trending" tracks={shuffledTrending} />
+
+        {/* ── Yours (personal) ── */}
+        {shuffledYourPlaylists.length > 0 && (
+          <ShelfPlaylistCarousel title="Your Playlists" playlists={shuffledYourPlaylists} />
         )}
-        <PublicMusicCarousel title="Trending" tracks={tracks} />
-        {userTracks.length > 0 && (
-          <MusicCarousel title="Your taste" tracks={userTracks} />
+        {shuffledYourTracks.length > 0 && (
+          <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
         )}
       </div>
     </div>

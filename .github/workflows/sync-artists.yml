@@ -1,0 +1,15 @@
+name: Sync Artists
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # every Monday at 03:00 UTC
+  workflow_dispatch: {} # lets you also trigger it manually from the Actions tab
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger artist sync endpoint
+        run: |
+          curl -f -X POST "${{ secrets.APP_URL }}/api/artists/sync" \
+            -H "x-cron-secret: ${{ secrets.ARTIST_SYNC_SECRET }}"
