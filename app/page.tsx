@@ -10,6 +10,7 @@ import ShelfPlaylistCarousel from "@/components/PlayList/ShelfPlaylistCarousel";
 import ChartCarousel from "@/components/explorerUi/ChartCarousel";
 import VinylCarousel from "@/components/explorerUi/VinylCarousel";
 import ArtistCarousel from "@/components/artists/ArtistCarousel";
+import EndOfFeed from "@/components/basics/EndOfFeed";
 import { ArtistSummary } from "@/components/artists/ArtistCarouselCard";
 import SearchBar from "@/components/basics/SearchBar";
 import ThemeToggle from "@/components/basics/ThemeToggle";
@@ -21,6 +22,8 @@ import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { shuffleArray } from "@/util/shuffle";
+import MuditSpinner from "@/components/basics/MuditSpinner";
+import MusicVideoCarousel from "@/components/explorerUi/MusicVideoCarousel";
 
 export default function Home() {
   const router = useRouter();
@@ -90,8 +93,8 @@ export default function Home() {
     artistsLoading
   ) {
     return (
-      <div className="flex items-center justify-center h-full text-neutral-500">
-        Loading…
+      <div style={{ display: "flex", height: "100vh", alignItems: "flex-start", justifyContent: "center", paddingTop: "30vh" }}>
+        <MuditSpinner />
       </div>
     );
   }
@@ -109,8 +112,8 @@ export default function Home() {
     "active:scale-[0.98] transition-all text-sm font-medium";
 
   return (
-    <div className="relative w-full overflow-x-hidden pb-32 bg-white dark:bg-transparent transition-colors">
-      <div className="p-3 md:p-6 pb-48 flex flex-col gap-6 md:gap-10">
+    <div className="relative w-full overflow-x-hidden pb-6 bg-white dark:bg-transparent transition-colors">
+      <div className="p-3 md:p-6 pb-6 flex flex-col gap-6 md:gap-10">
 
         {/* Mobile-only button row */}
         <div className="flex items-center gap-2 md:hidden">
@@ -181,6 +184,8 @@ export default function Home() {
         {shuffledYourTracks.length > 0 && (
           <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
         )}
+          <MusicVideoCarousel title="Music Videos" />
+        <EndOfFeed />
       </div>
     </div>
   );

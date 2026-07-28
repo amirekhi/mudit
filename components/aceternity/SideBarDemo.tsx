@@ -55,8 +55,26 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   return (
     <div className={cn("md:flex w-full h-screen bg-white dark:bg-neutral-900 transition-colors")}>
       <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10">
-          <div className="mt-8 flex flex-col gap-2">
+        <SidebarBody className="justify-between gap-10 relative overflow-hidden">
+
+          {/* Artistic ghost wordmark — same low-opacity, oversized treatment as
+              the rank numbers on the Trending chart cards, rotated vertical so
+              it reads like a spine label running the height of the sidebar.
+              Purely decorative: pointer-events-none, sits behind the nav links. */}
+          <div
+            aria-hidden
+            className="pointer-events-none select-none absolute inset-0 flex items-center justify-center z-0"
+          >
+            <span
+              className="text-7xl font-black italic tracking-tighter whitespace-nowrap
+                text-neutral-900/[0.05] dark:text-white/[0.06]"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              MUDIT
+            </span>
+          </div>
+
+          <div className="relative z-10 mt-8 flex flex-col gap-2">
             {links.map((link, idx) => (
               <SidebarLink key={idx} link={link} />
             ))}
@@ -79,7 +97,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
           </div>
 
           {user && (
-            <div className="flex flex-col items-center p-2">
+            <div className="relative z-10 flex flex-col items-center p-2">
               <SidebarLink
                 link={{
                   label: user.username,
