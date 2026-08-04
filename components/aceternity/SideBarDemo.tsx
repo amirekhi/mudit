@@ -55,66 +55,64 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   return (
     <div className={cn("md:flex w-full h-screen bg-white dark:bg-neutral-900 transition-colors")}>
       <Sidebar open={open} setOpen={setOpen}>
-        <SidebarBody className="justify-between gap-10 relative overflow-hidden">
-
-          {/* Artistic ghost wordmark — same low-opacity, oversized treatment as
-              the rank numbers on the Trending chart cards, rotated vertical so
-              it reads like a spine label running the height of the sidebar.
-              Purely decorative: pointer-events-none, sits behind the nav links. */}
-          <div
-            aria-hidden
-            className="pointer-events-none select-none absolute inset-0 flex items-center justify-center z-0"
-          >
-            <span
-              className="text-7xl font-black italic tracking-tighter whitespace-nowrap
-                text-neutral-900/[0.05] dark:text-white/[0.06]"
-              style={{ writingMode: "vertical-rl" }}
+        <SidebarBody className="justify-between gap-10">
+          <div className="relative flex flex-1 flex-col overflow-hidden">
+            {/* Artistic ghost wordmark */}
+            <div
+              aria-hidden
+              className="pointer-events-none select-none absolute inset-0 flex items-center justify-center z-0"
             >
-              MUDIT
-            </span>
-          </div>
+              <span
+                className="text-7xl font-black italic tracking-tighter whitespace-nowrap
+                  text-neutral-900/[0.05] dark:text-white/[0.06]"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                MUDIT
+              </span>
+            </div>
 
-          <div className="relative z-10 mt-8 flex flex-col gap-2">
-            {links.map((link, idx) => (
-              <SidebarLink key={idx} link={link} />
-            ))}
+            <div className="relative z-10 mt-8 flex flex-col gap-2">
+              {links.map((link, idx) => (
+                <SidebarLink key={idx} link={link} />
+              ))}
 
-            {user ? (
-              <SidebarAction
-                label="Logout"
-                icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
-                onClick={handleLogOut}
-              />
-            ) : (
-              <SidebarLink
-                link={{
-                  label: "Login",
-                  href: "/login",
-                  icon: <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200 rotate-180" />,
-                }}
-              />
+              {user ? (
+                <SidebarAction
+                  label="Logout"
+                  icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
+                  onClick={handleLogOut}
+                />
+              ) : (
+                <SidebarLink
+                  link={{
+                    label: "Login",
+                    href: "/login",
+                    icon: <IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200 rotate-180" />,
+                  }}
+                />
+              )}
+            </div>
+
+            {user && (
+              <div className="relative z-10 flex flex-col items-center p-2">
+                <SidebarLink
+                  link={{
+                    label: user.username,
+                    href: "/profile",
+                    icon: (
+                      <img
+                        src={user.profileImageUrl || "https://assets.aceternity.com/manu.png"}
+                        className="h-10 w-10 rounded-full object-cover"
+                        width={50}
+                        height={50}
+                        alt="Avatar"
+                      />
+                    ),
+                  }}
+                />
+              </div>
             )}
           </div>
-
-          {user && (
-            <div className="relative z-10 flex flex-col items-center p-2">
-              <SidebarLink
-                link={{
-                  label: user.username,
-                  href: "/profile",
-                  icon: (
-                    <img
-                      src={user.profileImageUrl || "https://assets.aceternity.com/manu.png"}
-                      className="h-10 w-10 rounded-full object-cover"
-                      width={50}
-                      height={50}
-                      alt="Avatar"
-                    />
-                  ),
-                }}
-              />
-            </div>
-          )}
         </SidebarBody>
       </Sidebar>
 
