@@ -4,10 +4,12 @@ import React, { useState, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, SidebarAction, SidebarBody, SidebarLink } from "../ui/sidebar";
 import {
+  IconBook,
   IconBrandTabler,
   IconEdit,
   IconLogout,
   IconMusic,
+  IconNote,
   IconPlaylist,
   IconPlaylistAdd,
   IconPlus,
@@ -50,6 +52,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
     { label: "My Tracks",           href: "/tracks",           icon: <IconMusic        className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "My Playlists",        href: "/playlists",        icon: <IconPlaylist     className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Edit",                href: "/edit/updateTrack", icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "lyrics",                href: "/lyrics", icon: <IconBook         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (
