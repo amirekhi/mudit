@@ -6,6 +6,10 @@ import { Suspense, useState } from "react";
 import { Track } from "@/store/useAudioStore";
 import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
+import {
+  fetchItunesPreviews,
+  itunesTrackToTrack,
+} from "@/lib/TanStackQuery/Queries/fetchItunesPreviews";
 import SearchMusicCard from "@/components/basics/SearchMusicCard";
 import SearchBar from "@/components/basics/SearchBar";
 import ThemeToggle from "@/components/basics/ThemeToggle";
@@ -37,6 +41,19 @@ function SearchResults() {
           return res.json() as Promise<Track[]>;
         } catch { return []; }
       },
+    });
+
+  // iTunes 30s previews — only fetched once there's an actual query,
+  // keyed by q so switching searches refetches correctly.
+  const { data: itunesPreviews = [], isLoading: itunesLoading } =
+    useQuery<Track[], Error>({
+      queryKey: ["itunes-previews", q],
+      queryFn: async () => {
+        const raw = await fetchItunesPreviews(q);
+        return raw.map(itunesTrackToTrack);
+      },
+      enabled: q.length > 1,
+      staleTime: 1000 * 60 * 10, // previews don't change; avoid refetch spam
     });
 
   const isLoading = publicLoading || userLoading;
@@ -174,7 +191,7 @@ function SearchResults() {
         )}
 
         {/* No results */}
-        {!isLoading && results.length === 0 && q && (
+        {!isLoading && results.length === 0 && itunesPreviews.length === 0 && q && !itunesLoading && (
           <div className="flex flex-col items-center justify-center py-24 gap-3">
             <div className="w-16 h-16 rounded-2xl bg-neutral-100 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-center">
               <IconSearch className="w-7 h-7 text-neutral-400 dark:text-neutral-700" />
@@ -184,12 +201,34 @@ function SearchResults() {
           </div>
         )}
 
-        {/* Results grid */}
+        {/* Library results grid */}
         {!isLoading && results.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
             {results.map(track => (
-            <SearchMusicCard key={track._id} track={track} />
+              <SearchMusicCard key={track._id} track={track} />
             ))}
+          </div>
+        )}
+
+        {/* iTunes preview section — clearly separated from your own library */}
+        {q && (itunesPreviews.length > 0 || itunesLoading) && (
+          <div className="flex flex-col gap-3 mt-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold text-neutral-700 dark:text-neutral-300">
+                30-second previews
+              </h2>
+              <span className="text-xs text-neutral-400 dark:text-neutral-600">via iTunes</span>
+            </div>
+
+            {itunesLoading ? (
+              <div className="text-sm text-neutral-500 py-6">Loading previews…</div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
+                {itunesPreviews.map(track => (
+                  <SearchMusicCard key={track._id} track={track} />
+                ))}
+              </div>
+            )}
           </div>
         )}
 
