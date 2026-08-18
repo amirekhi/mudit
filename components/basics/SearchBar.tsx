@@ -9,6 +9,10 @@ import {
   fetchItunesPreviews,
   itunesTrackToTrack,
 } from "@/lib/TanStackQuery/Queries/fetchItunesPreviews";
+import {
+  fetchTelegramEffects,
+  telegramResultToTrack,
+} from "@/lib/TanStackQuery/Queries/fetchTelegramEffects";
 
 interface Props {
   tracks: Track[];        // the full library to search against for the dropdown
@@ -23,11 +27,15 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
   const [open, setOpen] = useState(false);
   const [itunesResults, setItunesResults] = useState<Track[]>([]);
   const [itunesLoading, setItunesLoading] = useState(false);
+  const [telegramResults, setTelegramResults] = useState<Track[]>([]);
+  const [telegramLoading, setTelegramLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestIdRef = useRef(0); // guards against out-of-order responses
+  const telegramDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestIdRef = useRef(0); // guards against out-of-order iTunes responses
+  const telegramRequestIdRef = useRef(0); // same, for Telegram responses
 
   const playTrack = useAudioStore(s => s.playTrack);
 
@@ -39,6 +47,37 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
       `${t.title} ${t.artist}`.toLowerCase().includes(trimmed.toLowerCase())
     )
     .slice(0, 6);
+
+  // debounced Telegram effects suggestions — separate debounce/request-guard
+  // from iTunes so a slow response from one source never blanks out the other.
+  useEffect(() => {
+    if (telegramDebounceRef.current) clearTimeout(telegramDebounceRef.current);
+
+    if (trimmed.length < 2) {
+      setTelegramResults([]);
+      setTelegramLoading(false);
+      return;
+    }
+
+    setTelegramLoading(true);
+    const thisRequestId = ++telegramRequestIdRef.current;
+
+    telegramDebounceRef.current = setTimeout(async () => {
+      try {
+        const raw = await fetchTelegramEffects(trimmed);
+        if (thisRequestId !== telegramRequestIdRef.current) return;
+        setTelegramResults(raw.slice(0, 6).map(telegramResultToTrack));
+      } catch {
+        if (thisRequestId === telegramRequestIdRef.current) setTelegramResults([]);
+      } finally {
+        if (thisRequestId === telegramRequestIdRef.current) setTelegramLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      if (telegramDebounceRef.current) clearTimeout(telegramDebounceRef.current);
+    };
+  }, [trimmed]);
 
   // debounced iTunes preview suggestions as the user types
   useEffect(() => {
@@ -101,10 +140,14 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
     setQuery("");
     setOpen(false);
     setItunesResults([]);
+    setTelegramResults([]);
     inputRef.current?.focus();
   };
 
-  const hasAnySuggestions = librarySuggestions.length > 0 || itunesResults.length > 0;
+  const hasAnySuggestions =
+    librarySuggestions.length > 0 ||
+    telegramResults.length > 0 ||
+    itunesResults.length > 0;
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -146,7 +189,7 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
         <div className="absolute top-full mt-2 left-0 right-0 z-50
           bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden max-h-96 overflow-y-auto">
 
-          {/* Library matches */}
+          {/* Library matches — your own tracks, always first */}
           {librarySuggestions.length > 0 && (
             <div>
               <div className="px-4 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
@@ -177,7 +220,39 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
             </div>
           )}
 
-          {/* iTunes preview matches */}
+          {/* Telegram effects — second, between your library and previews */}
+          {(telegramResults.length > 0 || telegramLoading) && (
+            <div>
+              <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
+                Effects
+                {telegramLoading && <IconLoader2 className="w-3 h-3 animate-spin" />}
+              </div>
+              {telegramResults.map(track => (
+                <div
+                  key={track._id}
+                  className="flex items-center gap-3 px-4 py-3
+                    hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => {
+                    playTrack(track);
+                    setOpen(false);
+                  }}
+                >
+                  <img
+                    src={track.image || "/test.jpg"}
+                    alt={track.title}
+                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
+                    <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* iTunes preview matches — last */}
           {(itunesResults.length > 0 || itunesLoading) && (
             <div>
               <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
@@ -225,7 +300,7 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
       )}
 
       {/* No results hint */}
-      {open && trimmed.length >= 2 && !hasAnySuggestions && !itunesLoading && (
+      {open && trimmed.length >= 2 && !hasAnySuggestions && !itunesLoading && !telegramLoading && (
         <div className="absolute top-full mt-2 left-0 right-0 z-50
           bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl">
           <div className="px-4 py-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
