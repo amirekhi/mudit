@@ -9,6 +9,7 @@ import { Track } from "@/store/useAudioStore";
 export interface TelegramEffectResult {
   id: string; // short id from bot/index.json, used to build the stream URL
   name: string;
+  artist?: string; // ID3 performer tag or parsed from filename — see bot/telegramBot.ts
   image?: string; // present only if the source upload had an embedded thumbnail
 }
 
@@ -31,7 +32,7 @@ export function telegramResultToTrack(result: TelegramEffectResult): Track {
   return {
     _id: `telegram-${result.id}`,
     title: result.name,
-    artist: "Telegram",
+    artist: result.artist || "Unknown Artist", // real ID3/filename-derived artist when available, never the source platform's name
     url: `/api/telegram/stream/${result.id}`,
     image: result.image, // undefined when no thumbnail — SearchBar already falls back to /test.jpg
     visibility: "private",

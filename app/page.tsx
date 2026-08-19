@@ -9,6 +9,7 @@ import HeroPlaylistCarousel from "@/components/PlayList/HeroPlaylistCarousel";
 import ShelfPlaylistCarousel from "@/components/PlayList/ShelfPlaylistCarousel";
 import ChartCarousel from "@/components/explorerUi/ChartCarousel";
 import VinylCarousel from "@/components/explorerUi/VinylCarousel";
+import EffectsCarousel from "@/components/explorerUi/EffectsCarousel";
 import ArtistCarousel from "@/components/artists/ArtistCarousel";
 import EndOfFeed from "@/components/basics/EndOfFeed";
 import { ArtistSummary } from "@/components/artists/ArtistCarouselCard";
@@ -21,6 +22,10 @@ import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
 import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
+import {
+  fetchTelegramEffects,
+  telegramResultToTrack,
+} from "@/lib/TanStackQuery/Queries/fetchTelegramEffects";
 import { shuffleArray } from "@/util/shuffle";
 import MuditSpinner from "@/components/basics/MuditSpinner";
 import MusicVideoCarousel from "@/components/explorerUi/MusicVideoCarousel";
@@ -67,6 +72,19 @@ export default function Home() {
           const res = await fetch("/api/artists");
           if (!res.ok) throw new Error();
           return res.json() as Promise<ArtistSummary[]>;
+        } catch { return []; }
+      },
+    });
+
+  // Telegram effects — empty query browses everything indexed so far,
+  // most recent first (see searchIndex's handling of an empty query).
+  const { data: telegramEffects = [], isLoading: telegramEffectsLoading } =
+    useQuery<Track[], Error>({
+      queryKey: ["telegram-effects", "browse-all"],
+      queryFn: async () => {
+        try {
+          const raw = await fetchTelegramEffects("");
+          return raw.map(telegramResultToTrack);
         } catch { return []; }
       },
     });
@@ -177,6 +195,11 @@ export default function Home() {
         <HeroPlaylistCarousel title="Hot Playlists" playlists={shuffledHotPlaylists} />
         <ChartCarousel title="Trending" tracks={shuffledTrending} />
 
+        {/* ── Effects (Telegram-sourced soundboard) ── */}
+        {!telegramEffectsLoading && telegramEffects.length > 0 && (
+          <EffectsCarousel title="telegram Channel" tracks={telegramEffects} />
+        )}
+
         {/* ── Yours (personal) ── */}
         {shuffledYourPlaylists.length > 0 && (
           <ShelfPlaylistCarousel title="Your Playlists" playlists={shuffledYourPlaylists} />
@@ -184,7 +207,8 @@ export default function Home() {
         {shuffledYourTracks.length > 0 && (
           <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
         )}
-          <MusicVideoCarousel title="Music Videos" />
+
+        <MusicVideoCarousel title="Music Videos" />
         <EndOfFeed />
       </div>
     </div>

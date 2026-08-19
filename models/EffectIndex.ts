@@ -9,6 +9,7 @@ import mongoose, { Schema } from "mongoose";
 export interface EffectIndexDocument {
   id: string; // short id we generate — NOT Telegram's raw file_id, used in URLs
   name: string; // clean display label — caption if present, else filename
+  artist?: string; // ID3 performer tag if present, else parsed from filename, else omitted
   searchText: string; // lowercased combination of every text field Telegram gave us
   fileId: string; // Telegram's file_id — needed later to fetch actual bytes
   mimeType: string;
@@ -20,6 +21,7 @@ const EffectIndexSchema = new Schema<EffectIndexDocument>(
   {
     id: { type: String, required: true, unique: true },
     name: { type: String, required: true },
+    artist: { type: String },
     searchText: { type: String, required: true },
     fileId: { type: String, required: true },
     mimeType: { type: String, required: true },

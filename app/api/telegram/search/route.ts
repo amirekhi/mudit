@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     const results = matches.map((m) => ({
       id: m.id,
       name: m.name,
+      artist: m.artist,
       image: m.thumbFileId ? `/api/telegram/thumb/${m.id}` : undefined,
     }));
 

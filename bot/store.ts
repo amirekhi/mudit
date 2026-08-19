@@ -22,6 +22,7 @@ if (mongoose.connection.readyState === 0) {
 export interface EffectEntry {
   id: string;
   name: string;
+  artist?: string;
   searchText?: string;
   fileId: string;
   mimeType: string;
@@ -33,6 +34,7 @@ function toEntry(doc: EffectIndexDocument): EffectEntry {
   return {
     id: doc.id,
     name: doc.name,
+    artist: doc.artist,
     searchText: doc.searchText,
     fileId: doc.fileId,
     mimeType: doc.mimeType,
