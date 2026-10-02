@@ -6,10 +6,9 @@ export interface CurrentUser {
   email: string;
   profileImageUrl?: string | null;
   role: string;
+  onboarded: boolean;
   createdAt: string;
-  // Add more fields if needed
 }
-
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const res = await authFetch("/api/auth/me");
@@ -21,11 +20,12 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   const data = await res.json();
 
   return {
-    _id: data.user._id,  
+    _id: data.user._id,
     username: data.user.username,
     email: data.user.email,
     profileImageUrl: data.user.profileImageUrl || null,
     role: data.user.role,
+    onboarded: Boolean(data.user.onboarded),
     createdAt: data.user.createdAt,
   };
 }
