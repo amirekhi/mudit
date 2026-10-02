@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useUser, useReverification } from "@clerk/nextjs";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,17 +12,29 @@ import { Label } from "@/components/ui/label";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { queryClient } from "@/lib/TanStackQuery/queryClient";
-import { uploadImage } from "@/lib/firebase/uploadImage";
+import { storage } from "@/lib/storage/storage";
 import BackButton from "@/components/basics/BackButton";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import { IconX, IconCamera, IconCheck, IconEye, IconEyeOff } from "@tabler/icons-react";
 
 type Modal = "edit" | "password" | null;
 
+// Clerk errors carry a readable message; fall back to a generic one for anything else.
+function errorMessage(err: unknown, fallback: string) {
+  if (isClerkAPIResponseError(err)) {
+    return err.errors[0]?.longMessage ?? err.errors[0]?.message ?? fallback;
+  }
+  return err instanceof Error && err.message ? err.message : fallback;
+}
+
 export default function ProfilePage() {
   const { data: user, isLoading } = useCurrentUser();
+  const { user: clerkUser } = useUser();
   const [activeModal, setActiveModal] = useState<Modal>(null);
   const close = () => setActiveModal(null);
+
+  // Accounts without a password (e.g. social sign-in only) have nothing to change
+  const canChangePassword = clerkUser?.passwordEnabled !== false;
 
   if (isLoading) {
     return (
@@ -94,9 +108,11 @@ export default function ProfilePage() {
               <Button variant="outline" onClick={() => setActiveModal("edit")}>
                 Edit Profile
               </Button>
-              <Button onClick={() => setActiveModal("password")}>
-                Change Password
-              </Button>
+              {canChangePassword && (
+                <Button onClick={() => setActiveModal("password")}>
+                  Change Password
+                </Button>
+              )}
             </div>
 
           </CardContent>
@@ -120,6 +136,7 @@ export default function ProfilePage() {
    Edit Profile Modal
 ───────────────────────────────────────── */
 function EditProfileModal({ user, onClose }: { user: any; onClose: () => void }) {
+  const { user: clerkUser } = useUser();
   const [username, setUsername] = useState(user.username ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [preview, setPreview]     = useState<string | null>(user.profileImageUrl ?? null);
@@ -136,17 +153,25 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
 
   const handleSubmit = async () => {
     setError("");
-    if (!username.trim()) { setError("Username is required"); return; }
+    const name = username.trim();
+    if (!name) { setError("Username is required"); return; }
 
     setLoading(true);
     try {
-      let profileImageUrl = user.profileImageUrl;
-      if (imageFile) profileImageUrl = await uploadImage(imageFile);
+      // 1) Upload the new photo first (if any), so a failed upload changes nothing else
+      const newImageUrl = imageFile ? await storage.uploadImage(imageFile) : undefined;
 
+      // 2) Username lives in Clerk (it is also a sign-in identifier). Clerk validates
+      //    format and uniqueness and throws if the name is invalid or taken.
+      if (clerkUser && name !== clerkUser.username) {
+        await clerkUser.update({ username: name });
+      }
+
+      // 3) Sync to Mongo. The server reads the username from Clerk, so only the photo is sent.
       const res = await authFetch("/api/user/update-profile", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: username.trim(), profileImageUrl }),
+        body: JSON.stringify(newImageUrl ? { profileImageUrl: newImageUrl } : {}),
       });
 
       const data = await res.json();
@@ -155,8 +180,8 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
       queryClient.setQueryData(["current-user"], data.user);
       setSuccess(true);
       setTimeout(onClose, 1200);
-    } catch {
-      setError("Something went wrong");
+    } catch (err) {
+      setError(errorMessage(err, "Something went wrong"));
     } finally {
       setLoading(false);
     }
@@ -219,6 +244,7 @@ function EditProfileModal({ user, onClose }: { user: any; onClose: () => void })
    Change Password Modal
 ───────────────────────────────────────── */
 function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const { user: clerkUser } = useUser();
   const [current,  setCurrent]  = useState("");
   const [next,     setNext]     = useState("");
   const [confirm,  setConfirm]  = useState("");
@@ -227,27 +253,32 @@ function ChangePasswordModal({ onClose }: { onClose: () => void }) {
   const [error,    setError]    = useState("");
   const [success,  setSuccess]  = useState(false);
 
+  // Changing a password is a sensitive action: Clerk may ask the user to re-verify first.
+  // useReverification shows that prompt and then retries the call.
+  const updatePassword = useReverification(
+    ({ currentPassword, newPassword }: { currentPassword: string; newPassword: string }) =>
+      clerkUser?.updatePassword({
+        currentPassword,
+        newPassword,
+        signOutOfOtherSessions: true,
+      })
+  );
+
   const handleSubmit = async () => {
     setError("");
     if (!current || !next || !confirm) { setError("All fields are required"); return; }
     if (next !== confirm)              { setError("New passwords do not match"); return; }
-    if (next.length < 6)               { setError("Password must be at least 6 characters"); return; }
+    // Password rules (length, breached passwords) are enforced by Clerk; its message is shown below.
 
     setLoading(true);
     try {
-      const res = await authFetch("/api/user/change-password", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ currentPassword: current, newPassword: next }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) { setError(data.error || "Failed to change password"); return; }
+      const result = await updatePassword({ currentPassword: current, newPassword: next });
+      if (!result) { setError("Verification was cancelled. Try again."); return; }
 
       setSuccess(true);
       setTimeout(onClose, 1400);
-    } catch {
-      setError("Something went wrong");
+    } catch (err) {
+      setError(errorMessage(err, "Failed to change password"));
     } finally {
       setLoading(false);
     }

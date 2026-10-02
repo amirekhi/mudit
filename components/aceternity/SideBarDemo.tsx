@@ -3,6 +3,7 @@
 import React, { useState, useEffect, ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Sidebar, SidebarAction, SidebarBody, SidebarLink } from "../ui/sidebar";
+import { useLogout } from "@/lib/TanStackQuery/authQueries/useLogout";
 import {
   IconBook,
   IconBrandTabler,
@@ -18,8 +19,6 @@ import {
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
-import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
-import { queryClient } from "@/lib/TanStackQuery/queryClient";
 
 interface SidebarLayoutProps {
   children: ReactNode;
@@ -29,20 +28,15 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   const { data: user } = useCurrentUser();
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+  const logout = useLogout();
+
 
   useEffect(() => {
     const isMobile = window.matchMedia("(max-width: 767px)").matches;
     if (isMobile) setOpen(false);
   }, [pathname]);
 
-  const handleLogOut = async () => {
-    try {
-      await authFetch("/api/auth/logout", { method: "POST" });
-      queryClient.clear();
-    } catch (err) {
-      console.log(err);
-    }
-  };
+
 
   const links = [
     { label: "Home",                href: "/",                 icon: <IconBrandTabler  className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
@@ -83,7 +77,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
                 <SidebarAction
                   label="Logout"
                   icon={<IconLogout className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" />}
-                  onClick={handleLogOut}
+                  onClick={logout}
                 />
               ) : (
                 <SidebarLink

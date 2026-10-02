@@ -1,31 +1,25 @@
-import { NextRequest, NextResponse } from "next/server";
-import User from "@/models/Users";
-import mongoose from "mongoose";
-import { verifyToken } from "@/lib/jwt/jwt";
+import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
-const MONGODB_URI = process.env.MONGODB_URI || "";
-if (!mongoose.connection.readyState) {
-  mongoose.connect(MONGODB_URI);
-}
-
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
-    const token = req.cookies.get("token")?.value;
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const payload = verifyToken(token);
-    if (!payload || typeof payload === "string") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const user = await User.findById(payload.userId).select("-passwordHash");
+    const user = await getCurrentUser();
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    return NextResponse.json({ loggedIn: true, user });
+    return NextResponse.json({
+      loggedIn: true,
+      user: {
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        profileImageUrl: user.profileImageUrl || null,
+        role: user.role,
+        onboarded: user.onboarded,
+        createdAt: user.createdAt,
+      },
+    });
   } catch (err) {
     console.error(err);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

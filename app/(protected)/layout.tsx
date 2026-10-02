@@ -1,12 +1,13 @@
-"use client";
-
-import { AuthGate } from "@/components/boundries/AuthGate";
+// app/(protected)/layout.tsx
 import { ReactNode } from "react";
+import { redirect } from "next/navigation";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
-export default function ProtectedLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return <AuthGate>{children}</AuthGate>;
+export default async function ProtectedLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUser();
+
+  if (!user) redirect("/login");
+  if (!user.onboarded) redirect("/onboarding");
+
+  return <>{children}</>;
 }

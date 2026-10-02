@@ -1,55 +1,58 @@
 import { NextRequest, NextResponse } from "next/server";
-import mongoose from "mongoose";
+import { currentUser } from "@clerk/nextjs/server";
 import User from "@/models/Users";
-import { verifyToken } from "@/lib/jwt/jwt";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
-const MONGODB_URI = process.env.MONGODB_URI || "";
-if (!mongoose.connection.readyState) {
-  await mongoose.connect(MONGODB_URI);
-}
-
+/**
+ * PATCH /api/user/update-profile
+ * Body: { profileImageUrl?: string }
+ *
+ * Username is owned by Clerk (it is also a sign-in identifier), so the client updates it
+ * in Clerk first. This route then copies Clerk's current username into Mongo and saves the avatar.
+ * The username is read from Clerk on the server, never taken from the request body.
+ */
 export async function PATCH(req: NextRequest) {
   try {
-    const token = req.cookies.get("token")?.value;
-    if (!token) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const user = await getCurrentUser();
+    if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-    const payload = verifyToken(token);
-    if (!payload?.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const body = await req.json().catch(() => ({}));
+    const { profileImageUrl } = body ?? {};
 
-    const { username, profileImageUrl } = await req.json();
-
-    if (!username?.trim()) {
-      return NextResponse.json({ error: "Username is required" }, { status: 400 });
+    // Username: Clerk is the source of truth
+    const clerkUser = await currentUser();
+    const clerkUsername = clerkUser?.username;
+    if (clerkUsername && clerkUsername !== user.username) {
+      const taken = await User.findOne({ username: clerkUsername, _id: { $ne: user._id } });
+      if (taken) {
+        return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+      }
+      user.username = clerkUsername;
     }
 
-    // Check uniqueness — exclude current user
-    const existing = await User.findOne({
-      username: username.trim(),
-      _id: { $ne: payload.userId },
-    });
-    if (existing) {
-      return NextResponse.json({ error: "Username already taken" }, { status: 409 });
+    // Avatar: only when the client sent a new one
+    if (profileImageUrl !== undefined) {
+      const valid =
+        typeof profileImageUrl === "string" &&
+        profileImageUrl.length <= 2048 &&
+        (profileImageUrl.startsWith("https://") || profileImageUrl === "/userAvatar.webp");
+      if (!valid) {
+        return NextResponse.json({ error: "Invalid profile image URL" }, { status: 400 });
+      }
+      user.profileImageUrl = profileImageUrl;
     }
 
-    const updated = await User.findByIdAndUpdate(
-      payload.userId,
-      {
-        username: username.trim(),
-        ...(profileImageUrl !== undefined && { profileImageUrl }),
-      },
-      { new: true }
-    );
-
-    if (!updated) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    await user.save();
 
     return NextResponse.json({
       user: {
-        _id: updated._id,
-        username: updated.username,
-        email: updated.email,
-        profileImageUrl: updated.profileImageUrl,
-        role: updated.role,
-        createdAt: updated.createdAt,
+        _id: user._id,
+        username: user.username,
+        email: user.email,
+        profileImageUrl: user.profileImageUrl,
+        role: user.role,
+        onboarded: user.onboarded,
+        createdAt: user.createdAt,
       },
     });
   } catch (err) {

@@ -8,6 +8,8 @@ import QueryProvider from "@/lib/TanStackQuery/QueryProvider";
 import PlaylistWindow from "@/components/PlayList/PlaylistWindow";
 import { TopBanner } from "@/components/notification/TopBanner";
 import { NotificationsWindow } from "@/components/basics/NotificationsWindow";
+import { ClerkProvider } from "@clerk/nextjs";
+import AuthSync from "@/components/auth/AuthSync";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -78,22 +80,25 @@ export default async function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full p-1
           bg-neutral-100 dark:bg-black transition-colors`}
       >
-        <QueryProvider>
-          <TopBanner />
-          <div className="flex flex-1 w-full overflow-hidden rounded-md border relative z-50
-            border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 transition-colors">
-            <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
-              <SidebarDemo>
-                {children}
-              </SidebarDemo>
-            </div>
-            <PlaylistWindow />
-          </div>
-          <MusicPlayer />
-          <div className="absolute right-0 bottom-0 m-4 z-50">
-            <NotificationsWindow />
-          </div>
-        </QueryProvider>
+        <ClerkProvider>
+            <QueryProvider>
+              <AuthSync />
+              <TopBanner />
+              <div className="flex flex-1 w-full overflow-hidden rounded-md border relative z-50
+                border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 transition-colors">
+                <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
+                  <SidebarDemo>
+                    {children}
+                  </SidebarDemo>
+                </div>
+                <PlaylistWindow />
+              </div>
+              <MusicPlayer />
+              <div className="absolute right-0 bottom-0 m-4 z-50">
+                <NotificationsWindow />
+              </div>
+            </QueryProvider>
+         </ClerkProvider>
       </body>
     </html>
   );
