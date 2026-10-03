@@ -1,120 +1,137 @@
 import { NextRequest, NextResponse } from "next/server";
-import clientPromise from "@/lib/mongo/mongodb";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { ObjectId } from "mongodb";
+import clientPromise from "@/lib/mongo/mongodb";
+import {
+  requireUser,
+  errorResponse,
+  parseObjectId,
+  parseIdList,
+  cleanText,
+  optionalText,
+  isTrustedUrl,
+  resolveVisibility,
+  isAdmin,
+  OWNER_FIELD,
+  type Visibility,
+} from "@/lib/auth/authz";
+import { checkPlaylistTracks } from "@/lib/auth/trackAccess";
 
-export async function PATCH(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-  }
+type Ctx = { params: Promise<{ id: string }> };
 
-  const p = await params;
-  const playlistId = p.id;
-  
-  let data: {
-    title?: string;
-    description?: string;
-    image?: string;
-    trackIds?: string[];
-    visibility?: "public" | "private";
-  };
-
+/**
+ * PATCH /api/playlists/:id
+ * Only the owner can edit (someone else's playlist is "not found").
+ * Only whitelisted fields are written. Tracks must be the owner's own or public, and a public
+ * playlist holds only public tracks. Only admins can make a playlist public.
+ */
+export async function PATCH(req: NextRequest, { params }: Ctx) {
   try {
-    data = await req.json();
-  } catch {
-    return NextResponse.json({ message: "Invalid JSON" }, { status: 400 });
-  }
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-  const client = await clientPromise;
-  const db = client.db(process.env.MONGODB_DB!);
+    const id = parseObjectId((await params).id);
+    if (!id) return errorResponse(400, "Invalid playlist id");
 
-  const playlist = await db.collection("playlists").findOne({
-    _id: new ObjectId(playlistId),
-    ownerId: new ObjectId(user._id),
-  });
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return errorResponse(400, "Invalid JSON");
 
-  if (!playlist) return NextResponse.json({ message: "Playlist not found" }, { status: 404 });
+    const owner = new ObjectId(String(auth.user._id));
+    const oid = new ObjectId(id);
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB!);
 
-  const updateFields: any = {};
-  if (data.title !== undefined) updateFields.title = data.title;
-  if (data.description !== undefined) updateFields.description = data.description;
-  if (data.image !== undefined) updateFields.image = data.image;
-  if (data.trackIds !== undefined)
-    updateFields.trackIds = data.trackIds.map(id => new ObjectId(id));
+    const existing = await db.collection("playlists").findOne({ _id: oid, [OWNER_FIELD]: owner });
+    if (!existing) return errorResponse(404, "Playlist not found");
 
-  // Only admins can change visibility to public
-  if (data.visibility !== undefined) {
-    if (data.visibility === "public" && user.role !== "admin") {
-      return NextResponse.json({ message: "Only admins can make a playlist public" }, { status: 403 });
+    const set: Record<string, unknown> = {};
+
+    if (body.title !== undefined) {
+      const title = cleanText(body.title, 100);
+      if (!title) return errorResponse(400, "Invalid title");
+      set.title = title;
     }
-    updateFields.visibility = data.visibility;
+
+    if (body.description !== undefined) {
+      const description = optionalText(body.description, 500);
+      if (description === null) return errorResponse(400, "Invalid description");
+      set.description = description;
+    }
+
+    // An unchanged image is accepted as-is, so playlists with older image URLs can still be saved
+    if (body.image !== undefined && body.image !== null && body.image !== existing.image) {
+      if (body.image !== "" && !isTrustedUrl(body.image)) return errorResponse(400, "Invalid image url");
+      set.image = body.image;
+    }
+
+    // Visibility: sending the current value is a no-op. Changing to public needs admin.
+    const currentVisibility: Visibility = existing.visibility === "public" ? "public" : "private";
+    let nextVisibility: Visibility = currentVisibility;
+    if (body.visibility !== undefined && body.visibility !== currentVisibility) {
+      const vis = resolveVisibility(auth.user, body.visibility);
+      if (!vis.ok) return vis.response;
+      nextVisibility = vis.visibility;
+      set.visibility = nextVisibility;
+    }
+
+    let nextTrackIds: string[] = (existing.trackIds ?? []).map(String);
+    if (body.trackIds !== undefined) {
+      const parsed = parseIdList(body.trackIds, { min: 0 });
+      if (!parsed) return errorResponse(400, "trackIds must be an array of valid ids");
+      nextTrackIds = parsed;
+      set.trackIds = parsed.map((t) => new ObjectId(t));
+    }
+
+    if (set.trackIds !== undefined || set.visibility !== undefined) {
+      const trackError = await checkPlaylistTracks(db, owner, nextTrackIds, nextVisibility);
+      if (trackError) return trackError;
+    }
+
+    set.updatedAt = new Date();
+
+    await db.collection("playlists").updateOne({ _id: oid, [OWNER_FIELD]: owner }, { $set: set });
+
+    const updated = await db.collection("playlists").findOne({ _id: oid });
+    return NextResponse.json(updated);
+  } catch (err) {
+    console.error("PATCH /playlists/:id error:", err);
+    return errorResponse(500, "Failed to update playlist");
   }
-
-  updateFields.updatedAt = new Date();
-
-  await db.collection("playlists").updateOne(
-    { _id: new ObjectId(playlistId) },
-    { $set: updateFields }
-  );
-
-  const updatedPlaylist = await db.collection("playlists").findOne({
-    _id: new ObjectId(playlistId),
-  });
-
-  return NextResponse.json(updatedPlaylist);
 }
 
+/**
+ * DELETE /api/playlists/:id
+ * The owner can delete. Admins can also delete any playlist (existing moderation behaviour).
+ *
+ * Bug fixed here: the old check compared a string with an ObjectId (`!== user._id`), which is
+ * always "different" now that getCurrentUser() returns a Mongoose document, so owners were
+ * refused and only admins could delete.
+ */
+export async function DELETE(_req: NextRequest, { params }: Ctx) {
+  try {
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const user = await getCurrentUser();
-  if (!user) {
-    return NextResponse.json(
-      { message: "Unauthorized" },
-      { status: 401 }
-    );
+    const id = parseObjectId((await params).id);
+    if (!id) return errorResponse(400, "Invalid playlist id");
+
+    const oid = new ObjectId(id);
+    const client = await clientPromise;
+    const db = client.db(process.env.MONGODB_DB!);
+
+    const playlist = await db.collection("playlists").findOne({ _id: oid }, { projection: { [OWNER_FIELD]: 1 } });
+    if (!playlist) return errorResponse(404, "Playlist not found");
+
+    const isOwner = String(playlist[OWNER_FIELD]) === String(auth.user._id);
+    if (!isOwner && !isAdmin(auth.user)) {
+      return errorResponse(404, "Playlist not found"); // don't reveal that it exists
+    }
+
+    await db.collection("playlists").deleteOne({ _id: oid });
+    await db.collection("share_sessions").deleteMany({ playlistId: oid }); // revoke its share links
+
+    return NextResponse.json({ message: "Playlist deleted successfully" }, { status: 200 });
+  } catch (err) {
+    console.error("DELETE /playlists/:id error:", err);
+    return errorResponse(500, "Failed to delete playlist");
   }
-
-  const p = await params;
-  const playlistId = p.id;
-
-  const client = await clientPromise;
-  const db = client.db(process.env.MONGODB_DB!);
-
-  // Only owner OR admin can delete
-  const playlist = await db.collection("playlists").findOne({
-    _id: new ObjectId(playlistId),
-  });
-
-  if (!playlist) {
-    return NextResponse.json(
-      { message: "Playlist not found" },
-      { status: 404 }
-    );
-  }
-
-  if (
-    playlist.ownerId.toString() !== user._id &&
-    user.role !== "admin"
-  ) {
-    return NextResponse.json(
-      { message: "Forbidden" },
-      { status: 403 }
-    );
-  }
-
-  await db.collection("playlists").deleteOne({
-    _id: new ObjectId(playlistId),
-  });
-
-  return NextResponse.json(
-    { message: "Playlist deleted successfully" },
-    { status: 200 }
-  );
 }

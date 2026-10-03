@@ -1,16 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth/authz";
 
 /**
  * GET /api/itunes/search?q=...
- * Proxies Apple's iTunes Search API for 30s preview MP3s.
- * No API key required. Kept server-side mainly for caching / consistent
- * shape with the rest of the app, not because of CORS (iTunes allows it).
+ * Proxies Apple's iTunes Search API for 30s preview MP3s. No API key required.
+ * Now requires sign-in so it isn't an open proxy. If a public page needs it, delete the
+ * requireUser lines (and add rate limiting instead).
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return NextResponse.json({ message: "Unauthorized", tracks: [] }, { status: 401 });
+
   const q = req.nextUrl.searchParams.get("q")?.trim();
 
   if (!q) {
     return NextResponse.json({ tracks: [] });
+  }
+  if (q.length > 100) {
+    return NextResponse.json({ message: "Query too long", tracks: [] }, { status: 400 });
   }
 
   try {
