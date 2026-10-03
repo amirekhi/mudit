@@ -1,15 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/auth/authz";
 
 /**
  * GET /api/deezer/search?q=...
- * Proxies Deezer's public search API (browser can't call it directly — no CORS headers).
- * Returns a slim, front-end-friendly shape.
+ * Proxies Deezer's public search API (browser can't call it directly: no CORS headers).
+ * Now requires sign-in so it isn't an open proxy that burns your server's Deezer rate limit.
+ * If a public page needs it, delete the requireUser lines (and add rate limiting instead).
  */
 export async function GET(req: NextRequest) {
+  const auth = await requireUser();
+  if (!auth.ok) return NextResponse.json({ message: "Unauthorized", tracks: [] }, { status: 401 });
+
   const q = req.nextUrl.searchParams.get("q")?.trim();
 
   if (!q) {
     return NextResponse.json({ tracks: [] });
+  }
+  if (q.length > 100) {
+    return NextResponse.json({ message: "Query too long", tracks: [] }, { status: 400 });
   }
 
   try {
