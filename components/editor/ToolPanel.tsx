@@ -1,57 +1,66 @@
 "use client";
 
 import { useEditorStore } from "@/store/useEditorStore";
+import type { SlateRegion } from "@/types/slateTypes";
+
+// Actions are stable, so handlers read them from getState(). The panel only subscribes to the
+// few values it displays; before, it subscribed to the WHOLE store and re-rendered every frame.
+const ed = () => useEditorStore.getState();
+
+/** Own component so only this button follows the playhead. */
+function SplitAtPlayheadButton({
+  slateId, region, enabled, className,
+}: { slateId: string | null; region: SlateRegion | undefined; enabled: boolean; className: string }) {
+  const time = useEditorStore(s => s.transport.time);
+  const inside = !!region && time > region.start + 0.01 && time < region.end - 0.01;
+
+  return (
+    <button
+      disabled={!enabled || !inside}
+      onClick={() => { if (slateId && region) ed().splitRegion(slateId, region.id, time); }}
+      title={inside ? "Split the selected region at the playhead" : "Move the playhead inside the region to split it"}
+      className={className}
+    >
+      Split
+    </button>
+  );
+}
 
 export default function ToolPanel({ disabled }: { disabled: boolean }) {
-  const {
-    selectedSlateId, selectedRegionId, slates,
-    applyRegionGain, applyRegionPan, applyRegionPlaybackRate,
-    applyRegionPitch, toggleRegionReverse, applyRegionFadeIn,
-    applyRegionFadeOut, toggleRegionMute,
-    splitRegion, duplicateRegion, removeRegion, lockRegion,
-    copyRegion, cutRegion, pasteRegion, clipboard,
-    undo, redo,
-  } = useEditorStore();
+  const selectedSlateId  = useEditorStore(s => s.selectedSlateId);
+  const selectedRegionId = useEditorStore(s => s.selectedRegionId);
+  const selectedRegion   = useEditorStore(s =>
+    s.slates.find(sl => sl.id === s.selectedSlateId)?.regions.find(r => r.id === s.selectedRegionId)
+  );
+  const clipboard        = useEditorStore(s => s.clipboard);
 
   const masterVolume   = useEditorStore(s => s.master.volume);
   const masterMuted    = useEditorStore(s => s.master.muted);
   const limiterEnabled = useEditorStore(s => s.master.limiter.enabled);
   const limiterCeiling = useEditorStore(s => s.master.limiter.ceiling);
-  const setMasterVolume   = useEditorStore(s => s.setMasterVolume);
-  const toggleMasterMute  = useEditorStore(s => s.toggleMasterMute);
-  const setLimiterEnabled = useEditorStore(s => s.setLimiterEnabled);
-  const setLimiterCeiling = useEditorStore(s => s.setLimiterCeiling);
 
-  const selectedSlate  = slates.find(s => s.id === selectedSlateId);
-  const selectedRegion = selectedSlate?.regions.find(r => r.id === selectedRegionId);
-  const canEdit = !!selectedSlateId && !!selectedRegionId && !disabled;
+  const canEdit = !!selectedSlateId && !!selectedRegionId && !!selectedRegion && !disabled;
   const repClip = selectedRegion?.clips[0];
 
-  const applyGain         = (v: number) => canEdit && applyRegionGain(selectedSlateId!, selectedRegionId!, v);
-  const applyPan          = (v: number) => canEdit && applyRegionPan(selectedSlateId!, selectedRegionId!, v);
-  const applyPlaybackRate = (v: number) => canEdit && applyRegionPlaybackRate(selectedSlateId!, selectedRegionId!, v);
-  const applyPitch        = (v: number) => canEdit && applyRegionPitch(selectedSlateId!, selectedRegionId!, v);
-  const toggleReverse     = ()          => canEdit && toggleRegionReverse(selectedSlateId!, selectedRegionId!);
-  const applyFadeIn       = (v: number) => canEdit && applyRegionFadeIn(selectedSlateId!, selectedRegionId!, v);
-  const applyFadeOut      = (v: number) => canEdit && applyRegionFadeOut(selectedSlateId!, selectedRegionId!, v);
-  const toggleMute        = ()          => canEdit && toggleRegionMute(selectedSlateId!, selectedRegionId!);
-  const splitAtMiddle     = ()          => {
-    if (!canEdit) return;
-    splitRegion(selectedSlateId!, selectedRegionId!, (selectedRegion!.start + selectedRegion!.end) / 2);
-  };
-  const duplicate  = () => canEdit && duplicateRegion(selectedSlateId!, selectedRegionId!);
-  const remove     = () => canEdit && removeRegion(selectedSlateId!, selectedRegionId!);
-  const toggleLock = () => canEdit && lockRegion(selectedSlateId!, selectedRegionId!, !selectedRegion!.meta.locked);
-  const copy       = () => canEdit && copyRegion(selectedSlateId!, selectedRegionId!);
-  const cut        = () => canEdit && cutRegion(selectedSlateId!, selectedRegionId!);
+  const applyGain         = (v: number) => canEdit && ed().applyRegionGain(selectedSlateId!, selectedRegionId!, v);
+  const applyPan          = (v: number) => canEdit && ed().applyRegionPan(selectedSlateId!, selectedRegionId!, v);
+  const applyPlaybackRate = (v: number) => canEdit && ed().applyRegionPlaybackRate(selectedSlateId!, selectedRegionId!, v);
+  const toggleReverse     = ()          => canEdit && ed().toggleRegionReverse(selectedSlateId!, selectedRegionId!);
+  const applyFadeIn       = (v: number) => canEdit && ed().applyRegionFadeIn(selectedSlateId!, selectedRegionId!, v);
+  const applyFadeOut      = (v: number) => canEdit && ed().applyRegionFadeOut(selectedSlateId!, selectedRegionId!, v);
+  const toggleMute        = ()          => canEdit && ed().toggleRegionMute(selectedSlateId!, selectedRegionId!);
+  const duplicate  = () => canEdit && ed().duplicateRegion(selectedSlateId!, selectedRegionId!);
+  const remove     = () => canEdit && ed().removeRegion(selectedSlateId!, selectedRegionId!);
+  const toggleLock = () => canEdit && ed().lockRegion(selectedSlateId!, selectedRegionId!, !selectedRegion!.meta.locked);
+  const copy       = () => canEdit && ed().copyRegion(selectedSlateId!, selectedRegionId!);
+  const cut        = () => canEdit && ed().cutRegion(selectedSlateId!, selectedRegionId!);
   const paste      = () => {
     if (!selectedSlateId || !clipboard) return;
-    pasteRegion(selectedSlateId, useEditorStore.getState().transport.time);
+    ed().pasteRegion(selectedSlateId, ed().transport.time);
   };
 
   // Reusable button classes
   const btn  = "flex-1 px-2 py-2 rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-200 disabled:opacity-40 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors";
-  const wbtn = "w-full px-3 py-2 rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-200 disabled:opacity-40 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors";
   const label = "text-[10px] text-neutral-500 font-medium uppercase tracking-wide mb-1.5";
 
   return (
@@ -101,7 +110,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           </div>
         </div>
 
-        {/* ── Speed ── */}
+        {/* ── Speed (varispeed: changes tempo AND pitch together) ── */}
         <div className="space-y-1.5">
           <p className={label}>Speed</p>
           <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{repClip?.edits.playbackRate ?? 1}×</p>
@@ -111,13 +120,13 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           </div>
         </div>
 
-        {/* ── Pitch ── */}
+        {/* ── Pitch: disabled until time-stretch support exists (it never produced any sound) ── */}
         <div className="space-y-1.5">
           <p className={label}>Pitch</p>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{repClip?.edits.pitch ?? 0} st</p>
+          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">Coming soon</p>
           <div className="flex gap-1.5">
-            <button disabled={!canEdit} onClick={() => applyPitch(1)}  className={btn}>+1 st</button>
-            <button disabled={!canEdit} onClick={() => applyPitch(-1)} className={btn}>−1 st</button>
+            <button disabled title="Pitch shifting needs a time-stretch step and is not available yet" className={btn}>+1 st</button>
+            <button disabled title="Pitch shifting needs a time-stretch step and is not available yet" className={btn}>−1 st</button>
           </div>
         </div>
 
@@ -147,9 +156,9 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
         <div className="col-span-2 md:col-span-1 space-y-1.5">
           <p className={label}>Region</p>
           <div className="grid grid-cols-3 gap-1.5">
-            <button disabled={!canEdit} onClick={splitAtMiddle} className={btn}>Split</button>
-            <button disabled={!canEdit} onClick={duplicate}     className={btn}>Dupe</button>
-            <button disabled={!canEdit} onClick={toggleLock}    className={btn}>
+            <SplitAtPlayheadButton slateId={selectedSlateId} region={selectedRegion} enabled={canEdit} className={btn} />
+            <button disabled={!canEdit} onClick={duplicate}  className={btn}>Dupe</button>
+            <button disabled={!canEdit} onClick={toggleLock} className={btn}>
               {selectedRegion?.meta.locked ? "Unlock" : "Lock"}
             </button>
           </div>
@@ -162,14 +171,14 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           </button>
         </div>
 
-        {/* ── Master ── */}
+        {/* ── Master (now actually wired to the engine and the export) ── */}
         <div className="col-span-2 md:col-span-1 space-y-2">
           <p className={label}>Master</p>
           <div className="flex items-center gap-2">
             <input
               type="range" min={0} max={1} step={0.01}
               value={masterVolume}
-              onChange={e => setMasterVolume(Number(e.target.value))}
+              onChange={e => ed().setMasterVolume(Number(e.target.value))}
               disabled={disabled}
               className="flex-1 accent-indigo-500"
             />
@@ -180,17 +189,20 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           <div className="flex gap-1.5">
             <button
               disabled={disabled}
-              onClick={toggleMasterMute}
+              onClick={() => ed().toggleMasterMute()}
               className={`${btn} flex-1`}
             >
               {masterMuted ? "Unmute" : "Mute"}
             </button>
-            <label className="flex items-center gap-1.5 px-2 py-2 rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-200 cursor-pointer">
+            <label
+              title="Soft limiter on the master output"
+              className="flex items-center gap-1.5 px-2 py-2 rounded bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 text-xs text-neutral-700 dark:text-neutral-200 cursor-pointer"
+            >
               <span className="text-neutral-500">Limiter</span>
               <input
                 type="checkbox"
                 checked={limiterEnabled}
-                onChange={e => setLimiterEnabled(e.target.checked)}
+                onChange={e => ed().setLimiterEnabled(e.target.checked)}
                 disabled={disabled}
                 className="accent-indigo-500"
               />
@@ -199,10 +211,10 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-neutral-500 flex-shrink-0">Ceiling</span>
             <input
-              type="range" min={0} max={1} step={0.01}
+              type="range" min={0.5} max={1} step={0.01}
               value={limiterCeiling}
-              onChange={e => setLimiterCeiling(Number(e.target.value))}
-              disabled={disabled}
+              onChange={e => ed().setLimiterCeiling(Number(e.target.value))}
+              disabled={disabled || !limiterEnabled}
               className="flex-1 accent-indigo-500"
             />
             <span className="text-[10px] text-neutral-500 dark:text-neutral-400 w-10 text-right flex-shrink-0">
@@ -215,8 +227,8 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
         <div className="col-span-2 md:col-span-1 space-y-1.5">
           <p className={label}>History</p>
           <div className="flex gap-1.5">
-            <button disabled={disabled} onClick={undo} className={btn}>↩ Undo</button>
-            <button disabled={disabled} onClick={redo} className={btn}>↪ Redo</button>
+            <button disabled={disabled} onClick={() => ed().undo()} className={btn}>↩ Undo</button>
+            <button disabled={disabled} onClick={() => ed().redo()} className={btn}>↪ Redo</button>
           </div>
         </div>
 

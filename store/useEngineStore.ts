@@ -5,114 +5,199 @@ import { useEditorStore } from "@/store/useEditorStore";
 import { compileSlate } from "@/util/compileRegions";
 import { Slate } from "@/types/slateTypes";
 import { extractPeaks } from "@/util/extractPeaks";
+import {
+  applyMasterParams,
+  createMasterChain,
+  renderMix,
+  scheduleClip,
+} from "@/util/engine/audioGraph";
+import type { ClipHandle, MasterChain } from "@/util/engine/audioGraph";
 
 interface PlayWindow {
   start: number;
   end: number;
 }
 
+export interface RenderOptions {
+  /** Soft-limit at 0.98 even if the master limiter is off. */
+  safetyLimiter?: boolean;
+}
+
 interface EngineState {
   ctx: AudioContext | null;
-  sources: AudioBufferSourceNode[];
+  sources: ClipHandle[];
   isPlaying: boolean;
   ctxStartTime: number;
   transportOffset: number;
   playWindow: PlayWindow | null;
-  currentSlateIds: string[]; // which slate(s) are the active playback source — drives the "now playing" indicator
+  currentSlateIds: string[]; // which slate(s) are the active playback source: drives the "now playing" indicator
 
   setPlayWindow(win: PlayWindow): void;
   playProject(): Promise<void>;
   playSlate(slateId: string): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
-  reset(): void; // stop AND rewind playhead to 0 — bound to the explicit "Reset" button
+  reset(): void; // stop AND rewind playhead to 0
+
+  /** Move the playhead. While playing, playback continues from the new position. */
+  seekTo(time: number): Promise<void>;
+  /** After an edit: restart what is playing (so the edit is heard), or audition the edited slate. */
+  auditionEdit(slateId: string): Promise<void>;
+  /** Debounced restart for continuous controls (sliders). Only acts while that slate is playing. */
+  refreshSoon(slateId: string): void;
+
   compileSlatePreview(slateId: string): Promise<void>;
-  renderProjectOffline(): Promise<AudioBuffer | null>;
+  renderProjectOffline(opts?: RenderOptions): Promise<AudioBuffer | null>;
 }
 
-export const useEngineStore = create<EngineState>((set, get) => {
-  const slateDuration = (slate: Slate) => slate.length;
+const LEAD = 0.08; // seconds of lead time so the first clips don't start "in the past"
+const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
-  // Internal-only: stop whatever's currently sounding WITHOUT touching the
-  // playhead position. Used before starting fresh playback so "Play" can
-  // start from wherever transport.time currently is, instead of always 0.
-  const stopSources = () => {
-    get().sources.forEach(s => {
-      try { s.stop(); } catch {}
+export const useEngineStore = create<EngineState>((set, get) => {
+  let masterChain: MasterChain | null = null;
+  let tickHandle: number | null = null;
+  let playToken = 0;
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  const previewTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  const previewTokens = new Map<string, number>();
+
+  /* ───────────── context + master ───────────── */
+
+  const ensureCtx = (): AudioContext => {
+    const existing = get().ctx;
+    if (existing) return existing;
+
+    const ctx = new AudioContext();
+    masterChain = createMasterChain(ctx);
+    applyMasterParams(masterChain, ctx, useEditorStore.getState().master);
+
+    // Master volume / mute / limiter changes are heard immediately, without restarting playback
+    useEditorStore.subscribe((state, prev) => {
+      if (state.master !== prev.master && masterChain) {
+        applyMasterParams(masterChain, ctx, state.master, { smooth: true });
+      }
     });
+
+    set({ ctx });
+    return ctx;
+  };
+
+  const currentPosition = () => {
+    const { ctx, transportOffset, ctxStartTime } = get();
+    if (!ctx) return transportOffset;
+    return transportOffset + Math.max(0, ctx.currentTime - ctxStartTime);
+  };
+
+  /* ───────────── playhead loop (exactly one at any time) ───────────── */
+
+  const stopTick = () => {
+    if (tickHandle !== null) {
+      cancelAnimationFrame(tickHandle);
+      tickHandle = null;
+    }
+  };
+
+  const tick = () => {
+    const s = get();
+    if (!s.isPlaying || !s.ctx || !s.playWindow) {
+      tickHandle = null;
+      return;
+    }
+    const t = currentPosition();
+    useEditorStore.getState().seek(t);
+
+    if (t >= s.playWindow.end) {
+      get().reset(); // natural end of playback rewinds to 0, same as a manual Reset
+      return;
+    }
+    tickHandle = requestAnimationFrame(tick);
+  };
+
+  const startTick = () => {
+    stopTick(); // never run two loops: they used to pile up on every restart
+    tickHandle = requestAnimationFrame(tick);
+  };
+
+  /* ───────────── start / stop ───────────── */
+
+  // Stops everything that is sounding and the playhead loop. Does not move the playhead.
+  const stopSources = () => {
+    stopTick();
+    get().sources.forEach(h => h.stop());
     set({ sources: [], isPlaying: false, transportOffset: 0, currentSlateIds: [] });
     useEditorStore.getState().pause();
   };
 
-  
+  const startPlayback = async (slates: Slate[], from: number, ids: string[]) => {
+    if (slates.length === 0) return;
 
-  const startTick = () => {
-    const ctx = get().ctx;
-    const win = get().playWindow;
-    if (!ctx || !win) return;
+    const duration = Math.max(...slates.map(s => s.length));
+    if (!(duration > 0)) return;
 
-    const tick = () => {
-      if (!get().isPlaying || ctx.state !== "running") return;
+    let start = clamp(from, 0, duration);
+    if (start >= duration - 0.01) start = 0; // at the very end: play again from the top
 
-      const now = ctx.currentTime;
-      const t = get().transportOffset + (now - get().ctxStartTime);
-      useEditorStore.getState().seek(t);
+    const token = ++playToken;
+    stopSources();
 
-      if (t >= win.end) {
-        get().reset(); // natural end-of-playback rewinds to 0, same as a manual Reset
-        return;
-      }
-      requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  };
+    const ctx = ensureCtx();
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+      if (token !== playToken) return; // a newer play request took over while we waited
+    }
 
-  const scheduleCompiled = async (win: PlayWindow, slatesToPlay: Slate[]) => {
+    const win: PlayWindow = { start, end: duration };
+    const compiled = slates.flatMap(s => compileSlate(s, win));
+    const t0 = ctx.currentTime + LEAD;
+    const dest = masterChain!.gain;
+    const handles = compiled.map(r => scheduleClip(ctx, r, dest, t0));
+
+    set({
+      sources: handles,
+      ctxStartTime: t0,
+      transportOffset: start,
+      isPlaying: true,
+      playWindow: win,
+      currentSlateIds: ids,
+    });
+
     const editor = useEditorStore.getState();
-    let ctx = get().ctx;
-
-    if (!ctx) {
-      ctx = new AudioContext();
-      set({ ctx });
-    }
-    if (ctx.state === "suspended") await ctx.resume();
-
-    const compiled = slatesToPlay.flatMap(s => compileSlate(s, win));
-    const ctxNow = ctx.currentTime;
-    const scheduled: AudioBufferSourceNode[] = [];
-
-    for (const r of compiled) {
-      const source = ctx.createBufferSource();
-      source.buffer = r.buffer;
-      source.playbackRate.value = r.playbackRate;
-
-      const gainNode = ctx.createGain();
-      gainNode.gain.value = r.gain;
-
-      const panNode = ctx.createStereoPanner();
-      panNode.pan.value = r.pan;
-
-      source.connect(gainNode).connect(panNode).connect(ctx.destination);
-
-      if (r.fadeIn && r.fadeIn > 0) {
-        gainNode.gain.setValueAtTime(0, ctxNow + r.when);
-        gainNode.gain.linearRampToValueAtTime(r.gain, ctxNow + r.when + r.fadeIn);
-      }
-      if (r.fadeOut && r.fadeOut > 0) {
-        gainNode.gain.setValueAtTime(r.gain, ctxNow + r.when + r.duration - r.fadeOut);
-        gainNode.gain.linearRampToValueAtTime(0, ctxNow + r.when + r.duration);
-      }
-
-      source.start(ctxNow + r.when, r.offset, r.duration);
-      scheduled.push(source);
-    }
-
-    set({ sources: scheduled, ctxStartTime: ctxNow, transportOffset: win.start, isPlaying: true, playWindow: win });
-
     editor.setProjectDuration(win.end);
     editor.seek(win.start);
     editor.play();
     startTick();
+  };
+
+  const slatesByIds = (ids: string[]) =>
+    useEditorStore.getState().slates.filter(s => ids.includes(s.id));
+
+  /* ───────────── waveform preview (debounced, latest wins) ───────────── */
+
+  const renderPreview = async (slateId: string) => {
+    const editor = useEditorStore.getState();
+    const slate = editor.slates.find(s => s.id === slateId);
+    if (!slate) return;
+
+    const duration = slate.length;
+    if (duration <= 0) return;
+
+    const token = (previewTokens.get(slateId) ?? 0) + 1;
+    previewTokens.set(slateId, token);
+
+    try {
+      // A muted slate still shows its waveform. The preview is rendered cheaply: 22.05 kHz,
+      // and lower still for very long slates so the offline buffer stays small.
+      const compiled = compileSlate({ ...slate, muted: false }, { start: 0, end: duration });
+      const sampleRate = clamp(Math.floor(12_000_000 / duration), 8000, 22050);
+      const rendered = await renderMix(compiled, duration, { sampleRate });
+
+      if (previewTokens.get(slateId) !== token) return; // superseded by a newer render
+      if (!useEditorStore.getState().slates.some(s => s.id === slateId)) return; // slate was deleted
+
+      useEditorStore.getState().setSlatePreviewPeaks(slateId, extractPeaks(rendered));
+    } catch (err) {
+      console.error("Waveform preview failed:", err);
+    }
   };
 
   return {
@@ -124,103 +209,36 @@ export const useEngineStore = create<EngineState>((set, get) => {
     playWindow: null,
     currentSlateIds: [],
 
-    async renderProjectOffline() {
-  const editorState = useEditorStore.getState();
-  const projectSlates = editorState.slates.filter(s => s.kind === "project");
-  if (projectSlates.length === 0) return null;
-
-  const duration = Math.max(...projectSlates.map(slateDuration));
-  if (duration <= 0) return null;
-
-  const win = { start: 0, end: duration };
-  const compiled = projectSlates.flatMap(s => compileSlate(s, win));
-  if (compiled.length === 0) return null;
-
-  const sampleRate = 44100;
-  const length = Math.ceil(sampleRate * duration);
-  const offline = new OfflineAudioContext(2, length, sampleRate);
-
-  for (const r of compiled) {
-    const source = offline.createBufferSource();
-    source.buffer = r.buffer;
-    source.playbackRate.value = r.playbackRate;
-
-    const gainNode = offline.createGain();
-    gainNode.gain.value = r.gain;
-
-    const panNode = offline.createStereoPanner();
-    panNode.pan.value = r.pan;
-
-    source.connect(gainNode).connect(panNode).connect(offline.destination);
-
-    if (r.fadeIn && r.fadeIn > 0) {
-      gainNode.gain.setValueAtTime(0, r.when);
-      gainNode.gain.linearRampToValueAtTime(r.gain, r.when + r.fadeIn);
-    }
-    if (r.fadeOut && r.fadeOut > 0) {
-      gainNode.gain.setValueAtTime(r.gain, r.when + r.duration - r.fadeOut);
-      gainNode.gain.linearRampToValueAtTime(0, r.when + r.duration);
-    }
-
-    source.start(r.when, r.offset, r.duration);
-  }
-
-  return await offline.startRendering();
-},
-
     setPlayWindow: (win) => set({ playWindow: win }),
 
     async playProject() {
-      const editorState = useEditorStore.getState();
-      const projectSlates = editorState.slates.filter(s => s.kind === "project");
-      if (projectSlates.length === 0) return;
-
-      const maxDuration = Math.max(...projectSlates.map(slateDuration));
-      if (maxDuration <= 0) return;
-
-      // start from wherever the shared playhead currently is, clamped to range
-      const startTime = Math.min(Math.max(editorState.transport.time, 0), maxDuration);
-
-      stopSources();
-      set({ currentSlateIds: projectSlates.map(s => s.id) });
-      await scheduleCompiled({ start: startTime, end: maxDuration }, projectSlates);
+      const slates = useEditorStore.getState().slates.filter(s => s.kind === "project");
+      await startPlayback(slates, useEditorStore.getState().transport.time, slates.map(s => s.id));
     },
 
     async playSlate(slateId) {
-      const editorState = useEditorStore.getState();
-      const slate = editorState.slates.find(s => s.id === slateId);
+      const slate = useEditorStore.getState().slates.find(s => s.id === slateId);
       if (!slate) return;
-
-      const duration = slateDuration(slate);
-      if (duration <= 0) return;
-
-      const startTime = Math.min(Math.max(editorState.transport.time, 0), duration);
-
-      stopSources();
-      set({ currentSlateIds: [slateId] });
-      await scheduleCompiled({ start: startTime, end: duration }, [slate]);
+      await startPlayback([slate], useEditorStore.getState().transport.time, [slateId]);
     },
 
+    // Stops the sound, keeps the playhead where it is and keeps the "paused here" indicator.
     async pause() {
-      const ctx = get().ctx;
-      if (!ctx || ctx.state !== "running") return;
+      const s = get();
+      if (!s.isPlaying) return;
 
-      const pausedOffset = get().transportOffset + (ctx.currentTime - get().ctxStartTime);
-      await ctx.suspend();
+      const position = currentPosition();
+      const ids = s.currentSlateIds;
 
-      set({ isPlaying: false, transportOffset: pausedOffset }); // currentSlateIds deliberately untouched — keeps the "paused here" indicator visible
-      useEditorStore.getState().pause();
+      stopSources();
+      set({ currentSlateIds: ids });
+      useEditorStore.getState().seek(position);
     },
 
     async resume() {
-      const ctx = get().ctx;
-      if (!ctx || get().isPlaying) return;
-
-      await ctx.resume();
-      set({ isPlaying: true, ctxStartTime: ctx.currentTime });
-
-      useEditorStore.getState().play();
-      startTick();
+      const ids = get().currentSlateIds;
+      if (get().isPlaying || ids.length === 0) return;
+      await startPlayback(slatesByIds(ids), useEditorStore.getState().transport.time, ids);
     },
 
     reset() {
@@ -228,38 +246,63 @@ export const useEngineStore = create<EngineState>((set, get) => {
       useEditorStore.getState().seek(0);
     },
 
-    async compileSlatePreview(slateId) {
-      const slate = useEditorStore.getState().slates.find(s => s.id === slateId);
-      if (!slate) return;
-
-      const duration = slateDuration(slate);
-      if (duration <= 0) return;
-
-      const fullWindow = { start: 0, end: duration };
-      const compiled = compileSlate(slate, fullWindow);
-
-      const sampleRate = 44100;
-      const length = Math.ceil(sampleRate * duration);
-      const offline = new OfflineAudioContext(2, length, sampleRate);
-
-      for (const r of compiled) {
-        const source = offline.createBufferSource();
-        source.buffer = r.buffer;
-        source.playbackRate.value = r.playbackRate;
-
-        const gainNode = offline.createGain();
-        gainNode.gain.value = r.gain;
-
-        const panNode = offline.createStereoPanner();
-        panNode.pan.value = r.pan;
-
-        source.connect(gainNode).connect(panNode).connect(offline.destination);
-        source.start(r.when, r.offset, r.duration);
+    async seekTo(time) {
+      const s = get();
+      if (s.isPlaying && s.currentSlateIds.length > 0) {
+        await startPlayback(slatesByIds(s.currentSlateIds), time, s.currentSlateIds);
+      } else {
+        useEditorStore.getState().seek(time);
       }
+    },
 
-      const rendered = await offline.startRendering();
-      const peaks = extractPeaks(rendered);
-      useEditorStore.getState().setSlatePreviewPeaks(slateId, peaks);
+    async auditionEdit(slateId) {
+      const s = get();
+      if (s.isPlaying && s.currentSlateIds.includes(slateId)) {
+        await startPlayback(slatesByIds(s.currentSlateIds), currentPosition(), s.currentSlateIds);
+        return;
+      }
+      await get().playSlate(slateId);
+    },
+
+    refreshSoon(slateId) {
+      if (refreshTimer) clearTimeout(refreshTimer);
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        const s = get();
+        if (s.isPlaying && s.currentSlateIds.includes(slateId)) void get().auditionEdit(slateId);
+      }, 150);
+    },
+
+    async compileSlatePreview(slateId) {
+      const pending = previewTimers.get(slateId);
+      if (pending) clearTimeout(pending);
+      previewTimers.set(
+        slateId,
+        setTimeout(() => {
+          previewTimers.delete(slateId);
+          void renderPreview(slateId);
+        }, 120)
+      );
+    },
+
+    async renderProjectOffline(opts = {}) {
+      const editorState = useEditorStore.getState();
+      const projectSlates = editorState.slates.filter(s => s.kind === "project");
+      if (projectSlates.length === 0) return null;
+
+      const duration = Math.max(...projectSlates.map(s => s.length));
+      if (!(duration > 0)) return null;
+
+      const win = { start: 0, end: duration };
+      const compiled = projectSlates.flatMap(s => compileSlate(s, win));
+      if (compiled.length === 0) return null;
+
+      return renderMix(compiled, duration, {
+        sampleRate: 44100,
+        useMaster: true,
+        master: editorState.master,
+        safetyLimiter: opts.safetyLimiter,
+      });
     },
   };
 });

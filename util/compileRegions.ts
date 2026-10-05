@@ -11,7 +11,11 @@ export interface CompiledRegion {
   buffer: AudioBuffer;
   when: number;
   offset: number;
+
+  /** Seconds of SOURCE audio to play (buffer time: not affected by playbackRate). */
   duration: number;
+  /** Seconds this clip occupies on the timeline = duration / playbackRate. */
+  timelineDuration: number;
 
   gain: number;
   pan: number;
@@ -64,6 +68,7 @@ export function compileSlate(
         when,
         offset,
         duration,
+        timelineDuration,
         gain,
         pan,
         playbackRate: rate,

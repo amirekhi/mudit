@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import Track from "@/models/Track";
-import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-
-
+import { requireUser, errorResponse, cleanText, isTrustedUrl, OWNER_FIELD } from "@/lib/auth/authz";
 
 const MONGODB_URI = process.env.MONGODB_URI || "";
 
@@ -17,72 +15,56 @@ if (mongoose.connection.readyState === 0) {
  */
 export async function GET() {
   try {
-    const user = await getCurrentUser();
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    if (!user) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
-
-    const tracks = await Track.find({
-      ownerId: user._id,
-    })
+    const tracks = await Track.find({ [OWNER_FIELD]: auth.user._id })
       .sort({ createdAt: -1 })
       .lean();
 
     return NextResponse.json(tracks);
   } catch (error) {
     console.error("Get user tracks error:", error);
-
-    return NextResponse.json(
-      { message: "Failed to fetch user tracks" },
-      { status: 500 }
-    );
+    return errorResponse(500, "Failed to fetch user tracks");
   }
 }
 
 /**
  * POST /api/tracks/me
- * Creates a track for the logged-in user
+ * Creates a PRIVATE track for the logged-in user (publishing is admin-only and goes through
+ * the track edit route). Fields are validated, and the owner comes from the session.
  */
 export async function POST(req: Request) {
   try {
-    const user = await getCurrentUser();
+    const auth = await requireUser();
+    if (!auth.ok) return auth.response;
 
-    if (!user) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== "object") return errorResponse(400, "Invalid request body");
+
+    const title = cleanText(body.title, 200);
+    const artist = cleanText(body.artist, 200);
+    if (!title || !artist) return errorResponse(400, "title and artist are required");
+    if (!isTrustedUrl(body.url)) return errorResponse(400, "A valid audio url is required");
+
+    let image: string | undefined;
+    if (body.image !== undefined && body.image !== null && body.image !== "") {
+      if (!isTrustedUrl(body.image)) return errorResponse(400, "Invalid image url");
+      image = body.image;
     }
-
-    const { title, artist, url, image, visibility } = await req.json();
-
-    if (!title || !artist || !url) {
-      return NextResponse.json(
-        { message: "title, artist and url are required" },
-        { status: 400 }
-      );
-    } 
 
     const track = await Track.create({
       title,
       artist,
-      url,
+      url: body.url,
       image,
-      ownerId: user._id,
+      [OWNER_FIELD]: auth.user._id,
       visibility: "private",
     });
 
     return NextResponse.json(track, { status: 201 });
   } catch (error) {
     console.error("Create user track error:", error);
-
-    return NextResponse.json(
-      { message: "Failed to create track" },
-      { status: 500 }
-    );
+    return errorResponse(500, "Failed to create track");
   }
 }

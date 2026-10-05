@@ -7,7 +7,7 @@ import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { useEngineStore } from "@/store/useEngineStore";
-import { SlateRegion } from "@/types/slateTypes";
+import { Slate, SlateRegion } from "@/types/slateTypes";
 import Playhead from "@/components/editor/Playhead";
 
 interface Props {
@@ -23,7 +23,37 @@ interface DragState {
   liveStart: number;
 }
 
+/**
+ * Outer shell: only looks the slate up. All the other hooks live in the inner component,
+ * so there is no early return in the middle of a component's hooks any more.
+ */
 export default function SlateEditor({ slateId, referenceLength }: Props) {
+  const slate = useEditorStore(s => s.slates.find(x => x.id === slateId));
+  if (!slate) return null;
+  return <SlateEditorInner slate={slate} referenceLength={referenceLength} />;
+}
+
+/**
+ * The "Time" field is its own tiny component: it is the only part of the slate row that has to
+ * follow the playhead, so the rest of the row no longer re-renders on every animation frame.
+ */
+function TimeField() {
+  const time = useEditorStore(s => s.transport.time);
+  return (
+    <label className="flex items-center gap-1 text-[10px] text-neutral-500 whitespace-nowrap">
+      Time
+      <input
+        type="number" min={0} step={0.1}
+        value={Number(time.toFixed(2))}
+        onChange={e => useEngineStore.getState().seekTo(Number(e.target.value) || 0)}
+        className="w-16 px-1 py-1 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs"
+      />
+      s
+    </label>
+  );
+}
+
+function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceLength: number }) {
   const rowRef       = useRef<HTMLDivElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const wsRef        = useRef<WaveSurfer | null>(null);
@@ -35,46 +65,39 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
   const [targetSlateId, setTargetSlateId] = useState<string>("");
   const [dragState,     setDragState]     = useState<DragState | null>(null);
 
-  const library         = useEditorStore(s => s.library);
-  const slates          = useEditorStore(s => s.slates);
+  // Subscribed state (changes on edits, never on playback ticks)
+  const library          = useEditorStore(s => s.library);
+  const slates           = useEditorStore(s => s.slates);
   const selectedRegionId = useEditorStore(s => s.selectedRegionId);
-  const transportTime   = useEditorStore(s => s.transport.time);
-  const clipboard       = useEditorStore(s => s.clipboard);
+  const clipboard        = useEditorStore(s => s.clipboard);
+  const isPlaying        = useEngineStore(s => s.isPlaying);
+  const currentSlateIds  = useEngineStore(s => s.currentSlateIds);
 
-  const selectSlate             = useEditorStore(s => s.selectSlate);
-  const selectRegion            = useEditorStore(s => s.selectRegion);
-  const removeRegion            = useEditorStore(s => s.removeRegion);
-  const removeSlate             = useEditorStore(s => s.removeSlate);
-  const lockRegion              = useEditorStore(s => s.lockRegion);
-  const moveRegion              = useEditorStore(s => s.moveRegion);
-  const createRegionFromSelection = useEditorStore(s => s.createRegionFromSelection);
-  const pasteRegion             = useEditorStore(s => s.pasteRegion);
-  const setSlateLength          = useEditorStore(s => s.setSlateLength);
-  const seek                    = useEditorStore(s => s.seek);
+  // Actions are stable references, so reading them with getState() does not subscribe to anything
+  const {
+    selectSlate, selectRegion, removeRegion, removeSlate, lockRegion, moveRegion,
+    createRegionFromSelection, pasteRegion, setSlateLength, setSlateGain, toggleSlateMute,
+  } = useEditorStore.getState();
+  const {
+    playSlate, pause: pauseEngine, reset: resetEngine, seekTo, compileSlatePreview,
+  } = useEngineStore.getState();
 
-  const isPlaying       = useEngineStore(s => s.isPlaying);
-  const currentSlateIds = useEngineStore(s => s.currentSlateIds);
-  const playSlate       = useEngineStore(s => s.playSlate);
-  const pauseEngine     = useEngineStore(s => s.pause);
-  const resetEngine     = useEngineStore(s => s.reset);
-  const compileSlatePreview = useEngineStore(s => s.compileSlatePreview);
-
-  const slate = slates.find(s => s.id === slateId);
-
-  const regionsSignature = slate
-    ? slate.regions.map(r =>
-        `${r.id}:${r.start.toFixed(4)}:${r.end.toFixed(4)}:${r.clips
-          .map(c => `${c.id}:${c.offset.toFixed(4)}:${c.sourceStart.toFixed(4)}:${c.sourceEnd.toFixed(4)}:${c.edits.playbackRate ?? 1}`)
-          .join("|")}`
-      ).join(",")
-    : "";
+  // Includes every edit that changes what the waveform should look like
+  const regionsSignature = slate.regions
+    .map(r =>
+      `${r.id}:${r.start.toFixed(4)}:${r.end.toFixed(4)}:${r.clips
+        .map(c => {
+          const e = c.edits;
+          return `${c.id}:${c.offset.toFixed(4)}:${c.sourceStart.toFixed(4)}:${c.sourceEnd.toFixed(4)}:${e.playbackRate ?? 1}:${e.gain ?? 0}:${e.pan ?? 0}:${e.fadeIn ?? 0}:${e.fadeOut ?? 0}:${e.reverse ? 1 : 0}:${e.mute ? 1 : 0}`;
+        })
+        .join("|")}`
+    )
+    .join(",");
 
   useEffect(() => {
-    if (slate) compileSlatePreview(slate.id);
+    compileSlatePreview(slate.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [regionsSignature, slate?.id]);
-
-  if (!slate) return null;
+  }, [regionsSignature, slate.id, slate.length, slate.gain, slate.pan]);
 
   const sourceTrack   = slate.sourceTrackId ? library.find(t => t._id === slate.sourceTrackId) : null;
   const projectSlates = slates.filter(s => s.kind === "project");
@@ -84,7 +107,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
   const isPlayingHere = isCurrent && isPlaying;
   const trackTitle    = (id: string) => library.find(t => t._id === id)?.title ?? "Unknown";
 
-  /* WaveSurfer init */
+  /* WaveSurfer init: used for VISUALS ONLY (silent, no media). All audio goes through the engine. */
   useEffect(() => {
     if (!containerRef.current) return;
     let ws: WaveSurfer | null = null;
@@ -106,12 +129,13 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
       regionsRef.current = regions;
 
       try {
+        // Peaks only: no media url, so WaveSurfer never downloads the audio a second time
         if (slate.regions.length === 0) {
           await ws.load("", [[0, 0]], slate.length || 1);
         } else if (slate.previewPeaks) {
           await ws.load("", [Array.from(slate.previewPeaks)], slate.length || 1);
-        } else if (slate.kind === "single" && sourceTrack && slate.peaks) {
-          await ws.load(sourceTrack.url, [slate.peaks], slate.length);
+        } else if (slate.kind === "single" && slate.peaks) {
+          await ws.load("", [slate.peaks], slate.length);
         } else {
           await ws.load("", [[0, 0]], slate.length || 1);
         }
@@ -132,7 +156,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
       regionsRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slate.id, slate.kind, sourceTrack?.url]);
+  }, [slate.id, slate.kind]);
 
   /* Waveform data reload */
   useEffect(() => {
@@ -204,11 +228,12 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
     cancelSelection();
   };
 
+  // Seeking now works while playing: playback continues from the clicked position
   const handleRowClick = (e: React.MouseEvent) => {
     selectSlate(slate.id);
     const rect = rowRef.current?.getBoundingClientRect();
     if (!rect || !rect.width) return;
-    seek(Math.max(0, ((e.clientX - rect.left) / rect.width) * safeReference));
+    seekTo(Math.max(0, ((e.clientX - rect.left) / rect.width) * safeReference));
   };
 
   const selectedRegion = slate.regions.find(r => r.id === selectedRegionId);
@@ -266,16 +291,31 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
             s
           </label>
 
-          {/* Time */}
+          {/* Time (own component: follows the playhead) */}
+          <TimeField />
+
+          <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
+
+          {/* Slate mixer: these existed in the engine but had no controls */}
+          <button
+            onClick={() => toggleSlateMute(slate.id)}
+            className={`px-2.5 py-1.5 text-xs rounded border whitespace-nowrap transition-colors ${
+              slate.muted
+                ? "bg-red-100 dark:bg-red-900/40 border-red-300 dark:border-red-800 text-red-600 dark:text-red-300"
+                : "bg-neutral-100 dark:bg-neutral-800 border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+            }`}
+          >
+            {slate.muted ? "Muted" : "Mute"}
+          </button>
           <label className="flex items-center gap-1 text-[10px] text-neutral-500 whitespace-nowrap">
-            Time
+            Gain
             <input
-              type="number" min={0} step={0.1}
-              value={Number(transportTime.toFixed(2))}
-              onChange={e => seek(Number(e.target.value) || 0)}
-              className="w-16 px-1 py-1 rounded bg-neutral-100 dark:bg-neutral-950 border border-neutral-200 dark:border-neutral-800 text-neutral-800 dark:text-neutral-200 text-xs"
+              type="range" min={-24} max={12} step={0.5}
+              value={slate.gain}
+              onChange={e => setSlateGain(slate.id, Number(e.target.value))}
+              className="w-20 accent-indigo-500"
             />
-            s
+            <span className="w-14 text-right">{slate.gain > 0 ? "+" : ""}{slate.gain.toFixed(1)} dB</span>
           </label>
 
           <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
@@ -283,7 +323,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
           {/* Clipboard */}
           {clipboard && (
             <button
-              onClick={() => { selectSlate(slate.id); pasteRegion(slate.id, transportTime); }}
+              onClick={() => { selectSlate(slate.id); pasteRegion(slate.id, useEditorStore.getState().transport.time); }}
               className="px-2.5 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap"
             >
               Paste
