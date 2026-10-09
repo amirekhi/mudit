@@ -18,11 +18,56 @@ function SplitAtPlayheadButton({
     <button
       disabled={!enabled || !inside}
       onClick={() => { if (slateId && region) ed().splitRegion(slateId, region.id, time); }}
-      title={inside ? "Split the selected region at the playhead" : "Move the playhead inside the region to split it"}
+      title={inside ? "Split the selected region at the playhead (S)" : "Move the playhead inside the region to split it"}
       className={className}
     >
       Split
     </button>
+  );
+}
+
+/** A labelled slider with a value readout and a reset button. One undo step per drag. */
+function SliderRow({
+  label, display, value, min, max, step, disabled, onChange, onReset,
+}: {
+  label: string;
+  display: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+  onReset: () => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-neutral-500 font-medium uppercase tracking-wide">{label}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-[10px] text-neutral-600 dark:text-neutral-300 tabular-nums">{display}</span>
+          <button
+            disabled={disabled}
+            onClick={onReset}
+            title="Reset"
+            className="text-[11px] leading-none text-neutral-400 hover:text-neutral-700 dark:hover:text-white disabled:opacity-30"
+          >
+            ↺
+          </button>
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        disabled={disabled}
+        onChange={e => onChange(Number(e.target.value))}
+        onPointerUp={e => e.currentTarget.blur()} // so keyboard shortcuts work again right after a drag
+        className="w-full accent-indigo-500 disabled:opacity-40"
+      />
+    </div>
   );
 }
 
@@ -42,13 +87,18 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
   const canEdit = !!selectedSlateId && !!selectedRegionId && !!selectedRegion && !disabled;
   const repClip = selectedRegion?.clips[0];
 
-  const applyGain         = (v: number) => canEdit && ed().applyRegionGain(selectedSlateId!, selectedRegionId!, v);
-  const applyPan          = (v: number) => canEdit && ed().applyRegionPan(selectedSlateId!, selectedRegionId!, v);
-  const applyPlaybackRate = (v: number) => canEdit && ed().applyRegionPlaybackRate(selectedSlateId!, selectedRegionId!, v);
-  const toggleReverse     = ()          => canEdit && ed().toggleRegionReverse(selectedSlateId!, selectedRegionId!);
-  const applyFadeIn       = (v: number) => canEdit && ed().applyRegionFadeIn(selectedSlateId!, selectedRegionId!, v);
-  const applyFadeOut      = (v: number) => canEdit && ed().applyRegionFadeOut(selectedSlateId!, selectedRegionId!, v);
-  const toggleMute        = ()          => canEdit && ed().toggleRegionMute(selectedSlateId!, selectedRegionId!);
+  const gain  = repClip?.edits.gain ?? 0;
+  const pan   = repClip?.edits.pan ?? 0;
+  const speed = repClip?.edits.playbackRate ?? 1;
+  const fadeIn  = repClip?.edits.fadeIn ?? 0;
+  const fadeOut = repClip?.edits.fadeOut ?? 0;
+
+  const setEdits = (patch: Parameters<ReturnType<typeof ed>["setRegionEdits"]>[2]) =>
+    canEdit && ed().setRegionEdits(selectedSlateId!, selectedRegionId!, patch);
+  const setSpeed = (rate: number) => canEdit && ed().setRegionSpeed(selectedSlateId!, selectedRegionId!, rate);
+
+  const toggleReverse = () => canEdit && ed().toggleRegionReverse(selectedSlateId!, selectedRegionId!);
+  const toggleMute    = () => canEdit && ed().toggleRegionMute(selectedSlateId!, selectedRegionId!);
   const duplicate  = () => canEdit && ed().duplicateRegion(selectedSlateId!, selectedRegionId!);
   const remove     = () => canEdit && ed().removeRegion(selectedSlateId!, selectedRegionId!);
   const toggleLock = () => canEdit && ed().lockRegion(selectedSlateId!, selectedRegionId!, !selectedRegion!.meta.locked);
@@ -90,34 +140,34 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           </button>
         </div>
 
-        {/* ── Gain ── */}
-        <div className="space-y-1.5">
-          <p className={label}>Gain</p>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{repClip?.edits.gain ?? 0} dB</p>
-          <div className="flex gap-1.5">
-            <button disabled={!canEdit} onClick={() => applyGain(3)}  className={btn}>+3 dB</button>
-            <button disabled={!canEdit} onClick={() => applyGain(-3)} className={btn}>−3 dB</button>
-          </div>
-        </div>
-
-        {/* ── Pan ── */}
-        <div className="space-y-1.5">
-          <p className={label}>Pan</p>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{repClip?.edits.pan ?? 0}</p>
-          <div className="flex gap-1.5">
-            <button disabled={!canEdit} onClick={() => applyPan(-0.1)} className={btn}>◀ L</button>
-            <button disabled={!canEdit} onClick={() => applyPan(0.1)}  className={btn}>R ▶</button>
-          </div>
-        </div>
-
-        {/* ── Speed (varispeed: changes tempo AND pitch together) ── */}
-        <div className="space-y-1.5">
-          <p className={label}>Speed</p>
-          <p className="text-[10px] text-neutral-500 dark:text-neutral-400">{repClip?.edits.playbackRate ?? 1}×</p>
-          <div className="flex gap-1.5">
-            <button disabled={!canEdit} onClick={() => applyPlaybackRate(1.1)} className={btn}>+10%</button>
-            <button disabled={!canEdit} onClick={() => applyPlaybackRate(0.9)} className={btn}>−10%</button>
-          </div>
+        {/* ── Sliders for the selected region (absolute values, one undo step per drag) ── */}
+        <div className="col-span-2 md:col-span-1 space-y-3">
+          <p className={label}>Selected region</p>
+          <SliderRow
+            label="Gain" display={`${gain > 0 ? "+" : ""}${gain.toFixed(1)} dB`}
+            value={gain} min={-24} max={24} step={0.5} disabled={!canEdit}
+            onChange={v => setEdits({ gain: v })} onReset={() => setEdits({ gain: 0 })}
+          />
+          <SliderRow
+            label="Pan" display={pan === 0 ? "C" : `${pan < 0 ? "L" : "R"} ${Math.round(Math.abs(pan) * 100)}`}
+            value={pan} min={-1} max={1} step={0.05} disabled={!canEdit}
+            onChange={v => setEdits({ pan: v })} onReset={() => setEdits({ pan: 0 })}
+          />
+          <SliderRow
+            label="Speed" display={`${speed.toFixed(2)}×`}
+            value={speed} min={0.25} max={4} step={0.05} disabled={!canEdit}
+            onChange={setSpeed} onReset={() => setSpeed(1)}
+          />
+          <SliderRow
+            label="Fade in" display={`${fadeIn.toFixed(1)} s`}
+            value={fadeIn} min={0} max={10} step={0.1} disabled={!canEdit}
+            onChange={v => setEdits({ fadeIn: v })} onReset={() => setEdits({ fadeIn: 0 })}
+          />
+          <SliderRow
+            label="Fade out" display={`${fadeOut.toFixed(1)} s`}
+            value={fadeOut} min={0} max={10} step={0.1} disabled={!canEdit}
+            onChange={v => setEdits({ fadeOut: v })} onReset={() => setEdits({ fadeOut: 0 })}
+          />
         </div>
 
         {/* ── Pitch: disabled until time-stretch support exists (it never produced any sound) ── */}
@@ -127,15 +177,6 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           <div className="flex gap-1.5">
             <button disabled title="Pitch shifting needs a time-stretch step and is not available yet" className={btn}>+1 st</button>
             <button disabled title="Pitch shifting needs a time-stretch step and is not available yet" className={btn}>−1 st</button>
-          </div>
-        </div>
-
-        {/* ── Fades ── */}
-        <div className="space-y-1.5">
-          <p className={label}>Fades</p>
-          <div className="flex gap-1.5">
-            <button disabled={!canEdit} onClick={() => applyFadeIn(0.5)}  className={btn}>In +0.5s</button>
-            <button disabled={!canEdit} onClick={() => applyFadeOut(0.5)} className={btn}>Out +0.5s</button>
           </div>
         </div>
 
@@ -171,7 +212,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
           </button>
         </div>
 
-        {/* ── Master (now actually wired to the engine and the export) ── */}
+        {/* ── Master (wired to the engine and the export) ── */}
         <div className="col-span-2 md:col-span-1 space-y-2">
           <p className={label}>Master</p>
           <div className="flex items-center gap-2">
@@ -179,6 +220,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
               type="range" min={0} max={1} step={0.01}
               value={masterVolume}
               onChange={e => ed().setMasterVolume(Number(e.target.value))}
+              onPointerUp={e => e.currentTarget.blur()}
               disabled={disabled}
               className="flex-1 accent-indigo-500"
             />
@@ -214,6 +256,7 @@ export default function ToolPanel({ disabled }: { disabled: boolean }) {
               type="range" min={0.5} max={1} step={0.01}
               value={limiterCeiling}
               onChange={e => ed().setLimiterCeiling(Number(e.target.value))}
+              onPointerUp={e => e.currentTarget.blur()}
               disabled={disabled || !limiterEnabled}
               className="flex-1 accent-indigo-500"
             />

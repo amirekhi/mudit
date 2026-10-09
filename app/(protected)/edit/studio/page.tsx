@@ -8,6 +8,8 @@ import TrackHeader from "@/components/editor/TrackHeader";
 import ProjectWFE from "@/components/editor/ProjectWFE";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import ProjectBar from "@/components/editor/ProjectBar";
+import TimelineToolbar from "@/components/editor/TimelineToolbar";
+import { useEditorShortcuts } from "@/lib/hooks/useEditorShortcuts";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 
 import { Track } from "@/store/useAudioStore";
@@ -27,6 +29,7 @@ export default function EditorPage() {
   // One layout is mounted, not both. `hidden md:flex` only hid the other one with CSS, so every
   // TrackList, SlateEditor, ToolPanel and WaveSurfer existed twice (and rendered previews twice).
   const isDesktop = useIsDesktop();
+  useEditorShortcuts(); // Space, S, Delete, Ctrl+Z, L, zoom keys...
   const [mobileTab, setMobileTab] = useState<MobileTab>("library");
 
   const selectedSlate = slates.find(s => s.id === selectedSlateId) ?? null;
@@ -114,6 +117,8 @@ export default function EditorPage() {
 
           <div className="flex-1 flex min-h-0">
             <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
+              {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
+
               {singleArmedIds.length === 0 && (
                 <div className="text-neutral-500 text-center py-10">
                   Arm a track to start editing
@@ -160,6 +165,8 @@ export default function EditorPage() {
 
         {/* Editor tab */}
         <div className={`h-full overflow-y-auto p-4 space-y-4 ${mobileTab === "editor" ? "block" : "hidden"}`}>
+          {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
+
           {singleArmedIds.length === 0 && (
             <div className="text-neutral-500 text-center py-16 text-sm">
               ← Go to Library and arm a track to start editing

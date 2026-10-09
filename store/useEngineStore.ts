@@ -2,7 +2,9 @@
 
 import { create } from "zustand";
 import { useEditorStore } from "@/store/useEditorStore";
+import { useTimelineStore } from "@/store/useTimelineStore";
 import { compileSlate } from "@/util/compileRegions";
+import type { CompiledRegion } from "@/util/compileRegions";
 import { Slate } from "@/types/slateTypes";
 import { extractPeaks } from "@/util/extractPeaks";
 import {
@@ -35,6 +37,11 @@ interface EngineState {
   setPlayWindow(win: PlayWindow): void;
   playProject(): Promise<void>;
   playSlate(slateId: string): Promise<void>;
+  /**
+   * Plays one slate between two times (a selection or a region). Loops if the timeline's loop
+   * switch is on. `from` lets playback start inside the range (e.g. resume at the playhead).
+   */
+  playRange(slateId: string, start: number, end: number, from?: number): Promise<void>;
   pause(): Promise<void>;
   resume(): Promise<void>;
   reset(): void; // stop AND rewind playhead to 0
@@ -50,14 +57,35 @@ interface EngineState {
   renderProjectOffline(opts?: RenderOptions): Promise<AudioBuffer | null>;
 }
 
-const LEAD = 0.08; // seconds of lead time so the first clips don't start "in the past"
+const LEAD = 0.08;      // seconds of lead time so the first clips don't start "in the past"
+const LOOKAHEAD = 1.5;  // loop passes are scheduled this far ahead
+const MIN_LOOP = 0.25;  // shortest loop that is allowed
+
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
+
+/** What is currently scheduled. Passes after the first one only exist while looping. */
+interface PlayPlan {
+  loop: boolean;
+  start: number;      // where the first pass starts
+  end: number;
+  loopStart: number;  // where every later pass starts
+  len0: number;       // length of the first pass
+  lenLoop: number;    // length of every later pass
+  first: CompiledRegion[];
+  again: CompiledRegion[];
+  t0: number;         // context time the first pass starts at
+  scheduled: number;  // number of passes scheduled so far
+}
 
 export const useEngineStore = create<EngineState>((set, get) => {
   let masterChain: MasterChain | null = null;
   let tickHandle: number | null = null;
+  let schedulerTimer: ReturnType<typeof setInterval> | null = null;
   let playToken = 0;
   let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  let plan: PlayPlan | null = null;
+  let currentRange: PlayWindow | undefined; // set while a selection is being played
+  const groups = new Map<number, ClipHandle[]>(); // handles per loop pass
   const previewTimers = new Map<string, ReturnType<typeof setTimeout>>();
   const previewTokens = new Map<string, number>();
 
@@ -82,10 +110,15 @@ export const useEngineStore = create<EngineState>((set, get) => {
     return ctx;
   };
 
+  /* ───────────── position (loop-aware) ───────────── */
+
   const currentPosition = () => {
     const { ctx, transportOffset, ctxStartTime } = get();
     if (!ctx) return transportOffset;
-    return transportOffset + Math.max(0, ctx.currentTime - ctxStartTime);
+    const elapsed = Math.max(0, ctx.currentTime - ctxStartTime);
+    if (!plan || !plan.loop) return transportOffset + elapsed;
+    if (elapsed < plan.len0) return plan.start + elapsed;
+    return plan.loopStart + ((elapsed - plan.len0) % plan.lenLoop);
   };
 
   /* ───────────── playhead loop (exactly one at any time) ───────────── */
@@ -99,14 +132,14 @@ export const useEngineStore = create<EngineState>((set, get) => {
 
   const tick = () => {
     const s = get();
-    if (!s.isPlaying || !s.ctx || !s.playWindow) {
+    if (!s.isPlaying || !s.ctx || !plan) {
       tickHandle = null;
       return;
     }
     const t = currentPosition();
     useEditorStore.getState().seek(t);
 
-    if (t >= s.playWindow.end) {
+    if (!plan.loop && t >= plan.end) {
       get().reset(); // natural end of playback rewinds to 0, same as a manual Reset
       return;
     }
@@ -118,24 +151,77 @@ export const useEngineStore = create<EngineState>((set, get) => {
     tickHandle = requestAnimationFrame(tick);
   };
 
+  /* ───────────── loop scheduling ───────────── */
+
+  const syncSources = () => {
+    const all: ClipHandle[] = [];
+    groups.forEach(list => all.push(...list));
+    set({ sources: all });
+  };
+
+  const iterationStart = (p: PlayPlan, k: number) => (k === 0 ? p.t0 : p.t0 + p.len0 + (k - 1) * p.lenLoop);
+  const iterationAt = (p: PlayPlan, elapsed: number) =>
+    elapsed < p.len0 ? 0 : 1 + Math.floor((elapsed - p.len0) / p.lenLoop);
+
+  const scheduleIteration = (k: number) => {
+    const p = plan;
+    const ctx = get().ctx;
+    if (!p || !ctx || !masterChain) return;
+    const time = iterationStart(p, k);
+    const list = k === 0 ? p.first : p.again;
+    groups.set(k, list.map(r => scheduleClip(ctx, r, masterChain!.gain, time)));
+  };
+
+  // Keeps a second or so of looped passes scheduled ahead (sample-accurate, no gap at the loop point)
+  const runScheduler = () => {
+    const p = plan;
+    const ctx = get().ctx;
+    if (!p || !p.loop || !ctx || !get().isPlaying) return;
+
+    const now = ctx.currentTime;
+    let guard = 0;
+    while (iterationStart(p, p.scheduled) < now + LOOKAHEAD && guard++ < 50) {
+      scheduleIteration(p.scheduled);
+      p.scheduled++;
+    }
+
+    const current = iterationAt(p, Math.max(0, now - p.t0));
+    groups.forEach((_, k) => {
+      if (k < current - 1) groups.delete(k); // already finished and cleaned up
+    });
+    syncSources();
+  };
+
+  const stopScheduler = () => {
+    if (schedulerTimer !== null) {
+      clearInterval(schedulerTimer);
+      schedulerTimer = null;
+    }
+  };
+
   /* ───────────── start / stop ───────────── */
 
   // Stops everything that is sounding and the playhead loop. Does not move the playhead.
   const stopSources = () => {
     stopTick();
-    get().sources.forEach(h => h.stop());
+    stopScheduler();
+    groups.forEach(list => list.forEach(h => h.stop()));
+    groups.clear();
+    plan = null;
     set({ sources: [], isPlaying: false, transportOffset: 0, currentSlateIds: [] });
     useEditorStore.getState().pause();
   };
 
-  const startPlayback = async (slates: Slate[], from: number, ids: string[]) => {
+  const startPlayback = async (slates: Slate[], from: number, ids: string[], range?: PlayWindow) => {
     if (slates.length === 0) return;
 
     const duration = Math.max(...slates.map(s => s.length));
     if (!(duration > 0)) return;
 
-    let start = clamp(from, 0, duration);
-    if (start >= duration - 0.01) start = 0; // at the very end: play again from the top
+    const end = range ? clamp(range.end, 0.05, duration) : duration;
+    const loopStart = range ? clamp(range.start, 0, end - 0.05) : 0;
+    let start = clamp(from, loopStart, end);
+    if (start >= end - 0.01) start = loopStart; // at the very end: play again from the top
 
     const token = ++playToken;
     stopSources();
@@ -146,25 +232,41 @@ export const useEngineStore = create<EngineState>((set, get) => {
       if (token !== playToken) return; // a newer play request took over while we waited
     }
 
-    const win: PlayWindow = { start, end: duration };
-    const compiled = slates.flatMap(s => compileSlate(s, win));
+    const loop = useTimelineStore.getState().loop && end - loopStart >= MIN_LOOP;
+    const firstWindow: PlayWindow = { start, end };
+    const first = slates.flatMap(s => compileSlate(s, firstWindow));
+    const again = loop
+      ? start === loopStart
+        ? first
+        : slates.flatMap(s => compileSlate(s, { start: loopStart, end }))
+      : [];
+
     const t0 = ctx.currentTime + LEAD;
-    const dest = masterChain!.gain;
-    const handles = compiled.map(r => scheduleClip(ctx, r, dest, t0));
+    plan = { loop, start, end, loopStart, len0: end - start, lenLoop: end - loopStart, first, again, t0, scheduled: 0 };
+    currentRange = range;
+
+    scheduleIteration(0);
+    plan.scheduled = 1;
 
     set({
-      sources: handles,
       ctxStartTime: t0,
       transportOffset: start,
       isPlaying: true,
-      playWindow: win,
+      playWindow: firstWindow,
       currentSlateIds: ids,
     });
 
     const editor = useEditorStore.getState();
-    editor.setProjectDuration(win.end);
-    editor.seek(win.start);
+    editor.setProjectDuration(duration);
+    editor.seek(start);
     editor.play();
+
+    if (loop) {
+      runScheduler();
+      schedulerTimer = setInterval(runScheduler, 200);
+    } else {
+      syncSources();
+    }
     startTick();
   };
 
@@ -222,6 +324,12 @@ export const useEngineStore = create<EngineState>((set, get) => {
       await startPlayback([slate], useEditorStore.getState().transport.time, [slateId]);
     },
 
+    async playRange(slateId, start, end, from) {
+      const slate = useEditorStore.getState().slates.find(s => s.id === slateId);
+      if (!slate || end - start < 0.05) return;
+      await startPlayback([slate], from ?? start, [slateId], { start, end });
+    },
+
     // Stops the sound, keeps the playhead where it is and keeps the "paused here" indicator.
     async pause() {
       const s = get();
@@ -238,7 +346,7 @@ export const useEngineStore = create<EngineState>((set, get) => {
     async resume() {
       const ids = get().currentSlateIds;
       if (get().isPlaying || ids.length === 0) return;
-      await startPlayback(slatesByIds(ids), useEditorStore.getState().transport.time, ids);
+      await startPlayback(slatesByIds(ids), useEditorStore.getState().transport.time, ids, currentRange);
     },
 
     reset() {
@@ -249,7 +357,7 @@ export const useEngineStore = create<EngineState>((set, get) => {
     async seekTo(time) {
       const s = get();
       if (s.isPlaying && s.currentSlateIds.length > 0) {
-        await startPlayback(slatesByIds(s.currentSlateIds), time, s.currentSlateIds);
+        await startPlayback(slatesByIds(s.currentSlateIds), time, s.currentSlateIds, currentRange);
       } else {
         useEditorStore.getState().seek(time);
       }
@@ -258,7 +366,7 @@ export const useEngineStore = create<EngineState>((set, get) => {
     async auditionEdit(slateId) {
       const s = get();
       if (s.isPlaying && s.currentSlateIds.includes(slateId)) {
-        await startPlayback(slatesByIds(s.currentSlateIds), currentPosition(), s.currentSlateIds);
+        await startPlayback(slatesByIds(s.currentSlateIds), currentPosition(), s.currentSlateIds, currentRange);
         return;
       }
       await get().playSlate(slateId);

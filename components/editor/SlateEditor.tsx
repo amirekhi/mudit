@@ -7,6 +7,10 @@ import type { Region } from "wavesurfer.js/dist/plugins/regions";
 
 import { useEditorStore } from "@/store/useEditorStore";
 import { useEngineStore } from "@/store/useEngineStore";
+import { useTimelineStore } from "@/store/useTimelineStore";
+import { useTimelinePps, useTimelineScrollSync } from "@/lib/hooks/useTimeline";
+import { collectSnapPoints, effectiveGridStep, snapRegionMoveDetailed, snapTimeDetailed } from "@/util/timeline";
+import type { SnapConfig } from "@/util/timeline";
 import { Slate, SlateRegion } from "@/types/slateTypes";
 import Playhead from "@/components/editor/Playhead";
 
@@ -15,17 +19,26 @@ interface Props {
   referenceLength: number;
 }
 
+type DragMode = "move" | "trim-start" | "trim-end";
+
 interface DragState {
   id: string;
+  mode: DragMode;
   pointerId: number;
   startClientX: number;
   originalStart: number;
+  originalEnd: number;
   liveStart: number;
+  liveEnd: number;
+  targetSlateId: string | null; // another project slate under the pointer
+  copy: boolean;                // drop copies instead of moves
 }
+
+const MIN_REGION = 0.05;
 
 /**
  * Outer shell: only looks the slate up. All the other hooks live in the inner component,
- * so there is no early return in the middle of a component's hooks any more.
+ * so there is no early return in the middle of a component's hooks.
  */
 export default function SlateEditor({ slateId, referenceLength }: Props) {
   const slate = useEditorStore(s => s.slates.find(x => x.id === slateId));
@@ -33,10 +46,7 @@ export default function SlateEditor({ slateId, referenceLength }: Props) {
   return <SlateEditorInner slate={slate} referenceLength={referenceLength} />;
 }
 
-/**
- * The "Time" field is its own tiny component: it is the only part of the slate row that has to
- * follow the playhead, so the rest of the row no longer re-renders on every animation frame.
- */
+/** The "Time" field is its own tiny component: it is the only part that follows the playhead. */
 function TimeField() {
   const time = useEditorStore(s => s.transport.time);
   return (
@@ -54,16 +64,19 @@ function TimeField() {
 }
 
 function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceLength: number }) {
-  const rowRef       = useRef<HTMLDivElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef  = useRef<HTMLDivElement | null>(null); // the horizontal scroll container
+  const rowRef       = useRef<HTMLDivElement | null>(null); // the timeline itself (as wide as the zoom says)
+  const containerRef = useRef<HTMLDivElement | null>(null); // WaveSurfer mounts here (visuals only)
   const wsRef        = useRef<WaveSurfer | null>(null);
   const regionsRef   = useRef<RegionsPlugin | null>(null);
   const selectionRef = useRef<Region | null>(null);
+  const snapPointsRef = useRef<number[]>([]);
 
   const [isReady,       setIsReady]       = useState(false);
   const [selection,     setSelection]     = useState<{ start: number; end: number } | null>(null);
   const [targetSlateId, setTargetSlateId] = useState<string>("");
   const [dragState,     setDragState]     = useState<DragState | null>(null);
+  const [snapGuide,     setSnapGuide]     = useState<number | null>(null); // vertical guide line while a drag snaps
 
   // Subscribed state (changes on edits, never on playback ticks)
   const library          = useEditorStore(s => s.library);
@@ -73,13 +86,22 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
   const isPlaying        = useEngineStore(s => s.isPlaying);
   const currentSlateIds  = useEngineStore(s => s.currentSlateIds);
 
+  // Timeline view settings
+  const snapEnabled  = useTimelineStore(s => s.snapEnabled);
+  const bpm          = useTimelineStore(s => s.bpm);
+  const division     = useTimelineStore(s => s.division);
+  const isDropTarget = useTimelineStore(s => s.dropTargetSlateId === slate.id);
+  const pps          = useTimelinePps(referenceLength);
+  useTimelineScrollSync(viewportRef, pps);
+
   // Actions are stable references, so reading them with getState() does not subscribe to anything
   const {
-    selectSlate, selectRegion, removeRegion, removeSlate, lockRegion, moveRegion,
-    createRegionFromSelection, pasteRegion, setSlateLength, setSlateGain, toggleSlateMute,
+    selectSlate, selectRegion, removeRegion, removeSlate, lockRegion, moveRegion, moveRegionToSlate,
+    copyRegionToSlate, trimRegion, createRegionFromSelection, pasteRegion, setSlateGain, toggleSlateMute,
+    setSlateLength,
   } = useEditorStore.getState();
   const {
-    playSlate, pause: pauseEngine, reset: resetEngine, seekTo, compileSlatePreview,
+    playSlate, playRange, pause: pauseEngine, reset: resetEngine, seekTo, compileSlatePreview,
   } = useEngineStore.getState();
 
   // Includes every edit that changes what the waveform should look like
@@ -99,13 +121,49 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [regionsSignature, slate.id, slate.length, slate.gain, slate.pan]);
 
-  const sourceTrack   = slate.sourceTrackId ? library.find(t => t._id === slate.sourceTrackId) : null;
+  // Never leave a drop-target highlight behind
+  useEffect(() => () => useTimelineStore.getState().setDropTarget(null), []);
+
+  // Publish the green selection so Loop / Space can use it (see lib/hooks/useEditorShortcuts.ts)
+  useEffect(() => {
+    const timeline = useTimelineStore.getState();
+    if (selection) timeline.setSelectionRange({ slateId: slate.id, ...selection });
+    else if (timeline.selectionRange?.slateId === slate.id) timeline.setSelectionRange(null);
+  }, [selection, slate.id]);
+  useEffect(
+    () => () => {
+      const timeline = useTimelineStore.getState();
+      if (timeline.selectionRange?.slateId === slate.id) timeline.setSelectionRange(null);
+    },
+    [slate.id]
+  );
+
+  const sourceTrackTitle = (id: string) => library.find(t => t._id === id)?.title ?? "Unknown";
   const projectSlates = slates.filter(s => s.kind === "project");
   const safeReference = Math.max(referenceLength, 1);
-  const waveformPercent = Math.min(100, (slate.length / safeReference) * 100);
+  const contentWidth  = Math.max(safeReference * pps, 1);
+  const waveformWidth = Math.max(slate.length * pps, 1);
   const isCurrent     = currentSlateIds.includes(slate.id);
   const isPlayingHere = isCurrent && isPlaying;
-  const trackTitle    = (id: string) => library.find(t => t._id === id)?.title ?? "Unknown";
+
+  // Grid lines while snapping is on. The spacing adapts to the zoom (never closer than ~12px),
+  // and it is exactly the spacing the snapping uses.
+  const gridPx = snapEnabled ? effectiveGridStep(bpm, division, pps) * pps : 0;
+  const gridStyle: React.CSSProperties | undefined =
+    gridPx > 0
+      ? {
+          backgroundImage: "linear-gradient(to right, rgba(148,163,184,0.35) 1px, transparent 1px)",
+          backgroundSize: `${gridPx}px 100%`,
+        }
+      : undefined;
+
+  const snapConfig = (bypass: boolean): SnapConfig => ({
+    enabled: snapEnabled && !bypass,
+    bpm,
+    division,
+    pxPerSecond: pps,
+    points: snapPointsRef.current,
+  });
 
   /* WaveSurfer init: used for VISUALS ONLY (silent, no media). All audio goes through the engine. */
   useEffect(() => {
@@ -179,28 +237,105 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
     reload();
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [slate.previewPeaks, slate.regions.length]);
+  }, [slate.previewPeaks, slate.regions.length, slate.length]);
 
-  /* Drag handlers */
-  const handleRegionPointerDown = (e: React.PointerEvent, region: SlateRegion) => {
+  /* ───────────── region drag: move, trim, or drop onto another slate ───────────── */
+
+  const beginDrag = (e: React.PointerEvent, region: SlateRegion, mode: DragMode) => {
     e.stopPropagation();
     selectSlate(slate.id);
     selectRegion(region.id);
     if (region.meta.locked || selection) return;
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setDragState({ id: region.id, pointerId: e.pointerId, startClientX: e.clientX, originalStart: region.start, liveStart: region.start });
+
+    snapPointsRef.current = collectSnapPoints(slates, region.id, useEditorStore.getState().transport.time);
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setDragState({
+      id: region.id,
+      mode,
+      pointerId: e.pointerId,
+      startClientX: e.clientX,
+      originalStart: region.start,
+      originalEnd: region.end,
+      liveStart: region.start,
+      liveEnd: region.end,
+      targetSlateId: null,
+      copy: false,
+    });
   };
+
+  const handleRegionPointerDown = (e: React.PointerEvent, region: SlateRegion) => beginDrag(e, region, "move");
+  const handleTrimPointerDown = (e: React.PointerEvent, region: SlateRegion, edge: "start" | "end") =>
+    beginDrag(e, region, edge === "start" ? "trim-start" : "trim-end");
+
   const handleRegionPointerMove = (e: React.PointerEvent) => {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
-    const rowWidth = rowRef.current?.getBoundingClientRect().width ?? 0;
-    if (!rowWidth) return;
-    const delta = (e.clientX - dragState.startClientX) / (rowWidth / safeReference);
-    setDragState(d => d ? { ...d, liveStart: Math.max(0, d.originalStart + delta) } : d);
+
+    const delta = (e.clientX - dragState.startClientX) / pps;
+    const cfg = snapConfig(e.shiftKey); // hold Shift to bypass snapping
+
+    if (dragState.mode === "move") {
+      const duration = dragState.originalEnd - dragState.originalStart;
+      const snapped = snapRegionMoveDetailed(Math.max(0, dragState.originalStart + delta), duration, cfg);
+      const liveStart = snapped.start;
+      setSnapGuide(snapped.guide);
+
+      // Which slate is under the pointer? Only another project slate is a valid drop target
+      const hovered = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const row = hovered?.closest("[data-slate-id]") as HTMLElement | null;
+      const targetId = row?.dataset.slateId;
+      const valid = targetId && targetId !== slate.id && row?.dataset.slateKind === "project" ? targetId : null;
+      useTimelineStore.getState().setDropTarget(valid);
+
+      setDragState(d =>
+        d
+          ? {
+              ...d,
+              liveStart,
+              liveEnd: liveStart + duration,
+              targetSlateId: valid,
+              // Source tracks are never emptied by a drag: dropping from one always copies. Alt copies from a project slate.
+              copy: e.altKey || slate.kind === "single",
+            }
+          : d
+      );
+    } else if (dragState.mode === "trim-start") {
+      const snapped = snapTimeDetailed(Math.max(0, dragState.originalStart + delta), cfg);
+      const liveStart = Math.min(snapped.time, dragState.originalEnd - MIN_REGION);
+      setSnapGuide(snapped.snapped ? liveStart : null);
+      setDragState(d => (d ? { ...d, liveStart } : d));
+    } else {
+      const snapped = snapTimeDetailed(dragState.originalEnd + delta, cfg);
+      const liveEnd = Math.max(snapped.time, dragState.originalStart + MIN_REGION);
+      setSnapGuide(snapped.snapped ? liveEnd : null);
+      setDragState(d => (d ? { ...d, liveEnd } : d));
+    }
   };
+
   const handleRegionPointerUp = (e: React.PointerEvent) => {
     if (!dragState || e.pointerId !== dragState.pointerId) return;
-    if (dragState.liveStart !== dragState.originalStart) moveRegion(slate.id, dragState.id, dragState.liveStart);
+    const d = dragState;
     setDragState(null);
+    setSnapGuide(null);
+    useTimelineStore.getState().setDropTarget(null);
+
+    if (d.mode === "move") {
+      if (d.targetSlateId) {
+        if (d.copy) copyRegionToSlate(slate.id, d.id, d.targetSlateId, d.liveStart);
+        else moveRegionToSlate(slate.id, d.id, d.targetSlateId, d.liveStart);
+      } else if (d.liveStart !== d.originalStart) {
+        moveRegion(slate.id, d.id, d.liveStart);
+      }
+    } else if (d.mode === "trim-start") {
+      if (d.liveStart !== d.originalStart) trimRegion(slate.id, d.id, "start", d.liveStart);
+    } else if (d.liveEnd !== d.originalEnd) {
+      trimRegion(slate.id, d.id, "end", d.liveEnd);
+    }
+  };
+
+  const handleRegionPointerCancel = () => {
+    setDragState(null);
+    setSnapGuide(null);
+    useTimelineStore.getState().setDropTarget(null);
   };
 
   /* Selection */
@@ -228,12 +363,12 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
     cancelSelection();
   };
 
-  // Seeking now works while playing: playback continues from the clicked position
+  // Click the waveform to move the playhead (playback continues from there if it is playing)
   const handleRowClick = (e: React.MouseEvent) => {
     selectSlate(slate.id);
     const rect = rowRef.current?.getBoundingClientRect();
-    if (!rect || !rect.width) return;
-    seekTo(Math.max(0, ((e.clientX - rect.left) / rect.width) * safeReference));
+    if (!rect) return;
+    seekTo(Math.max(0, (e.clientX - rect.left) / pps));
   };
 
   const selectedRegion = slate.regions.find(r => r.id === selectedRegionId);
@@ -242,11 +377,21 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
   const cb = "px-2.5 py-1.5 text-xs rounded bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 border border-neutral-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 whitespace-nowrap transition-colors";
 
   return (
-    <div className={`border rounded-lg transition-colors ${
-      isPlayingHere ? "border-emerald-500 bg-emerald-500/10"
-      : isCurrent   ? "border-emerald-600/50 dark:border-emerald-700/50 bg-emerald-500/5"
-      :                "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30"
-    }`}>
+    <div
+      data-slate-id={slate.id}
+      data-slate-kind={slate.kind}
+      className={`relative border rounded-lg transition-colors ${
+        isDropTarget ? "ring-2 ring-indigo-400 border-indigo-400"
+        : isPlayingHere ? "border-emerald-500 bg-emerald-500/10"
+        : isCurrent   ? "border-emerald-600/50 dark:border-emerald-700/50 bg-emerald-500/5"
+        :                "border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/30"
+      }`}
+    >
+      {isDropTarget && (
+        <div className="pointer-events-none absolute right-3 top-2 z-40 rounded bg-indigo-600 px-2 py-0.5 text-[10px] text-white">
+          Drop to move here (hold Alt to copy)
+        </div>
+      )}
 
       {/* ── Name + status row ── */}
       <div className="flex items-center justify-between px-3 pt-3 pb-1 gap-2 flex-wrap">
@@ -296,7 +441,7 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
 
           <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
 
-          {/* Slate mixer: these existed in the engine but had no controls */}
+          {/* Slate mixer */}
           <button
             onClick={() => toggleSlateMute(slate.id)}
             className={`px-2.5 py-1.5 text-xs rounded border whitespace-nowrap transition-colors ${
@@ -313,6 +458,7 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
               type="range" min={-24} max={12} step={0.5}
               value={slate.gain}
               onChange={e => setSlateGain(slate.id, Number(e.target.value))}
+              onPointerUp={e => e.currentTarget.blur()}
               className="w-20 accent-indigo-500"
             />
             <span className="w-14 text-right">{slate.gain > 0 ? "+" : ""}{slate.gain.toFixed(1)} dB</span>
@@ -337,6 +483,13 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
             </button>
           ) : (
             <>
+              <button
+                onClick={() => playRange(slate.id, selection.start, selection.end)}
+                className="px-2.5 py-1.5 text-xs rounded bg-emerald-600 hover:bg-emerald-500 text-white whitespace-nowrap"
+                title="Play just the selection (loops if Loop is on)"
+              >
+                ▶ Sel
+              </button>
               <select
                 value={targetSlateId}
                 onChange={e => setTargetSlateId(e.target.value)}
@@ -359,6 +512,13 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
             <>
               <div className="w-px h-5 bg-neutral-200 dark:bg-neutral-700 mx-1 flex-shrink-0" />
               <button
+                onClick={() => playRange(slate.id, selectedRegion.start, selectedRegion.end)}
+                className={cb}
+                title="Play just this region (loops if Loop is on)"
+              >
+                ▶ Region
+              </button>
+              <button
                 onClick={() => lockRegion(slate.id, selectedRegion.id, !selectedRegion.meta.locked)}
                 className={cb}
               >
@@ -375,60 +535,85 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
         </div>
       </div>
 
-      {/* ── Waveform + region overlay ── */}
+      {/* ── Zoomable, scrollable timeline: waveform (WaveSurfer, visuals only) + regions + playhead ── */}
       <div
-        ref={rowRef}
-        onClick={handleRowClick}
-        className="relative w-full h-[80px] md:h-[120px] bg-neutral-100 dark:bg-neutral-950 border-t border-neutral-200 dark:border-neutral-800 overflow-hidden cursor-pointer rounded-b-lg"
+        ref={viewportRef}
+        className="relative w-full overflow-x-auto overflow-y-hidden border-t border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 rounded-b-lg"
       >
         <div
-          className={`absolute top-0 left-0 h-full ${selection ? "z-30" : "z-0"}`}
-          style={{ width: `${waveformPercent}%` }}
+          ref={rowRef}
+          onClick={handleRowClick}
+          className="relative h-[80px] md:h-[120px] cursor-pointer"
+          style={{ width: contentWidth }}
         >
-          <div ref={containerRef} className="w-full h-full" />
-        </div>
+          <div
+            className={`absolute top-0 left-0 h-full ${selection ? "z-30" : "z-0"}`}
+            style={{ width: waveformWidth }}
+          >
+            <div ref={containerRef} className="w-full h-full" />
+          </div>
 
-        <div className="absolute inset-0 z-10 pointer-events-none">
-          {slate.regions.map(region => {
-            const isDragging  = dragState?.id === region.id;
-            const start       = isDragging ? dragState!.liveStart : region.start;
-            const duration    = region.end - region.start;
-            const leftPct     = (start / safeReference) * 100;
-            const widthPct    = Math.max((duration / safeReference) * 100, 0.3);
-            const isSelected  = region.id === selectedRegionId;
+          <div className="absolute inset-0 z-10 pointer-events-none" style={gridStyle}>
+            {slate.regions.map(region => {
+              const dragging   = dragState?.id === region.id;
+              const start      = dragging ? dragState!.liveStart : region.start;
+              const end        = dragging ? dragState!.liveEnd : region.end;
+              const isSelected = region.id === selectedRegionId;
+              const locked     = !!region.meta.locked;
 
-            const colorClass = region.meta.locked
-              ? "bg-red-500/30 border-red-400/50"
-              : isSelected
-              ? "bg-indigo-500/70 border-indigo-300"
-              : region.status === "edited"
-              ? "bg-indigo-600/55 border-indigo-400/50"
-              : "bg-indigo-600/40 border-indigo-400/40";
+              const colorClass = locked
+                ? "bg-red-500/30 border-red-400/50"
+                : isSelected
+                ? "bg-indigo-500/70 border-indigo-300"
+                : region.status === "edited"
+                ? "bg-indigo-600/55 border-indigo-400/50"
+                : "bg-indigo-600/40 border-indigo-400/40";
 
-            return (
+              return (
+                <div
+                  key={region.id}
+                  onPointerDown={e => handleRegionPointerDown(e, region)}
+                  onPointerMove={handleRegionPointerMove}
+                  onPointerUp={handleRegionPointerUp}
+                  onPointerCancel={handleRegionPointerCancel}
+                  className={`absolute top-0 bottom-0 rounded border flex items-center px-1.5 overflow-hidden
+                    ${colorClass}
+                    ${dragging && dragState?.targetSlateId ? "opacity-60" : ""}
+                    ${locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}
+                    ${selection ? "pointer-events-none" : "pointer-events-auto"}`}
+                  style={{ left: start * pps, width: Math.max((end - start) * pps, 3) }}
+                  title={`${region.clips.length} clip(s)`}
+                >
+                  {!locked && (
+                    <>
+                      <div
+                        onPointerDown={e => handleTrimPointerDown(e, region, "start")}
+                        className="absolute left-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/50"
+                      />
+                      <div
+                        onPointerDown={e => handleTrimPointerDown(e, region, "end")}
+                        className="absolute right-0 top-0 bottom-0 w-1.5 cursor-ew-resize hover:bg-white/50"
+                      />
+                    </>
+                  )}
+                  <span className="text-[9px] truncate text-indigo-50 select-none">
+                    {region.clips.length > 1
+                      ? `${region.clips.length} clips`
+                      : sourceTrackTitle(region.clips[0]?.sourceTrackId ?? "")}
+                  </span>
+                </div>
+              );
+            })}
+            {snapGuide !== null && (
               <div
-                key={region.id}
-                onPointerDown={e => handleRegionPointerDown(e, region)}
-                onPointerMove={handleRegionPointerMove}
-                onPointerUp={handleRegionPointerUp}
-                className={`absolute top-0 bottom-0 rounded border flex items-center px-1 overflow-hidden
-                  ${colorClass}
-                  ${region.meta.locked ? "cursor-not-allowed" : "cursor-grab active:cursor-grabbing"}
-                  ${selection ? "pointer-events-none" : "pointer-events-auto"}`}
-                style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                title={`${region.clips.length} clip(s)`}
-              >
-                <span className="text-[9px] truncate text-indigo-50 select-none">
-                  {region.clips.length > 1
-                    ? `${region.clips.length} clips`
-                    : trackTitle(region.clips[0]?.sourceTrackId ?? "")}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                className="absolute top-0 bottom-0 w-px bg-indigo-400 pointer-events-none"
+                style={{ left: snapGuide * pps }}
+              />
+            )}
+          </div>
 
-        <Playhead referenceLength={safeReference} />
+          <Playhead pxPerSecond={pps} />
+        </div>
       </div>
     </div>
   );

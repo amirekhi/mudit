@@ -4,20 +4,29 @@ import { useEffect, useRef } from "react";
 import { useEditorStore } from "@/store/useEditorStore";
 
 /**
- * Moves the red line by writing to the DOM directly, so playback no longer
- * re-renders React 60 times a second.
+ * The red playhead line. It moves by writing to the DOM directly, so playback doesn't re-render React.
+ * Pass `pxPerSecond` for the zoomable timeline (position in pixels), or `referenceLength` for the
+ * old percentage layout.
  */
-export default function Playhead({ referenceLength }: { referenceLength: number }) {
+export default function Playhead({
+  referenceLength,
+  pxPerSecond,
+}: {
+  referenceLength?: number;
+  pxPerSecond?: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const safeRef = Math.max(referenceLength, 0.0001);
-
     const apply = (time: number) => {
       const el = ref.current;
       if (!el) return;
-      const percent = Math.min(100, Math.max(0, (time / safeRef) * 100));
-      el.style.left = `${percent}%`;
+      if (pxPerSecond) {
+        el.style.left = `${time * pxPerSecond}px`;
+      } else {
+        const safeRef = Math.max(referenceLength ?? 0, 0.0001);
+        el.style.left = `${Math.min(100, Math.max(0, (time / safeRef) * 100))}%`;
+      }
     };
 
     apply(useEditorStore.getState().transport.time);
@@ -25,7 +34,7 @@ export default function Playhead({ referenceLength }: { referenceLength: number 
     return useEditorStore.subscribe((state, prev) => {
       if (state.transport.time !== prev.transport.time) apply(state.transport.time);
     });
-  }, [referenceLength]);
+  }, [referenceLength, pxPerSecond]);
 
   return (
     <div
