@@ -1,51 +1,58 @@
 "use client";
 
+import { Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { IconMicrophone2 } from "@tabler/icons-react";
 import ArtistCard, { ArtistSummary } from "@/components/artists/ArtistCard";
-import ThemeToggle from "@/components/basics/ThemeToggle";
-import BackButton from "@/components/basics/BackButton";
+import PagedListShell from "@/components/basics/PagedListShell";
+import { fetchArtistsPage } from "@/lib/TanStackQuery/Queries/fetchArtistsPage";
+import { usePagedUrlState } from "@/lib/paging/usePagedUrlState";
+import type { Paged } from "@/lib/paging/types";
 
-export default function ArtistsPage() {
-  const { data: artists = [], isLoading } = useQuery<ArtistSummary[]>({
-    queryKey: ["artists"],
-    queryFn: async () => {
-      const res = await fetch("/api/artists");
-      if (!res.ok) throw new Error("Failed to fetch artists");
-      return res.json();
-    },
+// 24 divides evenly into 2, 3 and 4 columns, so the last row is never ragged.
+const PAGE_SIZE = 24;
+const SORTS = [
+  { value: "popular", label: "Most followed" },
+  { value: "name", label: "A–Z" },
+];
+
+function ArtistsList() {
+  const paging = usePagedUrlState({ basePath: "/artists", sorts: SORTS.map(s => s.value) });
+  const { q, page, sort } = paging;
+
+  const { data, isLoading, isError } = useQuery<Paged<ArtistSummary>, Error>({
+    queryKey: ["artists-page", q, sort, page, PAGE_SIZE],
+    queryFn: () => fetchArtistsPage<ArtistSummary>({ q, page, pageSize: PAGE_SIZE, sort }),
+    staleTime: 1000 * 60,
   });
 
   return (
-    <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 px-6 transition-colors">
-      <div className="max-w-5xl mx-auto w-full my-12">
-        <div className="flex items-center justify-between mb-8 md:mb-10">
-          <div>
-            <h1 className="text-2xl font-semibold text-neutral-900 dark:text-white">Artists</h1>
-            <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              {artists.length} artist{artists.length !== 1 ? "s" : ""}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <BackButton />
-          </div>
-        </div>
+    <PagedListShell
+      eyebrow="People"
+      title="Artists"
+      noun={["artist", "artists"]}
+      searchPlaceholder="Search artists…"
+      paging={paging}
+      sorts={SORTS}
+      data={data}
+      isLoading={isLoading}
+      isError={isError}
+      emptyIcon={<IconMicrophone2 className="w-7 h-7 text-neutral-400 dark:text-neutral-700" />}
+      emptyText="No artists yet — they're extracted automatically from public tracks during the weekly sync."
+      gridClassName="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+      skeletonClassName="aspect-[3/4] rounded-2xl"
+    >
+      {data?.items.map(artist => (
+        <ArtistCard key={artist.slug} artist={artist} />
+      ))}
+    </PagedListShell>
+  );
+}
 
-        {isLoading ? (
-          <div className="text-neutral-500 text-center py-24">Loading…</div>
-        ) : artists.length === 0 ? (
-          <div className="text-center py-24 text-neutral-500">
-            No artists yet — they're extracted automatically from public tracks
-            during the weekly sync.
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {artists.map(artist => (
-              <ArtistCard key={artist.slug} artist={artist} />
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
+export default function ArtistsPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full text-neutral-500">Loading…</div>}>
+      <ArtistsList />
+    </Suspense>
   );
 }

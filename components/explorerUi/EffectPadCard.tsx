@@ -1,8 +1,9 @@
 "use client";
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { Track, useAudioStore } from "@/store/useAudioStore";
-import { IconPlayerPlay, IconPlayerPause } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlayerPause, IconExternalLink } from "@tabler/icons-react";
 
 interface Props {
   track: Track;
@@ -43,19 +44,20 @@ export default function EffectPadCard({ track, index }: Props) {
 
   const bars = useMemo(() => seededBars(track._id), [track._id]);
 
+  // Effects go through exactly the same playTrack/togglePlay path as every
+  // other track — one audio engine, no special channel.
   const handleClick = () => {
     if (isActive) togglePlay();
     else playTrack(track);
   };
 
+  // The card is a <div> holding the visuals, with two siblings layered on
+  // top: a full-size play button and a small details link. A link can't be
+  // nested inside a button, so they sit side by side instead.
   return (
-    <button
-      onClick={handleClick}
-      aria-pressed={isLive}
-      aria-label={`${isLive ? "Pause" : "Play"} ${track.title}`}
+    <div
       className={`group relative flex-shrink-0 w-32 h-32 max-md:w-24 max-md:h-24 rounded-2xl
-        bg-neutral-950 border overflow-hidden text-left transition-all duration-150
-        focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400
+        bg-neutral-950 border overflow-hidden transition-all duration-150
         active:scale-[0.96]
         ${isLive
           ? "border-amber-400/70 shadow-[0_0_0_1px_rgba(251,191,36,0.4),0_0_24px_-4px_rgba(251,191,36,0.5)]"
@@ -72,11 +74,9 @@ export default function EffectPadCard({ track, index }: Props) {
         FX
       </span>
 
-      {/* Primary visual: the mp3's own embedded artwork when it has one —
-          shown clearly, not just as a dim backdrop, so effects with real
-          artwork actually look like their source file. Generated waveform
-          bars are the fallback for the common case of no embedded image,
-          not a permanent overlay on top of real art. */}
+      {/* Primary visual: the mp3's own embedded artwork when it has one.
+          Generated waveform bars are the fallback for the common case of no
+          embedded image, not a permanent overlay on top of real art. */}
       {track.image ? (
         <img
           src={track.image}
@@ -123,10 +123,32 @@ export default function EffectPadCard({ track, index }: Props) {
         </div>
       </div>
 
-      {/* Label footer — solid strip so text stays legible over the bars regardless of artwork */}
-      <div className="absolute bottom-0 inset-x-0 px-2.5 py-1.5 bg-gradient-to-t from-black/90 to-transparent">
+      {/* Label footer — gradient strip so text stays legible over the bars regardless of artwork.
+          Right padding leaves room for the details link. */}
+      <div className="absolute bottom-0 inset-x-0 pl-2.5 pr-9 py-1.5 bg-gradient-to-t from-black/90 to-transparent">
         <p className="text-[11px] font-medium text-white truncate leading-tight">{track.title}</p>
       </div>
-    </button>
+
+      {/* Full-size play button, layered over the visuals */}
+      <button
+        onClick={handleClick}
+        aria-pressed={isLive}
+        aria-label={`${isLive ? "Pause" : "Play"} ${track.title}`}
+        className="absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-2
+          focus-visible:ring-inset focus-visible:ring-amber-400"
+      />
+
+      {/* Details link — same /tracks/[id] page every other track uses */}
+      <Link
+        href={`/tracks/${track._id}`}
+        prefetch={false}
+        aria-label={`Details for ${track.title}`}
+        className="absolute bottom-1.5 right-1.5 z-20 w-6 h-6 rounded-full bg-black/60 backdrop-blur-sm
+          flex items-center justify-center text-white/70 hover:text-amber-300 transition-colors
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      >
+        <IconExternalLink className="w-3.5 h-3.5" />
+      </Link>
+    </div>
   );
 }

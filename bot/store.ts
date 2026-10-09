@@ -9,6 +9,10 @@
 // Telegram's file_id reference) — never audio bytes. The actual mp3 data
 // still only lives in the in-memory cache (bot/fileCache.ts), fetched on
 // demand, exactly as before.
+//
+// NEW: searchIndexPage — skip/limit pagination plus a total count, used by
+// the paginated effects endpoint so the home page and the /effects page
+// never have to pull the whole index.
 
 import mongoose from "mongoose";
 import EffectIndex, { EffectIndexDocument } from "@/models/EffectIndex";
@@ -51,6 +55,19 @@ function escapeRegex(input: string): string {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Shared by searchIndex and searchIndexPage so both match identically.
+function buildFilter(query: string) {
+  const q = query.trim();
+  if (!q) return {};
+  const pattern = escapeRegex(q);
+  return {
+    $or: [
+      { searchText: { $regex: pattern, $options: "i" } },
+      { name: { $regex: pattern, $options: "i" } },
+    ],
+  };
+}
+
 export async function readIndex(): Promise<EffectEntry[]> {
   const docs = await EffectIndex.find({}).sort({ addedAt: 1 }).lean();
   return docs.map(toEntry);
@@ -75,25 +92,39 @@ export async function addEntry(entry: EffectEntry): Promise<void> {
 }
 
 // Case-insensitive substring search against searchText, falling back to
-// name for any legacy entries that somehow lack searchText.
+// name for any legacy entries that somehow lack searchText. Unpaginated —
+// prefer searchIndexPage for anything user-facing.
 export async function searchIndex(query: string): Promise<EffectEntry[]> {
-  const q = query.trim();
-  if (!q) {
-    const docs = await EffectIndex.find({}).sort({ addedAt: -1 }).lean();
-    return docs.map(toEntry);
-  }
-
-  const pattern = escapeRegex(q);
-  const docs = await EffectIndex.find({
-    $or: [
-      { searchText: { $regex: pattern, $options: "i" } },
-      { name: { $regex: pattern, $options: "i" } },
-    ],
-  })
+  const docs = await EffectIndex.find(buildFilter(query))
     .sort({ addedAt: -1 })
     .lean();
-
   return docs.map(toEntry);
+}
+
+export interface EffectPage {
+  entries: EffectEntry[];
+  total: number; // total matches across ALL pages, for page counts
+}
+
+// Newest first, with _id as a tiebreaker so entries that share an addedAt
+// can't shuffle between pages. An empty query browses everything.
+export async function searchIndexPage(
+  query: string,
+  page: number,
+  pageSize: number
+): Promise<EffectPage> {
+  const filter = buildFilter(query);
+
+  const [docs, total] = await Promise.all([
+    EffectIndex.find(filter)
+      .sort({ addedAt: -1, _id: -1 })
+      .skip((page - 1) * pageSize)
+      .limit(pageSize)
+      .lean(),
+    EffectIndex.countDocuments(filter),
+  ]);
+
+  return { entries: docs.map(toEntry), total };
 }
 
 export async function findById(id: string): Promise<EffectEntry | undefined> {

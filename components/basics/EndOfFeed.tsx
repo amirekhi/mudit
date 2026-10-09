@@ -6,11 +6,16 @@ const BAR_COUNT = 48;
 // near-silence at both ends, like a waveform fading out. This exact shape is
 // the intended design, not per-render randomness, so it looks composed
 // rather than jittery on every reload.
+//
+// Each value is rounded to 3 decimals. Math.sin can differ in its last few
+// digits between the server's JS engine and the browser's, and React
+// compares the server HTML against the client render character by character.
+// Unrounded, "74.73567072337207%" vs "74.7357%" triggered a hydration error.
 const heights = Array.from({ length: BAR_COUNT }, (_, i) => {
   const t = i / (BAR_COUNT - 1);
   const envelope = Math.sin(t * Math.PI); // rises 0 -> 1 -> falls to 0
   const wobble = Math.sin(i * 1.7) * 0.15; // slight irregularity so it reads as a real waveform, not a perfect dome
-  return Math.max(0.06, envelope + wobble);
+  return Math.round(Math.max(0.06, envelope + wobble) * 1000) / 1000;
 });
 
 export default function EndOfFeed() {
@@ -20,7 +25,8 @@ export default function EndOfFeed() {
         {heights.map((h, i) => (
           <div
             key={i}
-            style={{ height: `${h * 100}%` }}
+            // toFixed gives a fixed-format string, so server and client agree exactly.
+            style={{ height: `${(h * 100).toFixed(1)}%` }}
             className="w-[3px] rounded-full bg-gradient-to-t from-indigo-400/70 to-amber-400/70
               dark:from-indigo-500/50 dark:to-amber-400/50"
           />

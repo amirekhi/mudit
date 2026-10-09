@@ -1,19 +1,26 @@
 // app/api/telegram/search/route.ts
 //
-// GET /api/telegram/search?q=airhorn
+// GET /api/telegram/search?q=airhorn[&limit=6]
 //
-// Reads the effect index (kept up to date by the bot, see bot/telegramBot.ts)
-// and returns matching entries. This route never talks to Telegram directly,
-// so it's fast and doesn't burn Telegram API calls on every keystroke.
+// Returns a plain array (shape unchanged, so existing callers keep working).
+// With ?limit=N only the N newest matches are read from the index; without
+// it, every match is returned as before. For browsing with page numbers use
+// /api/telegram/effects instead.
 
 import { NextRequest, NextResponse } from "next/server";
-import { searchIndex } from "@/bot/store";
+import { searchIndex, searchIndexPage } from "@/bot/store";
+
+const MAX_LIMIT = 100;
 
 export async function GET(req: NextRequest) {
   const q = req.nextUrl.searchParams.get("q") ?? "";
+  const limit = Number.parseInt(req.nextUrl.searchParams.get("limit") ?? "", 10);
 
   try {
-    const matches = await searchIndex(q);
+    const matches =
+      Number.isFinite(limit) && limit > 0
+        ? (await searchIndexPage(q, 1, Math.min(limit, MAX_LIMIT))).entries
+        : await searchIndex(q);
 
     // Intentionally only return `id`, `name`, `artist`, a derived `image`
     // URL and `addedAt` to the client — raw Telegram file_ids stay

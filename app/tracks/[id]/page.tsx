@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Track } from "@/store/useAudioStore";
 import { useAudioStore } from "@/store/useAudioStore";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
-import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
+import { fetchTrackById } from "@/lib/TanStackQuery/Queries/fetchTrackById";
 import {
   fetchTelegramEffect,
   telegramResultToTrack,
@@ -41,9 +41,11 @@ export default function TrackDetailPage({ params }: Props) {
   const togglePlay   = useAudioStore(s => s.togglePlay);
 
   // Telegram effects use ids like "telegram-<shortId>" and live in a
-  // different backend, so they get their own lookup instead of the DB lists.
+  // different backend, so they get their own lookup.
   const isTelegram = id.startsWith(TELEGRAM_ID_PREFIX);
 
+  // Only used for prev/next, which walks the user's own tracks. Shared cache
+  // key with the home page, so it's usually already loaded.
   const { data: userTracks = [] } = useQuery<Track[], Error>({
     queryKey: ["user-tracks"],
     queryFn: async () => {
@@ -55,9 +57,12 @@ export default function TrackDetailPage({ params }: Props) {
     },
   });
 
-  const { data: publicTracks = [], isLoading } = useQuery<Track[], Error>({
-    queryKey: ["songs"],
-    queryFn: fetchSongs,
+  // ONE track by id (the server applies public/private visibility), instead
+  // of downloading every public track and .find()-ing this one.
+  const { data: fetchedTrack, isLoading: trackLoading } = useQuery<Track | null, Error>({
+    queryKey: ["track", id],
+    enabled: !isTelegram,
+    queryFn: () => fetchTrackById(id),
   });
 
   const { data: telegramTrack, isLoading: telegramLoading } = useQuery<Track | null, Error>({
@@ -69,14 +74,8 @@ export default function TrackDetailPage({ params }: Props) {
     },
   });
 
-  const allTracks = [
-    ...userTracks,
-    ...publicTracks.filter(pt => !userTracks.some(ut => ut._id === pt._id)),
-  ];
-
-  const track = isTelegram
-    ? telegramTrack ?? undefined
-    : allTracks.find(t => t._id === id);
+  const track = (isTelegram ? telegramTrack : fetchedTrack) ?? undefined;
+  const isLoading = isTelegram ? telegramLoading : trackLoading;
   const isActive = currentTrack?._id === id;
 
   // Effects aren't part of any ordered list, so no prev/next for them.
@@ -84,7 +83,7 @@ export default function TrackDetailPage({ params }: Props) {
   const prevTrack = userIdx > 0 ? userTracks[userIdx - 1] : null;
   const nextTrack = userIdx >= 0 && userIdx < userTracks.length - 1 ? userTracks[userIdx + 1] : null;
 
-  if (isLoading || (isTelegram && telegramLoading)) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-full text-neutral-500 text-sm">
         Loading…

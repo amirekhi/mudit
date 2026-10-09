@@ -14,7 +14,7 @@ const ACCENT_CLASSES: Record<string, string> = {
 
 export default function SectionHeader({ eyebrow, title, accent = "discover" }: SectionHeaderProps) {
   return (
-    <div className="px-8 pt-3 pb-1 flex items-baseline gap-3">
+    <div className="px-8 max-md:px-2 pt-3 pb-1 flex items-baseline gap-3">
       <span className={`text-[11px] font-bold uppercase tracking-[0.18em] ${ACCENT_CLASSES[accent]}`}>
         {eyebrow}
       </span>

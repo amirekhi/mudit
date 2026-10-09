@@ -8,23 +8,34 @@ import { IconExternalLink } from "@tabler/icons-react";
 
 interface PublicMusicCardProps {
   track: Track;
+  /**
+   * Grid mode: the card fills its grid cell instead of using the fixed
+   * 280px carousel width. Without this the card's min-width is wider than a
+   * 4-column grid cell, so neighbouring cards overlap. Leave it off for
+   * carousels, where the fixed width is what you want.
+   */
+  fluid?: boolean;
 }
 
-export default function PublicMusicCard({ track }: PublicMusicCardProps) {
+export default function PublicMusicCard({ track, fluid = false }: PublicMusicCardProps) {
   const playTrack    = useAudioStore(s => s.playTrack);
   const togglePlay   = useAudioStore(s => s.togglePlay);
   const currentTrack = useAudioStore(s => s.currentTrack);
   const isActive     = currentTrack?._id === track._id;
 
+  const sizeClasses = fluid
+    ? "w-full min-w-0 h-72 max-md:h-64 p-4 max-md:p-3"
+    : "w-72 min-w-[280px] h-72 p-4 max-md:w-60 max-md:min-w-[240px] max-md:h-64 max-md:p-3";
+
   return (
     <motion.div
-      whileHover={{ scale: 1.07 }}
+      // Smaller lift in a grid, so a hovered card doesn't ride over its neighbours.
+      whileHover={{ scale: fluid ? 1.03 : 1.07 }}
       onClick={() => { if (isActive) togglePlay(); else playTrack(track); }}
-      className="group relative w-72 min-w-[280px] h-72 bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent rounded-2xl p-4
-        flex flex-col justify-between cursor-pointer shadow-xl hover:shadow-2xl transition-colors
-        max-md:w-60 max-md:min-w-[240px] max-md:h-64 max-md:p-3"
+      className={`group relative ${sizeClasses} bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-transparent rounded-2xl
+        flex flex-col justify-between cursor-pointer shadow-xl hover:shadow-2xl transition-colors`}
     >
-      <div>
+      <div className="min-w-0">
         <img
           src={track.image || "/test.jpg"}
           width={280}

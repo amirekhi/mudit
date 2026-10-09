@@ -1,24 +1,61 @@
 "use client";
 
-import { useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import ArtistCarouselCard, { ArtistSummary } from "./ArtistCarouselCard";
 import SectionHeader from "@/components/basics/SectionHeader";
 
-interface ArtistCarouselProps {
+interface Props {
   title?: string;
   artists: ArtistSummary[];
+  /** Where "See all" goes. Omit it and the link simply isn't rendered. */
+  seeAllHref?: string;
 }
 
-export default function ArtistCarousel({ artists, title }: ArtistCarouselProps) {
+// Fades the row's left/right edges so it's obvious there's more to scroll.
+// A CSS mask rather than a gradient overlay, so it works on any background
+// (including the transparent dark-mode one).
+const FADE_MASK =
+  "[mask-image:linear-gradient(to_right,transparent,black_2rem,black_calc(100%_-_2rem),transparent)]";
+
+// Arrows hide on touch devices (they just cover cards there) and fade out
+// when there's nothing left to scroll in their direction.
+const ARROW =
+  "absolute top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center z-20 " +
+  "rounded-full bg-white/30 backdrop-blur-md hover:bg-white/50 dark:bg-neutral-900/30 " +
+  "dark:hover:bg-neutral-900/50 transition-opacity [@media(hover:none)]:hidden " +
+  "disabled:opacity-0 disabled:pointer-events-none";
+
+export default function ArtistCarousel({ artists, title, seeAllHref }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateEdges = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, []);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    updateEdges();
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [updateEdges, artists.length]);
 
   const scroll = (direction: "left" | "right") => {
-    if (!containerRef.current) return;
-    const scrollAmount = containerRef.current.clientWidth * 0.8;
-    containerRef.current.scrollBy({
-      left: direction === "left" ? -scrollAmount : scrollAmount,
-      behavior: "smooth",
+    const el = containerRef.current;
+    if (!el) return;
+    const amount = el.clientWidth * 0.8;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    el.scrollBy({
+      left: direction === "left" ? -amount : amount,
+      behavior: reduceMotion ? "auto" : "smooth",
     });
   };
 
@@ -26,33 +63,52 @@ export default function ArtistCarousel({ artists, title }: ArtistCarouselProps) 
 
   return (
     <div className="relative w-full">
-      <button
-        onClick={() => scroll("left")}
-        className="absolute top-[62%] left-2 -translate-y-1/2 w-10 h-10 flex items-center justify-center
-                   rounded-full bg-white/30 backdrop-blur-md hover:bg-white/50 dark:bg-neutral-900/30
-                   dark:hover:bg-neutral-900/50 transition-colors z-10"
-      >
-        <IconChevronLeft className="w-5 h-5 text-black dark:text-white" />
-      </button>
-
-      <button
-        onClick={() => scroll("right")}
-        className="absolute top-[62%] right-2 -translate-y-1/2 w-10 h-10 flex items-center justify-center
-                   rounded-full bg-white/30 backdrop-blur-md hover:bg-white/50 dark:bg-neutral-900/30
-                   dark:hover:bg-neutral-900/50 transition-colors z-10"
-      >
-        <IconChevronRight className="w-5 h-5 text-black dark:text-white" />
-      </button>
-
+      <div className="flex items-end">
+        <div className="flex-1 min-w-0">
       {title && <SectionHeader eyebrow="People" title={title} accent="people" />}
 
-      <div
-        ref={containerRef}
-        className="flex gap-5 py-4 overflow-x-auto scroll-smooth snap-x snap-proximity px-8 md:touch-pan-x hide-scrollbar"
-      >
-        {artists.map(artist => (
-          <ArtistCarouselCard key={artist.slug} artist={artist} />
-        ))}
+        </div>
+        {seeAllHref && (
+          <Link
+            href={seeAllHref}
+            prefetch={false}
+            className="mr-8 mb-1 flex-shrink-0 inline-flex items-center gap-1 text-xs font-medium
+              text-neutral-500 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-white transition-colors"
+          >
+            See all <IconChevronRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
+      </div>
+
+      {/* Arrows live inside this wrapper (around the scroller only), so
+          top-1/2 is always the middle of the card row regardless of header. */}
+      <div className="relative">
+        <button
+          onClick={() => scroll("left")}
+          disabled={!canScrollLeft}
+          aria-label="Scroll left"
+          className={`${ARROW} left-2`}
+        >
+          <IconChevronLeft className="w-5 h-5 text-black dark:text-white" />
+        </button>
+        <button
+          onClick={() => scroll("right")}
+          disabled={!canScrollRight}
+          aria-label="Scroll right"
+          className={`${ARROW} right-2`}
+        >
+          <IconChevronRight className="w-5 h-5 text-black dark:text-white" />
+        </button>
+
+        <div
+          ref={containerRef}
+          onScroll={updateEdges}
+          className={`flex gap-5 py-4 overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-proximity px-8 max-md:px-2 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
+        >
+          {artists.map(artist => (
+            <ArtistCarouselCard key={artist.slug} artist={artist} />
+          ))}
+        </div>
       </div>
     </div>
   );

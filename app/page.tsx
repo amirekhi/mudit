@@ -2,8 +2,6 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { IconPlus, IconEdit } from "@tabler/icons-react";
 
 import HeroPlaylistCarousel from "@/components/PlayList/HeroPlaylistCarousel";
 import ShelfPlaylistCarousel from "@/components/PlayList/ShelfPlaylistCarousel";
@@ -12,30 +10,39 @@ import VinylCarousel from "@/components/explorerUi/VinylCarousel";
 import EffectsCarousel from "@/components/explorerUi/EffectsCarousel";
 import ArtistCarousel from "@/components/artists/ArtistCarousel";
 import EndOfFeed from "@/components/basics/EndOfFeed";
-import { ArtistSummary } from "@/components/artists/ArtistCarouselCard";
 import SearchBar from "@/components/basics/SearchBar";
-import ThemeToggle from "@/components/basics/ThemeToggle";
+import HeaderActions from "@/components/basics/HeaderActions";
+import CarouselSkeleton from "@/components/basics/CarouselSkeleton";
+import MusicVideoCarousel from "@/components/explorerUi/MusicVideoCarousel";
 
 import { Track } from "@/store/useAudioStore";
 import { Playlist } from "@/components/PlayList/PlaylistCard";
-import { fetchSongs } from "@/lib/TanStackQuery/Queries/fetchSongs";
-import fetchPlaylists from "@/lib/TanStackQuery/Queries/fetchPlaylists";
+import { fetchPublicTracksPage } from "@/lib/TanStackQuery/Queries/fetchPublicTracksPage";
+import { fetchPublicPlaylistsPage } from "@/lib/TanStackQuery/Queries/fetchPublicPlaylistsPage";
+import { fetchArtistsPage } from "@/lib/TanStackQuery/Queries/fetchArtistsPage";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import {
-  fetchTelegramEffects,
+  fetchTelegramEffectsPage,
   telegramResultToTrack,
 } from "@/lib/TanStackQuery/Queries/fetchTelegramEffects";
 import { shuffleArray } from "@/util/shuffle";
-import MuditSpinner from "@/components/basics/MuditSpinner";
-import MusicVideoCarousel from "@/components/explorerUi/MusicVideoCarousel";
+
+// How many items each home carousel shows. The rest live on the "See all" pages.
+const HOME_ARTISTS_LIMIT = 20;
+const HOME_TRACKS_LIMIT = 20;
+const HOME_PLAYLISTS_LIMIT = 12;
+const HOME_EFFECTS_LIMIT = 12;
 
 export default function Home() {
-  const router = useRouter();
-  const { data: user, isLoading: userLoading } = useCurrentUser();
+  const { data: user } = useCurrentUser();
 
-  const { data: publicPlaylists = [], isLoading: publicPlaylistsLoading } =
-    useQuery<Playlist[], Error>({ queryKey: ["playlists", "public"], queryFn: fetchPlaylists });
+  // Public playlists — ONE page, not every public playlist with all its tracks.
+  const { data: playlistsPage, isLoading: publicPlaylistsLoading } =
+    useQuery({
+      queryKey: ["playlists", "public", "home", HOME_PLAYLISTS_LIMIT],
+      queryFn: () => fetchPublicPlaylistsPage({ page: 1, pageSize: HOME_PLAYLISTS_LIMIT }),
+    });
 
   const { data: userPlaylists = [], isLoading: userPlaylistsLoading } =
     useQuery<Playlist[], Error>({
@@ -49,8 +56,12 @@ export default function Home() {
       },
     });
 
-  const { data: tracks = [], isLoading: tracksLoading } =
-    useQuery<Track[], Error>({ queryKey: ["songs"], queryFn: fetchSongs });
+  // Public tracks — ONE page (newest first), not every public track.
+  const { data: tracksPage, isLoading: tracksLoading } =
+    useQuery({
+      queryKey: ["tracks", "public", "home", HOME_TRACKS_LIMIT],
+      queryFn: () => fetchPublicTracksPage({ page: 1, pageSize: HOME_TRACKS_LIMIT }),
+    });
 
   const { data: userTracks = [], isLoading: userTracksLoading } =
     useQuery<Track[], Error>({
@@ -64,149 +75,116 @@ export default function Home() {
       },
     });
 
-  const { data: artists = [], isLoading: artistsLoading } =
-    useQuery<ArtistSummary[], Error>({
-      queryKey: ["artists"],
+  // Artists — ONE page (most followed first), not every artist.
+  const { data: artistsPage, isLoading: artistsLoading } =
+    useQuery({
+      queryKey: ["artists", "home", HOME_ARTISTS_LIMIT],
       queryFn: async () => {
         try {
-          const res = await fetch("/api/artists");
-          if (!res.ok) throw new Error();
-          return res.json() as Promise<ArtistSummary[]>;
-        } catch { return []; }
+          return await fetchArtistsPage({ page: 1, pageSize: HOME_ARTISTS_LIMIT });
+        } catch { return null; }
       },
     });
 
-  // Telegram effects — empty query browses everything indexed so far,
-  // most recent first (see searchIndex's handling of an empty query).
-  const { data: telegramEffects = [], isLoading: telegramEffectsLoading } =
-    useQuery<Track[], Error>({
-      queryKey: ["telegram-effects", "browse-all"],
+  // Telegram effects — ONE small page (newest first), not the whole index.
+  const { data: effectsPage, isLoading: telegramEffectsLoading } =
+    useQuery({
+      queryKey: ["telegram-effects", "home", HOME_EFFECTS_LIMIT],
       queryFn: async () => {
         try {
-          const raw = await fetchTelegramEffects("");
-          return raw.map(telegramResultToTrack);
-        } catch { return []; }
+          const result = await fetchTelegramEffectsPage({ page: 1, pageSize: HOME_EFFECTS_LIMIT });
+          return { tracks: result.items.map(telegramResultToTrack), total: result.total };
+        } catch { return { tracks: [] as Track[], total: 0 }; }
       },
     });
 
-  // Shuffled once per fetch (not on every re-render) so the feed order
-  // actually varies between visits instead of always matching DB order.
+  const artists = useMemo(() => artistsPage?.items ?? [], [artistsPage]);
+  const tracks = useMemo(() => tracksPage?.items ?? [], [tracksPage]);
+  const publicPlaylists = useMemo(() => playlistsPage?.items ?? [], [playlistsPage]);
+  const telegramEffects = effectsPage?.tracks ?? [];
+
+  // "See all" only shows when there's actually more than the carousel holds.
+  const moreArtists = (artistsPage?.total ?? 0) > artists.length;
+  const moreTracks = (tracksPage?.total ?? 0) > tracks.length;
+  const morePlaylists = (playlistsPage?.total ?? 0) > publicPlaylists.length;
+  const moreEffects = (effectsPage?.total ?? 0) > telegramEffects.length;
+
+  // Shuffled once per fetch (not on every re-render) so the order within the
+  // carousel varies between visits. Trending is deliberately NOT shuffled:
+  // each of its cards shows a rank number, which only means something if the
+  // list keeps its order.
   const shuffledHotPlaylists = useMemo(() => shuffleArray(publicPlaylists), [publicPlaylists]);
-  const shuffledTrending = useMemo(() => shuffleArray(tracks), [tracks]);
   const shuffledYourPlaylists = useMemo(() => shuffleArray(userPlaylists), [userPlaylists]);
   const shuffledYourTracks = useMemo(() => shuffleArray(userTracks), [userTracks]);
 
-  // All tracks merged for the SearchBar dropdown — left unshuffled on purpose,
-  // search results should stay predictable even if the feed doesn't.
-  const allTracks = [
-    ...tracks,
-    ...userTracks.filter(ut => !tracks.some(t => t._id === ut._id)),
-  ];
-
-  if (
-    publicPlaylistsLoading ||
-    userPlaylistsLoading ||
-    tracksLoading ||
-    userTracksLoading ||
-    artistsLoading
-  ) {
-    return (
-      <div style={{ display: "flex", height: "100vh", alignItems: "flex-start", justifyContent: "center", paddingTop: "30vh" }}>
-        <MuditSpinner />
-      </div>
-    );
-  }
-
-  const primaryBtn =
-    "relative inline-flex items-center gap-2 h-10 px-5 rounded-full " +
-    "bg-gradient-to-b from-indigo-500 to-indigo-600 text-white font-medium " +
-    "shadow-md shadow-indigo-600/30 hover:from-indigo-400 hover:to-indigo-600 " +
-    "active:scale-[0.98] transition-all text-sm";
-
-  const secondaryBtn =
-    "relative inline-flex items-center gap-2 h-10 px-5 rounded-full " +
-    "bg-neutral-100 border border-neutral-200 text-neutral-700 hover:bg-neutral-200 " +
-    "dark:bg-white/5 dark:backdrop-blur dark:border-white/10 dark:text-white dark:hover:bg-white/10 dark:hover:border-white/20 " +
-    "active:scale-[0.98] transition-all text-sm font-medium";
-
+  // The page renders immediately; each section shows a skeleton until its own
+  // data arrives, instead of one full-screen spinner waiting on everything.
+  // "Yours" sections only get a skeleton for signed-in users, so guests don't
+  // see one flash and vanish.
   return (
     <div className="relative w-full overflow-x-hidden pb-6 bg-white dark:bg-transparent transition-colors">
       <div className="p-3 md:p-6 pb-6 flex flex-col gap-6 md:gap-10">
 
         {/* Mobile-only button row */}
-        <div className="flex items-center gap-2 md:hidden">
-          {!userLoading && (
-            user ? (
-              <>
-                <button onClick={() => router.push("/createHub")} className={primaryBtn}>
-                  <IconPlus className="w-4 h-4" /> New
-                </button>
-                <button onClick={() => router.push("/edit")} className={secondaryBtn}>
-                  <IconEdit className="w-4 h-4" /> Edit
-                </button>
-                <div className="ml-auto">
-                  <ThemeToggle />
-                </div>
-              </>
-            ) : (
-              <>
-                <button onClick={() => router.push("/login")} className={secondaryBtn}>Login</button>
-                <button onClick={() => router.push("/Signup")} className={primaryBtn}>Sign up</button>
-                <div className="ml-auto">
-                  <ThemeToggle />
-                </div>
-              </>
-            )
-          )}
-        </div>
+        <HeaderActions className="flex items-center gap-2 md:hidden" toggleClassName="ml-auto" />
 
-        {/* Search bar — full width on mobile, centred on desktop */}
+        {/* Search bar — full width on mobile, centred on desktop.
+            Only the user's own tracks are passed in; public tracks are
+            searched on the server as you type. */}
         <div className="w-full md:max-w-md md:mx-auto">
-          <SearchBar tracks={allTracks} />
+          <SearchBar tracks={userTracks} />
         </div>
 
         {/* Desktop buttons — original absolute position */}
-        <div className="hidden md:flex absolute top-6 right-6 items-center gap-3 z-50">
-          {!userLoading && (
-            user ? (
-              <>
-                <button onClick={() => router.push("/createHub")} className={primaryBtn}>
-                  <IconPlus className="w-4 h-4" /> New
-                </button>
-                <button onClick={() => router.push("/edit")} className={secondaryBtn}>
-                  <IconEdit className="w-4 h-4" /> Edit
-                </button>
-                <ThemeToggle />
-              </>
-            ) : (
-              <>
-                <button onClick={() => router.push("/login")} className={secondaryBtn}>Login</button>
-                <button onClick={() => router.push("/signup")} className={primaryBtn}>Sign up</button>
-                <ThemeToggle />
-              </>
-            )
-          )}
-        </div>
+        <HeaderActions className="hidden md:flex absolute top-6 right-6 items-center gap-3 z-50" />
 
         {/* ── People — moved to the very top of the feed ── */}
-        <ArtistCarousel title="Artists" artists={artists} />
+        {artistsLoading
+          ? <CarouselSkeleton cardClassName="w-24 h-24 rounded-full" />
+          : <ArtistCarousel
+              title="Artists"
+              artists={artists}
+              seeAllHref={moreArtists ? "/artists" : undefined}
+            />}
 
         {/* ── Discover (public) ── */}
-        <HeroPlaylistCarousel title="Hot Playlists" playlists={shuffledHotPlaylists} />
-        <ChartCarousel title="Trending" tracks={shuffledTrending} />
+        {publicPlaylistsLoading
+          ? <CarouselSkeleton cardClassName="w-64 h-40 rounded-2xl" />
+          : <HeroPlaylistCarousel
+              title="Hot Playlists"
+              playlists={shuffledHotPlaylists}
+              seeAllHref={morePlaylists ? "/hot-playlists" : undefined}
+            />}
+
+        {tracksLoading
+          ? <CarouselSkeleton cardClassName="w-[320px] max-md:w-[260px] h-24 rounded-2xl" />
+          : <ChartCarousel
+              title="Trending"
+              tracks={tracks}
+              seeAllHref={moreTracks ? "/trending" : undefined}
+            />}
 
         {/* ── Effects (Telegram-sourced soundboard) ── */}
         {!telegramEffectsLoading && telegramEffects.length > 0 && (
-          <EffectsCarousel title="telegram Channel" tracks={telegramEffects} />
+          <EffectsCarousel
+            title="Telegram Channel"
+            tracks={telegramEffects}
+            seeAllHref={moreEffects ? "/effects" : undefined}
+          />
         )}
 
         {/* ── Yours (personal) ── */}
-        {shuffledYourPlaylists.length > 0 && (
-          <ShelfPlaylistCarousel title="Your Playlists" playlists={shuffledYourPlaylists} />
-        )}
-        {shuffledYourTracks.length > 0 && (
-          <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
-        )}
+        {user && userPlaylistsLoading
+          ? <CarouselSkeleton cardClassName="w-44 h-44 rounded-2xl" />
+          : shuffledYourPlaylists.length > 0 && (
+              <ShelfPlaylistCarousel title="Your Playlists" playlists={shuffledYourPlaylists} />
+            )}
+
+        {user && userTracksLoading
+          ? <CarouselSkeleton cardClassName="w-40 h-40 rounded-full" />
+          : shuffledYourTracks.length > 0 && (
+              <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
+            )}
 
         <MusicVideoCarousel title="Music Videos" />
         <EndOfFeed />
