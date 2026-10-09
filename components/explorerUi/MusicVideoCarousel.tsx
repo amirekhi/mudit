@@ -100,12 +100,17 @@ export default function MusicVideoCarousel({ title = "Music Videos", videos = du
                 opacity: i === active ? 1 : 0,
               }}
             >
+              {/* `loop` only for a single video: a looping video never fires
+                  `ended`, which is what advances to the next one. */}
               <video
                 ref={el => { videoRefs.current[v._id] = el; }}
                 src={v.src}
                 poster={v.poster}
-                loop
+                loop={videos.length === 1}
                 playsInline
+                // Only the active video loads eagerly; the rest wait until
+                // they're actually shown, instead of all downloading at once.
+                preload={i === active ? "metadata" : "none"}
                 className="w-full h-full object-cover"
                 onEnded={() => setActive(prev => (prev + 1) % videos.length)}
               />
@@ -154,7 +159,7 @@ export default function MusicVideoCarousel({ title = "Music Videos", videos = du
             }`}
           />
         ))}
-      </div>ss
+      </div>
     </div>
   );
 }

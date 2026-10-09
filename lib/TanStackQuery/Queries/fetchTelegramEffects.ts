@@ -1,9 +1,8 @@
 // lib/TanStackQuery/Queries/fetchTelegramEffects.ts
 //
 // Client-side helpers for Telegram effects: SearchBar suggestions, the home
-// feed's soundboard row, and the track detail page's single-item lookup.
-// Mirrors the shape of fetchItunesPreviews so the two sit side by side
-// naturally in the dropdown.
+// feed's soundboard row, the /effects list page, and the track detail
+// page's single-item lookup.
 
 import { Track } from "@/store/useAudioStore";
 
@@ -20,14 +19,47 @@ export interface TelegramEffectResult {
   addedAt?: string; // ISO string from the index
 }
 
+export interface TelegramEffectsPage {
+  items: TelegramEffectResult[];
+  total: number; // matches across all pages
+  page: number;
+  pageSize: number;
+  pageCount: number;
+}
+
+// Plain (unpaginated) search. Pass `limit` for suggestion-style callers so
+// the server only reads that many rows instead of every match.
 export async function fetchTelegramEffects(
-  query: string
+  query: string,
+  limit?: number
 ): Promise<TelegramEffectResult[]> {
-  const res = await fetch(
-    `/api/telegram/search?q=${encodeURIComponent(query)}`
-  );
+  const params = new URLSearchParams({ q: query });
+  if (limit) params.set("limit", String(limit));
+
+  const res = await fetch(`/api/telegram/search?${params}`);
   if (!res.ok) throw new Error("Telegram effects search failed");
   return res.json() as Promise<TelegramEffectResult[]>;
+}
+
+// One page of effects (newest first). An empty q browses everything.
+export async function fetchTelegramEffectsPage({
+  q = "",
+  page = 1,
+  pageSize = 24,
+}: {
+  q?: string;
+  page?: number;
+  pageSize?: number;
+} = {}): Promise<TelegramEffectsPage> {
+  const params = new URLSearchParams({
+    q,
+    page: String(page),
+    pageSize: String(pageSize),
+  });
+
+  const res = await fetch(`/api/telegram/effects?${params}`);
+  if (!res.ok) throw new Error("Telegram effects page failed");
+  return res.json() as Promise<TelegramEffectsPage>;
 }
 
 // Single-entry lookup for the track detail page. Returns null on 404 so the

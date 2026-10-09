@@ -12,24 +12,56 @@ import {
   resolveVisibility,
 } from "@/lib/auth/authz";
 import { checkPlaylistTracks } from "@/lib/auth/trackAccess";
+import { parsePaging, pageResponse, escapeRegex, CI_COLLATION } from "@/lib/paging/server";
+
+// Whitelisted sorts — the client's ?sort value is only ever looked up here.
+const SORTS: Record<string, Record<string, 1 | -1>> = {
+  newest: { createdAt: -1, _id: -1 },
+  title: { title: 1, _id: 1 },
+};
 
 /**
  * GET /api/playlists
  * Public playlists only. The old version returned EVERY playlist, private ones included, with
  * their tracks, to anyone (no sign-in needed). Use /api/playlists/me for the caller's own.
+ *
+ *  - No query params  -> the full plain array, exactly as before.
+ *  - ?page=&pageSize=[&q=][&sort=newest|title] -> one page:
+ *    { items, total, page, pageSize, pageCount }. Only that page's playlists are
+ *    hydrated, so their tracks aren't loaded for the whole collection.
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const client = await clientPromise;
     const db = client.db(process.env.MONGODB_DB!);
 
-    const playlists = await db
-      .collection("playlists")
-      .find({ visibility: "public" })
-      .sort({ createdAt: -1 })
-      .toArray();
+    const paging = parsePaging(new URL(req.url).searchParams, { sorts: Object.keys(SORTS) });
 
-    return NextResponse.json(await hydratePlaylists(db, playlists));
+    if (!paging) {
+      const playlists = await db
+        .collection("playlists")
+        .find({ visibility: "public" })
+        .sort({ createdAt: -1 })
+        .toArray();
+
+      return NextResponse.json(await hydratePlaylists(db, playlists));
+    }
+
+    const { page, pageSize, q, sort } = paging;
+
+    const filter: Record<string, unknown> = { visibility: "public" };
+    if (q) filter.title = { $regex: escapeRegex(q), $options: "i" };
+
+    const cursor = db.collection("playlists").find(filter).sort(SORTS[sort]);
+    if (sort !== "newest") cursor.collation(CI_COLLATION);
+
+    const [playlists, total] = await Promise.all([
+      cursor.skip((page - 1) * pageSize).limit(pageSize).toArray(),
+      db.collection("playlists").countDocuments(filter),
+    ]);
+
+    const items = await hydratePlaylists(db, playlists);
+    return NextResponse.json(pageResponse(items, total, { page, pageSize }));
   } catch (err) {
     console.error("GET /playlists error:", err);
     return errorResponse(500, "Failed to fetch playlists");

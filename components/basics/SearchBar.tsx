@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { IconSearch, IconX, IconLoader2 } from "@tabler/icons-react";
+import { IconSearch, IconX, IconLoader2, IconExternalLink } from "@tabler/icons-react";
 import { Track } from "@/store/useAudioStore";
 import { useAudioStore } from "@/store/useAudioStore";
 import {
@@ -13,102 +14,152 @@ import {
   fetchTelegramEffects,
   telegramResultToTrack,
 } from "@/lib/TanStackQuery/Queries/fetchTelegramEffects";
+import { fetchPublicTracksPage } from "@/lib/TanStackQuery/Queries/fetchPublicTracksPage";
 
 interface Props {
-  tracks: Track[];        // the full library to search against for the dropdown
+  /**
+   * Tracks to match locally — pass the signed-in user's own tracks (private
+   * ones included, which the public search can't see). Public tracks are
+   * searched on the server, so the page no longer has to load all of them.
+   */
+  tracks?: Track[];
   placeholder?: string;
 }
 
 const DEBOUNCE_MS = 300;
+const SUGGESTIONS_PER_SOURCE = 6;
 
-export default function SearchBar({ tracks, placeholder = "Search for music..." }: Props) {
+// Module-level on purpose: useDebouncedResults depends only on the query
+// string, so these must be stable references.
+const searchPublicTracks = async (q: string) =>
+  (await fetchPublicTracksPage({ q, page: 1, pageSize: SUGGESTIONS_PER_SOURCE })).items;
+
+const searchEffects = async (q: string) =>
+  (await fetchTelegramEffects(q, SUGGESTIONS_PER_SOURCE)).map(telegramResultToTrack);
+
+const searchItunes = async (q: string) =>
+  (await fetchItunesPreviews(q)).slice(0, SUGGESTIONS_PER_SOURCE).map(itunesTrackToTrack);
+
+// One debounced, race-safe search source. Each source gets its own instance,
+// so a slow response from one never blanks out another.
+function useDebouncedResults(query: string, fetcher: (q: string) => Promise<Track[]>) {
+  const [results, setResults] = useState<Track[]>([]);
+  const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    // Bump the id even when we bail out, so an in-flight response for an
+    // older query can't land after the box was cleared.
+    const id = ++requestId.current;
+
+    if (query.length < 2) {
+      setResults([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const next = await fetcher(query);
+        if (id === requestId.current) setResults(next);
+      } catch {
+        if (id === requestId.current) setResults([]);
+      } finally {
+        if (id === requestId.current) setLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query]);
+
+  return { results, loading };
+}
+
+interface ResultRowProps {
+  track: Track;
+  onPlay: () => void;
+  /** Detail page for this track. Omit for sources with no page (iTunes previews). */
+  href?: string;
+  onNavigate?: () => void;
+}
+
+// One suggestion row. Clicking the row plays the track; the small info link
+// (when there is a detail page) opens it instead. Library tracks and Telegram
+// effects get identical treatment.
+function ResultRow({ track, onPlay, href, onNavigate }: ResultRowProps) {
+  return (
+    <div
+      className="flex items-center gap-3 px-4 py-3
+        hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
+      onMouseDown={e => e.preventDefault()}
+      onClick={onPlay}
+    >
+      <img
+        src={track.image || "/test.jpg"}
+        alt={track.title}
+        className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
+        <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
+      </div>
+      {href && (
+        <Link
+          href={href}
+          prefetch={false}
+          aria-label={`Open ${track.title}`}
+          onClick={e => {
+            e.stopPropagation(); // don't also trigger the row's play
+            onNavigate?.();
+          }}
+          className="flex-shrink-0 p-1.5 rounded-full text-neutral-400 hover:text-neutral-900
+            dark:hover:text-white hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+        >
+          <IconExternalLink className="w-4 h-4" />
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function SectionLabel({ children, loading }: { children: React.ReactNode; loading?: boolean }) {
+  return (
+    <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
+      {children}
+      {loading && <IconLoader2 className="w-3 h-3 animate-spin" />}
+    </div>
+  );
+}
+
+export default function SearchBar({ tracks = [], placeholder = "Search for music..." }: Props) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
-  const [itunesResults, setItunesResults] = useState<Track[]>([]);
-  const [itunesLoading, setItunesLoading] = useState(false);
-  const [telegramResults, setTelegramResults] = useState<Track[]>([]);
-  const [telegramLoading, setTelegramLoading] = useState(false);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const telegramDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const requestIdRef = useRef(0); // guards against out-of-order iTunes responses
-  const telegramRequestIdRef = useRef(0); // same, for Telegram responses
 
   const playTrack = useAudioStore(s => s.playTrack);
 
   const trimmed = query.trim();
 
-  // local library matches — up to 6 suggestions
-  const librarySuggestions = trimmed.length < 2 ? [] : tracks
-    .filter(t =>
-      `${t.title} ${t.artist}`.toLowerCase().includes(trimmed.toLowerCase())
-    )
-    .slice(0, 6);
+  const publicSource = useDebouncedResults(trimmed, searchPublicTracks);
+  const effectsSource = useDebouncedResults(trimmed, searchEffects);
+  const itunesSource = useDebouncedResults(trimmed, searchItunes);
 
-  // debounced Telegram effects suggestions — separate debounce/request-guard
-  // from iTunes so a slow response from one source never blanks out the other.
-  useEffect(() => {
-    if (telegramDebounceRef.current) clearTimeout(telegramDebounceRef.current);
-
-    if (trimmed.length < 2) {
-      setTelegramResults([]);
-      setTelegramLoading(false);
-      return;
-    }
-
-    setTelegramLoading(true);
-    const thisRequestId = ++telegramRequestIdRef.current;
-
-    telegramDebounceRef.current = setTimeout(async () => {
-      try {
-        const raw = await fetchTelegramEffects(trimmed);
-        if (thisRequestId !== telegramRequestIdRef.current) return;
-        setTelegramResults(raw.slice(0, 6).map(telegramResultToTrack));
-      } catch {
-        if (thisRequestId === telegramRequestIdRef.current) setTelegramResults([]);
-      } finally {
-        if (thisRequestId === telegramRequestIdRef.current) setTelegramLoading(false);
-      }
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (telegramDebounceRef.current) clearTimeout(telegramDebounceRef.current);
-    };
-  }, [trimmed]);
-
-  // debounced iTunes preview suggestions as the user types
-  useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    if (trimmed.length < 2) {
-      setItunesResults([]);
-      setItunesLoading(false);
-      return;
-    }
-
-    setItunesLoading(true);
-    const thisRequestId = ++requestIdRef.current;
-
-    debounceRef.current = setTimeout(async () => {
-      try {
-        const raw = await fetchItunesPreviews(trimmed);
-        // ignore stale responses if the user kept typing
-        if (thisRequestId !== requestIdRef.current) return;
-        setItunesResults(raw.slice(0, 6).map(itunesTrackToTrack));
-      } catch {
-        if (thisRequestId === requestIdRef.current) setItunesResults([]);
-      } finally {
-        if (thisRequestId === requestIdRef.current) setItunesLoading(false);
-      }
-    }, DEBOUNCE_MS);
-
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [trimmed]);
+  // Library = the user's own tracks (matched locally, so private ones show
+  // up) followed by public matches from the server, de-duplicated.
+  const needle = trimmed.toLowerCase();
+  const localMatches = trimmed.length < 2 ? [] : tracks.filter(t =>
+    `${t.title} ${t.artist}`.toLowerCase().includes(needle)
+  );
+  const seen = new Set(localMatches.map(t => t._id));
+  const librarySuggestions = [
+    ...localMatches,
+    ...publicSource.results.filter(t => !seen.has(t._id)),
+  ].slice(0, SUGGESTIONS_PER_SOURCE);
 
   // close dropdown on outside click
   useEffect(() => {
@@ -139,15 +190,19 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
   const clear = () => {
     setQuery("");
     setOpen(false);
-    setItunesResults([]);
-    setTelegramResults([]);
     inputRef.current?.focus();
   };
 
+  const play = (track: Track) => {
+    playTrack(track);
+    setOpen(false);
+  };
+
+  const anyLoading = publicSource.loading || effectsSource.loading || itunesSource.loading;
   const hasAnySuggestions =
     librarySuggestions.length > 0 ||
-    telegramResults.length > 0 ||
-    itunesResults.length > 0;
+    effectsSource.results.length > 0 ||
+    itunesSource.results.length > 0;
 
   return (
     <div ref={containerRef} className="relative w-full">
@@ -169,7 +224,7 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
         />
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {query && (
-            <button onClick={clear} className="p-1.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
+            <button onClick={clear} aria-label="Clear search" className="p-1.5 rounded-full hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors">
               <IconX className="w-3.5 h-3.5 text-neutral-500 dark:text-neutral-400" />
             </button>
           )}
@@ -189,97 +244,44 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
         <div className="absolute top-full mt-2 left-0 right-0 z-50
           bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl overflow-hidden max-h-96 overflow-y-auto">
 
-          {/* Library matches — your own tracks, always first */}
-          {librarySuggestions.length > 0 && (
+          {/* Library matches — your own tracks first, then public ones */}
+          {(librarySuggestions.length > 0 || publicSource.loading) && (
             <div>
-              <div className="px-4 pt-3 pb-1 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
-                From your library
-              </div>
+              <SectionLabel loading={publicSource.loading}>From your library</SectionLabel>
               {librarySuggestions.map(track => (
-                <div
+                <ResultRow
                   key={track._id}
-                  className="flex items-center gap-3 px-4 py-3
-                    hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    playTrack(track);
-                    setOpen(false);
-                  }}
-                >
-                  <img
-                    src={track.image || "/test.jpg"}
-                    alt={track.title}
-                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
-                  </div>
-                </div>
+                  track={track}
+                  href={`/tracks/${track._id}`}
+                  onPlay={() => play(track)}
+                  onNavigate={() => setOpen(false)}
+                />
               ))}
             </div>
           )}
 
           {/* Telegram effects — second, between your library and previews */}
-          {(telegramResults.length > 0 || telegramLoading) && (
+          {(effectsSource.results.length > 0 || effectsSource.loading) && (
             <div>
-              <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
-                Effects
-                {telegramLoading && <IconLoader2 className="w-3 h-3 animate-spin" />}
-              </div>
-              {telegramResults.map(track => (
-                <div
+              <SectionLabel loading={effectsSource.loading}>Effects</SectionLabel>
+              {effectsSource.results.map(track => (
+                <ResultRow
                   key={track._id}
-                  className="flex items-center gap-3 px-4 py-3
-                    hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    playTrack(track);
-                    setOpen(false);
-                  }}
-                >
-                  <img
-                    src={track.image || "/test.jpg"}
-                    alt={track.title}
-                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
-                  </div>
-                </div>
+                  track={track}
+                  href={`/tracks/${track._id}`}
+                  onPlay={() => play(track)}
+                  onNavigate={() => setOpen(false)}
+                />
               ))}
             </div>
           )}
 
-          {/* iTunes preview matches — last */}
-          {(itunesResults.length > 0 || itunesLoading) && (
+          {/* iTunes preview matches — last. No detail page exists for these. */}
+          {(itunesSource.results.length > 0 || itunesSource.loading) && (
             <div>
-              <div className="px-4 pt-3 pb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-neutral-400 dark:text-neutral-600">
-                30-second previews
-                {itunesLoading && <IconLoader2 className="w-3 h-3 animate-spin" />}
-              </div>
-              {itunesResults.map(track => (
-                <div
-                  key={track._id}
-                  className="flex items-center gap-3 px-4 py-3
-                    hover:bg-neutral-100 dark:hover:bg-neutral-800 cursor-pointer transition-colors"
-                  onMouseDown={e => e.preventDefault()}
-                  onClick={() => {
-                    playTrack(track);
-                    setOpen(false);
-                  }}
-                >
-                  <img
-                    src={track.image || "/test.jpg"}
-                    alt={track.title}
-                    className="w-9 h-9 rounded-lg object-cover flex-shrink-0 bg-neutral-200 dark:bg-neutral-700"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="text-sm text-neutral-900 dark:text-white font-medium truncate">{track.title}</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400 truncate">{track.artist}</div>
-                  </div>
-                </div>
+              <SectionLabel loading={itunesSource.loading}>30-second previews</SectionLabel>
+              {itunesSource.results.map(track => (
+                <ResultRow key={track._id} track={track} onPlay={() => play(track)} />
               ))}
             </div>
           )}
@@ -300,7 +302,7 @@ export default function SearchBar({ tracks, placeholder = "Search for music..." 
       )}
 
       {/* No results hint */}
-      {open && trimmed.length >= 2 && !hasAnySuggestions && !itunesLoading && !telegramLoading && (
+      {open && trimmed.length >= 2 && !hasAnySuggestions && !anyLoading && (
         <div className="absolute top-full mt-2 left-0 right-0 z-50
           bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 rounded-2xl shadow-xl">
           <div className="px-4 py-4 text-sm text-neutral-500 dark:text-neutral-500 text-center">
