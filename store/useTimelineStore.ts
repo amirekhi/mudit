@@ -19,6 +19,7 @@ interface TimelineState {
   // Horizontal scroll is shared, so every slate and the ruler stay lined up
   scrollLeft: number;
   scrollSource: string;
+  lastUserScrollAt: number; // when the user last scrolled by hand (Follow waits a moment after that)
 
   dropTargetSlateId: string | null; // highlighted while dragging a region towards another slate
 
@@ -51,6 +52,7 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
 
   scrollLeft: 0,
   scrollSource: "",
+  lastUserScrollAt: 0,
   dropTargetSlateId: null,
   selectionRange: null,
 
@@ -82,8 +84,12 @@ export const useTimelineStore = create<TimelineState>((set, get) => ({
   setFollow: (follow) => set({ follow }),
 
   setScroll: (left, source) => {
-    if (left === get().scrollLeft) return;
-    set({ scrollLeft: left, scrollSource: source });
+    const current = get().scrollLeft;
+    if (left === current) return;
+    // Follow and zoom move the view by themselves. Anything else that moves it by more than a
+    // pixel or two is the user (wheel, trackpad, the scrollbar).
+    const byUser = source !== "follow" && source !== "zoom" && Math.abs(left - current) >= 2;
+    set({ scrollLeft: left, scrollSource: source, ...(byUser ? { lastUserScrollAt: performance.now() } : {}) });
   },
 
   setDropTarget: (slateId) => {

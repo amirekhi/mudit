@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import TrackList from "@/components/editor/TrackList";
+import TrackPanel from "@/components/editor/TrackPanel";
 import SlateEditor from "@/components/editor/SlateEditor";
 import ToolPanel from "@/components/editor/ToolPanel";
 import TrackHeader from "@/components/editor/TrackHeader";
@@ -9,6 +10,7 @@ import ProjectWFE from "@/components/editor/ProjectWFE";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import ProjectBar from "@/components/editor/ProjectBar";
 import TimelineToolbar from "@/components/editor/TimelineToolbar";
+import TimelineScrollbar from "@/components/editor/TimelineScrollbar";
 import { useEditorShortcuts } from "@/lib/hooks/useEditorShortcuts";
 import { useIsDesktop } from "@/lib/hooks/useMediaQuery";
 
@@ -95,15 +97,18 @@ export default function EditorPage() {
     </button>
   );
 
-  /* ═══════════════ DESKTOP LAYOUT ═══════════════ */
+  /* ═══════════════ DESKTOP LAYOUT ═══════════════
+     Every flex ancestor of the timeline has min-w-0. Without it, a flex item refuses to shrink below its
+     content, so a zoomed-in timeline stretched the whole page (and the extra width had a different
+     background) instead of scrolling inside its own box. */
   if (isDesktop) {
     return (
-      <div className="flex h-screen bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white min-h-0 transition-colors">
-        <aside className="w-80 border-r border-neutral-200 dark:border-neutral-800 p-4 flex-shrink-0">
+      <div className="flex h-screen min-w-0 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white min-h-0 transition-colors">
+        <TrackPanel>
           <TrackList />
-        </aside>
+        </TrackPanel>
 
-        <main className="flex-1 flex flex-col min-h-0">
+        <main className="flex-1 min-w-0 flex flex-col min-h-0 overflow-hidden">
           <ProjectBar />
 
           <div className="flex items-center">
@@ -115,21 +120,26 @@ export default function EditorPage() {
             </div>
           </div>
 
-          <div className="flex-1 flex min-h-0">
-            <div className="flex-1 min-w-0 overflow-y-auto p-6 space-y-6">
-              {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
+          <div className="flex-1 flex min-h-0 min-w-0">
+            <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-6 space-y-6">
+                {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
 
-              {singleArmedIds.length === 0 && (
-                <div className="text-neutral-500 text-center py-10">
-                  Arm a track to start editing
-                </div>
-              )}
+                {singleArmedIds.length === 0 && (
+                  <div className="text-neutral-500 text-center py-10">
+                    Arm a track to start editing
+                  </div>
+                )}
 
-              {singleArmedIds.map(slateId => (
-                <SlateEditor key={slateId} slateId={slateId} referenceLength={referenceLength} />
-              ))}
+                {singleArmedIds.map(slateId => (
+                  <SlateEditor key={slateId} slateId={slateId} referenceLength={referenceLength} />
+                ))}
 
-              <ProjectWFE referenceLength={referenceLength} />
+                <ProjectWFE referenceLength={referenceLength} />
+              </div>
+
+              {/* Pinned to the very bottom of the canvas */}
+              {slates.length > 0 && <TimelineScrollbar referenceLength={referenceLength} inset="px-6" />}
             </div>
 
             <ToolPanel disabled={!selectedSlateId} />
@@ -141,7 +151,7 @@ export default function EditorPage() {
 
   /* ═══════════════ MOBILE LAYOUT: tabbed single-panel view ═══════════════ */
   return (
-    <div className="flex flex-col h-[100dvh] bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white overflow-hidden transition-colors">
+    <div className="flex flex-col h-[100dvh] min-w-0 bg-white dark:bg-neutral-950 text-neutral-900 dark:text-white overflow-hidden transition-colors">
 
       <ProjectBar />
 
@@ -156,7 +166,7 @@ export default function EditorPage() {
       </div>
 
       {/* Panel content: only the active tab is visible (the other panels stay mounted so their state survives) */}
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="flex-1 min-h-0 min-w-0 overflow-hidden">
 
         {/* Library tab */}
         <div className={`h-full overflow-y-auto p-4 ${mobileTab === "library" ? "block" : "hidden"}`}>
@@ -164,20 +174,24 @@ export default function EditorPage() {
         </div>
 
         {/* Editor tab */}
-        <div className={`h-full overflow-y-auto p-4 space-y-4 ${mobileTab === "editor" ? "block" : "hidden"}`}>
-          {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
+        <div className={`h-full min-w-0 flex-col ${mobileTab === "editor" ? "flex" : "hidden"}`}>
+          <div className="flex-1 min-h-0 min-w-0 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+            {slates.length > 0 && <TimelineToolbar referenceLength={referenceLength} />}
 
-          {singleArmedIds.length === 0 && (
-            <div className="text-neutral-500 text-center py-16 text-sm">
-              ← Go to Library and arm a track to start editing
-            </div>
-          )}
+            {singleArmedIds.length === 0 && (
+              <div className="text-neutral-500 text-center py-16 text-sm">
+                ← Go to Library and arm a track to start editing
+              </div>
+            )}
 
-          {singleArmedIds.map(slateId => (
-            <SlateEditor key={slateId} slateId={slateId} referenceLength={referenceLength} />
-          ))}
+            {singleArmedIds.map(slateId => (
+              <SlateEditor key={slateId} slateId={slateId} referenceLength={referenceLength} />
+            ))}
 
-          <ProjectWFE referenceLength={referenceLength} />
+            <ProjectWFE referenceLength={referenceLength} />
+          </div>
+
+          {slates.length > 0 && <TimelineScrollbar referenceLength={referenceLength} inset="px-4" />}
         </div>
 
         {/* Tools tab */}

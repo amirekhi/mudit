@@ -5,7 +5,7 @@ import type { Slate } from "@/types/slateTypes";
 export const MIN_PPS = 4;          // pixels per second, zoomed all the way out
 export const MAX_PPS = 800;        // zoomed all the way in
 export const MAX_TOTAL_PX = 48_000; // cap on the timeline's pixel width, so waveform canvases stay a sane size
-export const FIT_MARGIN = 56;      // "fit" leaves room for card padding
+export const FIT_MARGIN = 8;       // "fit" leaves a little room so a scrollbar never flickers in
 
 export interface ZoomState {
   fit: boolean;

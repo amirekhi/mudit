@@ -21,7 +21,10 @@ export default function ProjectWFE({ referenceLength }: { referenceLength: numbe
   const cb = "px-3 py-1.5 rounded text-xs font-medium transition-colors";
 
   return (
-    <section className="mt-6 rounded-xl border border-indigo-300/40 dark:border-indigo-500/30 bg-indigo-500/5">
+    // The frame is an inset ring (not a border) and the slates have no side padding, so every slate's
+    // timeline starts at exactly the same x as the ruler and the source slates. That is what keeps the
+    // playheads lined up.
+    <section className="mt-6 min-w-0 rounded-xl ring-1 ring-inset ring-indigo-300/40 dark:ring-indigo-500/30 bg-indigo-500/5">
 
       {/* Header */}
       <div className="px-4 py-3 border-b border-indigo-300/30 dark:border-indigo-500/20 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 sm:justify-between">
@@ -67,7 +70,7 @@ export default function ProjectWFE({ referenceLength }: { referenceLength: numbe
       </div>
 
       {/* Slates */}
-      <div className="p-3 md:p-4 space-y-3 md:space-y-4">
+      <div className="py-3 md:py-4 space-y-3 md:space-y-4">
         {projectSlates.length === 0 ? (
           <div className="text-sm text-neutral-500 text-center py-8">
             No project slates yet — hit "+ New Slate", or send a selection from a source track into one.

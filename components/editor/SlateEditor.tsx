@@ -380,7 +380,7 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
     <div
       data-slate-id={slate.id}
       data-slate-kind={slate.kind}
-      className={`relative border rounded-lg transition-colors ${
+      className={`relative min-w-0 border rounded-lg transition-colors ${
         isDropTarget ? "ring-2 ring-indigo-400 border-indigo-400"
         : isPlayingHere ? "border-emerald-500 bg-emerald-500/10"
         : isCurrent   ? "border-emerald-600/50 dark:border-emerald-700/50 bg-emerald-500/5"
@@ -538,7 +538,7 @@ function SlateEditorInner({ slate, referenceLength }: { slate: Slate; referenceL
       {/* ── Zoomable, scrollable timeline: waveform (WaveSurfer, visuals only) + regions + playhead ── */}
       <div
         ref={viewportRef}
-        className="relative w-full overflow-x-auto overflow-y-hidden border-t border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 rounded-b-lg"
+        className="relative w-full min-w-0 overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden border-t border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-950 rounded-b-lg"
       >
         <div
           ref={rowRef}

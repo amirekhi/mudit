@@ -39,8 +39,10 @@ export default function TimelineToolbar({ referenceLength }: { referenceLength: 
   };
 
   return (
-    <div className="sticky top-0 z-30 space-y-2 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur p-2">
-      <div className="flex items-center gap-1.5 overflow-x-auto">
+    // The ruler sits flush against the card's border (no padding around it), so its left edge is exactly
+    // where every slate's timeline starts. That is what keeps the ruler and the playheads in step.
+    <div className="sticky top-0 z-30 min-w-0 max-w-full overflow-hidden rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white/95 dark:bg-neutral-950/95 backdrop-blur">
+      <div className="flex items-center gap-1.5 overflow-x-auto p-2">
         <button onClick={() => timeline.zoomBy(0.8, referenceLength)} className={btn} title="Zoom out (-)">−</button>
         <button onClick={() => timeline.zoomBy(1.25, referenceLength)} className={btn} title="Zoom in (+)">+</button>
         <button onClick={() => timeline.setFit()} className={fit ? btnOn : btn} title="Fit the whole project (0)">Fit</button>
@@ -86,7 +88,13 @@ export default function TimelineToolbar({ referenceLength }: { referenceLength: 
         >
           ↻ Loop · {loopScope}
         </button>
-        <button onClick={() => timeline.setFollow(!follow)} className={follow ? btnOn : btn} title="Scroll along with the playhead">Follow</button>
+        <button
+          onClick={() => timeline.setFollow(!follow)}
+          className={follow ? btnOn : btn}
+          title="While playing, scroll the timeline so the playhead stays in view (only matters when zoomed in)"
+        >
+          Follow
+        </button>
       </div>
 
       <Ruler pps={pps} />
@@ -175,11 +183,13 @@ function Ruler({ pps }: { pps: number }) {
 
       const timeline = useTimelineStore.getState();
       const wrap = wrapRef.current;
-      if (timeline.follow && wrap && useEngineStore.getState().isPlaying) {
-        const x = state.transport.time * ppsRef.current - timeline.scrollLeft;
-        if (x > wrap.clientWidth - 24 || x < 0) {
-          timeline.setScroll(Math.max(0, state.transport.time * ppsRef.current - 40), "follow");
-        }
+      if (!timeline.follow || !wrap || !useEngineStore.getState().isPlaying) return;
+      // If you scrolled by hand a moment ago, leave the view alone instead of yanking it back
+      if (performance.now() - timeline.lastUserScrollAt < 1500) return;
+
+      const x = state.transport.time * ppsRef.current - timeline.scrollLeft;
+      if (x > wrap.clientWidth - 24 || x < 0) {
+        timeline.setScroll(Math.max(0, Math.round(state.transport.time * ppsRef.current - 40)), "follow");
       }
     });
     const unsubScroll = useTimelineStore.subscribe((state, prev) => {
@@ -218,7 +228,7 @@ function Ruler({ pps }: { pps: number }) {
   return (
     <div
       ref={wrapRef}
-      className="relative h-6 overflow-hidden rounded border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 cursor-pointer select-none"
+      className="relative h-6 w-full min-w-0 overflow-hidden border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900 cursor-pointer select-none"
       onPointerDown={e => {
         draggingRef.current = true;
         e.currentTarget.setPointerCapture(e.pointerId);
