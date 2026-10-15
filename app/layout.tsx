@@ -10,6 +10,7 @@ import { TopBanner } from "@/components/notification/TopBanner";
 import { NotificationsWindow } from "@/components/basics/NotificationsWindow";
 import { ClerkProvider } from "@clerk/nextjs";
 import AuthSync from "@/components/auth/AuthSync";
+import VideoBackground from "@/components/basics/VideoBackground";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -86,6 +87,7 @@ export default async function RootLayout({
               <TopBanner />
               <div className="flex flex-1 w-full overflow-hidden rounded-md border relative z-50
                 border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 transition-colors">
+                  <VideoBackground />
                 <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
                   <SidebarDemo>
                     {children}

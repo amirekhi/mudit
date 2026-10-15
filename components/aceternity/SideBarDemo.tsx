@@ -50,7 +50,8 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
   ];
 
   return (
-    <div className={cn("md:flex w-full h-screen bg-white dark:bg-neutral-900 transition-colors")}>
+    // Transparent so the VideoBackground in the layout shows through.
+    <div className={cn("md:flex w-full h-screen bg-transparent")}>
       <Sidebar open={open} setOpen={setOpen}>
         <SidebarBody className="justify-between gap-10">
           <div className="relative flex flex-1 flex-col overflow-hidden">
@@ -113,7 +114,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
         </SidebarBody>
       </Sidebar>
 
-      <div className="flex-1 overflow-y-auto bg-white dark:bg-neutral-900 transition-colors">{children}</div>
+      <div className="flex-1 overflow-y-auto bg-transparent">{children}</div>
     </div>
   );
 }

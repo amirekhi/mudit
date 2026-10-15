@@ -122,7 +122,8 @@ export default function Home() {
   // "Yours" sections only get a skeleton for signed-in users, so guests don't
   // see one flash and vanish.
   return (
-    <div className="relative w-full overflow-x-hidden pb-6 bg-white dark:bg-transparent transition-colors">
+    // Transparent so the VideoBackground in the layout shows through.
+    <div className="relative w-full overflow-x-hidden pb-6 bg-transparent">
       <div className="p-3 md:p-6 pb-6 flex flex-col gap-6 md:gap-10">
 
         {/* Mobile-only button row */}

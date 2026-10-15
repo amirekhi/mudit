@@ -6,6 +6,7 @@ import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import HeroPlaylistCard from "./HeroPlaylistCard";
 import { Playlist } from "./PlaylistCard";
 import SectionHeader from "@/components/basics/SectionHeader";
+import { useDragScroll } from "@/hooks/useDragScroll";
 
 interface Props {
   title: string;
@@ -32,6 +33,8 @@ export default function HeroPlaylistCarousel({ playlists, title, seeAllHref }: P
   const containerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useDragScroll(containerRef);
 
   const updateEdges = useCallback(() => {
     const el = containerRef.current;
@@ -66,8 +69,7 @@ export default function HeroPlaylistCarousel({ playlists, title, seeAllHref }: P
     <div className="relative w-full">
       <div className="flex items-end">
         <div className="flex-1 min-w-0">
-      <SectionHeader eyebrow="Discover" title={title} accent="discover" />
-
+          <SectionHeader eyebrow="Discover" title={title} accent="discover" />
         </div>
         {seeAllHref && (
           <Link
@@ -104,7 +106,7 @@ export default function HeroPlaylistCarousel({ playlists, title, seeAllHref }: P
         <div
           ref={containerRef}
           onScroll={updateEdges}
-          className={`flex gap-4 py-4 overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-mandatory px-8 max-md:px-2 pr-16 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
+          className={`flex gap-4 py-4 cursor-grab overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-mandatory px-8 max-md:px-2 pr-16 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
         >
           {playlists.map(pl => (
             <HeroPlaylistCard key={pl._id} playlist={pl} />

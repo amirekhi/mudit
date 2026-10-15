@@ -5,6 +5,7 @@ import Link from "next/link";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import ArtistCarouselCard, { ArtistSummary } from "./ArtistCarouselCard";
 import SectionHeader from "@/components/basics/SectionHeader";
+import { useDragScroll } from "@/hooks/useDragScroll";
 
 interface Props {
   title?: string;
@@ -31,6 +32,8 @@ export default function ArtistCarousel({ artists, title, seeAllHref }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useDragScroll(containerRef);
 
   const updateEdges = useCallback(() => {
     const el = containerRef.current;
@@ -65,8 +68,7 @@ export default function ArtistCarousel({ artists, title, seeAllHref }: Props) {
     <div className="relative w-full">
       <div className="flex items-end">
         <div className="flex-1 min-w-0">
-      {title && <SectionHeader eyebrow="People" title={title} accent="people" />}
-
+          {title && <SectionHeader eyebrow="People" title={title} accent="people" />}
         </div>
         {seeAllHref && (
           <Link
@@ -103,7 +105,7 @@ export default function ArtistCarousel({ artists, title, seeAllHref }: Props) {
         <div
           ref={containerRef}
           onScroll={updateEdges}
-          className={`flex gap-5 py-4 overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-proximity px-8 max-md:px-2 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
+          className={`flex gap-5 py-4 cursor-grab overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-proximity px-8 max-md:px-2 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
         >
           {artists.map(artist => (
             <ArtistCarouselCard key={artist.slug} artist={artist} />

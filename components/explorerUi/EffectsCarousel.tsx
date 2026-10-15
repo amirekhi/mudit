@@ -6,6 +6,7 @@ import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { Track } from "@/store/useAudioStore";
 import EffectPadCard from "./EffectPadCard";
 import SectionHeader from "@/components/basics/SectionHeader";
+import { useDragScroll } from "@/hooks/useDragScroll";
 
 interface Props {
   title: string;
@@ -32,6 +33,8 @@ export default function EffectsCarousel({ tracks, title, seeAllHref }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+
+  useDragScroll(containerRef);
 
   const updateEdges = useCallback(() => {
     const el = containerRef.current;
@@ -66,11 +69,10 @@ export default function EffectsCarousel({ tracks, title, seeAllHref }: Props) {
     <div className="relative w-full">
       <div className="flex items-end">
         <div className="flex-1 min-w-0">
-      {/* Reusing the "discover" accent to match SectionHeader's existing
-          variants — the pad cards themselves (amber, always-dark) are what
-          carry this section's distinct identity, not the header. */}
-      <SectionHeader eyebrow="Soundboard" title={title} accent="discover" />
-
+          {/* Reusing the "discover" accent to match SectionHeader's existing
+              variants — the pad cards themselves (amber, always-dark) are what
+              carry this section's distinct identity, not the header. */}
+          <SectionHeader eyebrow="Soundboard" title={title} accent="discover" />
         </div>
         {seeAllHref && (
           <Link
@@ -107,7 +109,7 @@ export default function EffectsCarousel({ tracks, title, seeAllHref }: Props) {
         <div
           ref={containerRef}
           onScroll={updateEdges}
-          className={`flex gap-3 py-4 overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-proximity px-8 max-md:px-2 pr-16 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
+          className={`flex gap-3 py-4 cursor-grab overflow-x-auto scroll-smooth motion-reduce:scroll-auto snap-x snap-proximity px-8 max-md:px-2 pr-16 md:touch-pan-x hide-scrollbar ${FADE_MASK}`}
         >
           {tracks.map((track, i) => (
             <EffectPadCard key={track._id} track={track} index={i} />
