@@ -77,8 +77,11 @@ export default async function RootLayout({
         <link rel="icon" type="image/png" sizes="32x32" href="/logoDark.png" />
         <meta name="theme-color" content="#000000" />
       </head>
+      {/* On mobile the app fills the screen edge to edge: no body padding
+          (p-0) here, and no border / rounded corners on the shell below.
+          From md up the framed look stays exactly as it was. */}
       <body
-        className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full p-1
+        className={`${geistSans.variable} ${geistMono.variable} flex flex-col antialiased h-screen w-full p-0 md:p-1
           bg-neutral-100 dark:bg-black transition-colors`}
       >
         <ClerkProvider>
@@ -86,6 +89,7 @@ export default async function RootLayout({
               <AuthSync />
               <TopBanner />
               <div className="flex flex-1 w-full overflow-hidden rounded-md border relative z-50
+                max-md:rounded-none max-md:border-0
                 border-neutral-200 bg-neutral-200 dark:border-neutral-700 dark:bg-neutral-800 transition-colors">
                   <VideoBackground />
                 <div className="flex flex-1  max-md:overflow-x-hidden md:overflow-hidden ">
