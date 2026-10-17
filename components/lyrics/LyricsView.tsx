@@ -19,6 +19,7 @@ export default function LyricsView({ trackId, title, artist }: Props) {
   const isThisTrackPlaying = currentTrack?._id === trackId;
 
   const [activeIndex, setActiveIndex] = useState(-1);
+  const containerRef = useRef<HTMLDivElement>(null);
   const lineRefs = useRef<(HTMLParagraphElement | null)[]>([]);
 
   const lines = data?.parsedLines ?? [];
@@ -46,9 +47,19 @@ export default function LyricsView({ trackId, title, artist }: Props) {
     if (!isThisTrackPlaying) setActiveIndex(-1);
   }, [isThisTrackPlaying]);
 
+  // Keep the active line centred inside the lyrics box.
+  // Deliberately NOT scrollIntoView: that scrolls every scrollable ancestor,
+  // including the page itself, which pushed the page up and moved the top
+  // buttons off screen. Scrolling only our own container avoids that.
   useEffect(() => {
     if (activeIndex < 0) return;
-    lineRefs.current[activeIndex]?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const box = containerRef.current;
+    const line = lineRefs.current[activeIndex];
+    if (!box || !line) return;
+
+    const top = line.offsetTop - box.clientHeight / 2 + line.clientHeight / 2;
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    box.scrollTo({ top, behavior: reduceMotion ? "auto" : "smooth" });
   }, [activeIndex]);
 
   const handleSeek = (time: number) => {
@@ -68,10 +79,11 @@ export default function LyricsView({ trackId, title, artist }: Props) {
     return <p className="text-sm text-neutral-400 dark:text-neutral-600 italic">This track is instrumental.</p>;
   }
 
-  // Synced lyrics — scrollable, highlighted on the current line, clickable to seek
+  // Synced lyrics — scrollable, highlighted on the current line, clickable to seek.
+  // `relative` makes the lines' offsetTop count from this box, not the page.
   if (lines.length > 0) {
     return (
-      <div className="max-h-80 overflow-y-auto space-y-1.5 pr-1">
+      <div ref={containerRef} className="relative max-h-80 overflow-y-auto space-y-1.5 pr-1">
         {lines.map((line, i) => (
           <p
             key={i}

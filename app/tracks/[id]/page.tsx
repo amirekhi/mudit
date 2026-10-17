@@ -15,11 +15,13 @@ import {
 import {
   IconArrowLeft, IconLock, IconWorld, IconMusic, IconBolt,
   IconPlayerPlay, IconPlayerPause, IconPlayerSkipBack, IconPlayerSkipForward,
-  IconEdit, IconCalendar, IconClock,
+  IconEdit, IconCalendar, IconClock, IconBrandYoutube, IconExternalLink,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import LyricsView from "@/components/lyrics/LyricsView";
+import { useTrackVideo } from "@/hooks/useTrackVideo";
+import { useTrackDuration } from "@/hooks/useTrackDuration";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -78,6 +80,13 @@ export default function TrackDetailPage({ params }: Props) {
   const isLoading = isTelegram ? telegramLoading : trackLoading;
   const isActive = currentTrack?._id === id;
 
+  // Best YouTube match for the track that's playing. This is the same query
+  // (same key, same duration) the background video uses, so it's a cache hit
+  // and costs no extra API quota. Tracks that aren't playing get a plain
+  // YouTube search link instead of spending a lookup.
+  const trackDuration = useTrackDuration();
+  const { data: video } = useTrackVideo(isActive && track ? track : null, trackDuration);
+
   // Effects aren't part of any ordered list, so no prev/next for them.
   const userIdx   = isTelegram ? -1 : userTracks.findIndex(t => t._id === id);
   const prevTrack = userIdx > 0 ? userTracks[userIdx - 1] : null;
@@ -108,6 +117,10 @@ export default function TrackDetailPage({ params }: Props) {
   // Lyrics lookup needs a real artist. Effects without one would otherwise
   // query LRCLIB with "Unknown Artist" and just return nothing useful.
   const showLyrics = !isTelegram || track.artist !== "Unknown Artist";
+
+  const youtubeHref = video
+    ? `https://www.youtube.com/watch?v=${video.videoId}`
+    : `https://www.youtube.com/results?search_query=${encodeURIComponent(`${track.artist} ${track.title}`)}`;
 
   return (
     <div className="min-h-full overflow-x-hidden bg-white dark:bg-transparent transition-colors">
@@ -276,6 +289,28 @@ export default function TrackDetailPage({ params }: Props) {
             <h2 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-3">Lyrics</h2>
             <LyricsView trackId={track._id} title={track.title} artist={track.artist} />
           </div>
+        )}
+
+        {/* YouTube link — below the lyrics. Effects have no real artist or
+            video, so they don't get one. */}
+        {!isTelegram && (
+          <a
+            href={youtubeHref}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group flex items-center gap-3 rounded-2xl border border-neutral-200 dark:border-neutral-800
+              bg-neutral-50 dark:bg-neutral-900/60 px-5 py-4
+              hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+          >
+            <IconBrandYoutube className="w-7 h-7 flex-shrink-0 text-red-500" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-neutral-900 dark:text-white">Watch on YouTube</p>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 truncate">
+                {video ? "Best match for this track" : `Search for “${track.artist} – ${track.title}”`}
+              </p>
+            </div>
+            <IconExternalLink className="w-4 h-4 flex-shrink-0 text-neutral-400 group-hover:text-neutral-900 dark:group-hover:text-white transition-colors" />
+          </a>
         )}
 
       </div>

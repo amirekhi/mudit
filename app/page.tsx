@@ -127,7 +127,7 @@ export default function Home() {
       <div className="p-3 md:p-6 pb-6 flex flex-col gap-6 md:gap-10">
 
         {/* Mobile-only button row */}
-        <HeaderActions className="flex items-center gap-2 md:hidden" toggleClassName="ml-auto" />
+        <HeaderActions className="flex mt-4 items-center gap-2 md:hidden" toggleClassName="ml-auto" />
 
         {/* Search bar — full width on mobile, centred on desktop.
             Only the user's own tracks are passed in; public tracks are
