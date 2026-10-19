@@ -17,19 +17,27 @@ export interface Track {
   prev?: string;
   next?: string;
 
+  // Cached YouTube match (saved in Mongo after the first lookup)
+  youtube?: {
+    videoId: string | null;
+    duration?: number;
+    checkedAt?: string;
+    source?: "auto" | "manual";
+    forTitle?: string;
+    forArtist?: string;
+  };
+
   createdAt: string;
   updatedAt: string;
 }
-
-
 
 interface AudioState {
   currentTrack: Track | null;
   howl: Howl | null;
   isPlaying: boolean;
   volume: number;
-  
-  setTrack: (track: Track) => void; 
+
+  setTrack: (track: Track) => void;
   unload: () => void;
   playTrack: (track: Track) => void;
   togglePlay: () => void;
@@ -43,43 +51,41 @@ export const useAudioStore = create<AudioState>((set, get) => ({
   isPlaying: false,
   volume: 1,
 
-    playTrack: (track: Track) => {
+  playTrack: (track: Track) => {
     const old = get().howl;
     if (old) old.unload(); // stop previous audio
 
     const sound = new Howl({
-        src: [track.url],
-        html5: true,
-        volume: get().volume,
-        onend: () => {
-
+      src: [track.url],
+      html5: true,
+      volume: get().volume,
+      onend: () => {
         set({ isPlaying: false });
-        },
+      },
     });
 
     sound.play();
 
     set({ currentTrack: track, howl: sound, isPlaying: true });
-    },
+  },
 
-    setTrack: (track: Track) => {
-  const old = get().howl;
-  if (old) old.unload();
+  setTrack: (track: Track) => {
+    const old = get().howl;
+    if (old) old.unload();
 
-  const sound = new Howl({
-    src: [track.url],
-    html5: true,
-    volume: get().volume,
-    onend: () => set({ isPlaying: false }),
-  });
+    const sound = new Howl({
+      src: [track.url],
+      html5: true,
+      volume: get().volume,
+      onend: () => set({ isPlaying: false }),
+    });
 
-  set({
-    currentTrack: track,
-    howl: sound,
-    isPlaying: false, // 🔴 paused by default
-  });
-},
-
+    set({
+      currentTrack: track,
+      howl: sound,
+      isPlaying: false, // 🔴 paused by default
+    });
+  },
 
   togglePlay: () => {
     const { howl, isPlaying } = get();
@@ -107,6 +113,4 @@ export const useAudioStore = create<AudioState>((set, get) => ({
     if (howl) howl.volume(v);
     set({ volume: v });
   },
-
-
 }));
