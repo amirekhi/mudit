@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 import BackButton from "@/components/basics/BackButton";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import ShareButton from "@/components/PlayList/ShareButton";
+import { IconSparkles, IconArrowRight } from "@tabler/icons-react";
 
 export default function CreatePlaylistPage() {
   const [playlistName, setPlaylistName] = useState("");
@@ -123,6 +124,19 @@ export default function CreatePlaylistPage() {
             <BackButton />
           </div>
         </div>
+
+        <Link
+          href="/tastes"
+          className="mb-6 flex items-center gap-3 rounded-2xl border border-indigo-300/40 dark:border-indigo-500/30
+            bg-indigo-50 dark:bg-indigo-500/10 px-4 py-3 hover:bg-indigo-100/70 dark:hover:bg-indigo-500/20 transition"
+        >
+          <IconSparkles className="w-5 h-5 flex-shrink-0 text-indigo-600 dark:text-indigo-400" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-neutral-900 dark:text-white">Make one from a taste</p>
+            <p className="text-xs text-neutral-500 dark:text-neutral-400">Pick your moods and let Mudit build the playlist for you</p>
+          </div>
+          <IconArrowRight className="w-4 h-4 flex-shrink-0 text-neutral-400" />
+        </Link>
 
         {/* Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

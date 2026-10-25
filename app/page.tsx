@@ -14,12 +14,16 @@ import SearchBar from "@/components/basics/SearchBar";
 import HeaderActions from "@/components/basics/HeaderActions";
 import CarouselSkeleton from "@/components/basics/CarouselSkeleton";
 import MusicVideoCarousel from "@/components/explorerUi/MusicVideoCarousel";
+import MadeForYouCarousel from "@/components/home/MadeForYouCarousel";
+import RecentlyPlayedCarousel from "@/components/home/RecentlyPlayedCarousel";
+import TasteNudge from "@/components/home/TasteNudge";
 
 import { Track } from "@/store/useAudioStore";
 import { Playlist } from "@/components/PlayList/PlaylistCard";
 import { fetchPublicTracksPage } from "@/lib/TanStackQuery/Queries/fetchPublicTracksPage";
 import { fetchPublicPlaylistsPage } from "@/lib/TanStackQuery/Queries/fetchPublicPlaylistsPage";
 import { fetchArtistsPage } from "@/lib/TanStackQuery/Queries/fetchArtistsPage";
+import { useForYou } from "@/lib/TanStackQuery/Queries/forYou";
 import { authFetch } from "@/lib/TanStackQuery/authQueries/authFetch";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 import {
@@ -98,6 +102,12 @@ export default function Home() {
       },
     });
 
+  // Personal sections, built from the user's tastes and listening history.
+  const { data: forYou, isLoading: forYouLoading } = useForYou(!!user);
+  const madeForYou = forYou?.madeForYou ?? [];
+  const tastePicks = forYou?.tastePicks ?? [];
+  const recent = forYou?.recent ?? [];
+
   const artists = useMemo(() => artistsPage?.items ?? [], [artistsPage]);
   const tracks = useMemo(() => tracksPage?.items ?? [], [tracksPage]);
   const publicPlaylists = useMemo(() => playlistsPage?.items ?? [], [playlistsPage]);
@@ -139,6 +149,23 @@ export default function Home() {
         {/* Desktop buttons — original absolute position */}
         <HeaderActions className="hidden md:flex absolute top-6 right-6 items-center gap-3 z-50" />
 
+        {/* ── Made for you (signed in): playlists built from your tastes.
+            Until there's one, a nudge to make a taste or your first mix. ── */}
+        {user && (
+          forYouLoading
+            ? <CarouselSkeleton cardClassName="w-44 h-56 rounded-2xl" />
+            : madeForYou.length > 0
+              ? <MadeForYouCarousel playlists={madeForYou} />
+              : <TasteNudge />
+        )}
+
+        {/* ── Recently played, from your listening history ── */}
+        {user && (
+          forYouLoading
+            ? <CarouselSkeleton cardClassName="w-36 h-44 rounded-2xl" />
+            : <RecentlyPlayedCarousel tracks={recent} />
+        )}
+
         {/* ── People — moved to the very top of the feed ── */}
         {artistsLoading
           ? <CarouselSkeleton cardClassName="w-24 h-24 rounded-full" />
@@ -175,6 +202,12 @@ export default function Home() {
         )}
 
         {/* ── Yours (personal) ── */}
+        {/* Songs blended from your tastes' playlists. This used to be a
+            shuffle of everything you uploaded, which wasn't really "taste". */}
+        {user && tastePicks.length > 0 && (
+          <VinylCarousel title="Your taste" tracks={tastePicks} />
+        )}
+
         {user && userPlaylistsLoading
           ? <CarouselSkeleton cardClassName="w-44 h-44 rounded-2xl" />
           : shuffledYourPlaylists.length > 0 && (
@@ -184,7 +217,7 @@ export default function Home() {
         {user && userTracksLoading
           ? <CarouselSkeleton cardClassName="w-40 h-40 rounded-full" />
           : shuffledYourTracks.length > 0 && (
-              <VinylCarousel title="Your taste" tracks={shuffledYourTracks} />
+              <VinylCarousel title="Your tracks" tracks={shuffledYourTracks} />
             )}
 
         <MusicVideoCarousel title="Music Videos" />

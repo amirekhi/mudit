@@ -4,7 +4,7 @@ import BackButton from "@/components/basics/BackButton";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { IconMusic, IconList } from "@tabler/icons-react";
+import { IconMusic, IconList, IconSparkles } from "@tabler/icons-react";
 
 export default function EditHubPage() {
   return (
@@ -100,6 +100,35 @@ export default function EditHubPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.16 }}
+            className="md:col-span-2 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800
+              shadow-xl p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6 transition-colors"
+          >
+            <div className="w-9 h-9 rounded-xl bg-pink-100 dark:bg-pink-500/20 flex items-center justify-center flex-shrink-0">
+              <IconSparkles className="w-5 h-5 text-pink-600 dark:text-pink-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
+                Edit Tastes
+              </h2>
+              <p className="text-neutral-500 dark:text-neutral-400 text-sm md:text-base leading-relaxed">
+                Change the moods, rebalance the mix, preview the result, or make a fresh playlist from any of your tastes.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Link
+                href="/tastes"
+                className="block text-center rounded-xl border border-neutral-300 dark:border-neutral-700
+                  text-neutral-900 dark:text-white font-medium py-3 px-8 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-sm"
+              >
+                Edit Tastes
+              </Link>
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.24 }}
             className="md:col-span-2 rounded-2xl bg-white dark:bg-neutral-900 border border-indigo-300/40 dark:border-indigo-500/30
               shadow-xl p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6 transition-colors"
           >

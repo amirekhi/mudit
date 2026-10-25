@@ -1,5 +1,6 @@
 "use client";
 
+import { useListenRecorder } from "@/hooks/useListenRecorder";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -20,6 +21,7 @@ import { usePlaylistStore } from "@/store/usePlaylistStore";
 import Link from "next/link";
 
 export default function EnhancedMusicPlayer({ onClose }: { onClose?: () => void }) {
+  useListenRecorder();
   const {
     currentTrack, isPlaying, volume,
     togglePlay, setVolume, howl, unload,

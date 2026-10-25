@@ -4,6 +4,7 @@ import BackButton from "@/components/basics/BackButton";
 import ThemeToggle from "@/components/basics/ThemeToggle";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { IconSparkles } from "@tabler/icons-react";
 
 export default function CreateHubPage() {
   return (
@@ -89,6 +90,43 @@ export default function CreateHubPage() {
                   text-neutral-900 dark:text-white font-medium py-3 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition text-sm"
               >
                 Create Playlist
+              </Link>
+              <p className="mt-3 text-center text-xs text-neutral-500 dark:text-neutral-400">
+                Or{" "}
+                <Link href="/tastes" className="font-medium text-indigo-600 dark:text-indigo-400 hover:underline">
+                  build one from a taste
+                </Link>
+              </p>
+            </div>
+          </motion.div>
+
+          {/* Taste card */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="md:col-span-2 rounded-2xl bg-white dark:bg-neutral-900 border border-indigo-300/40 dark:border-indigo-500/30
+              shadow-xl p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-6 transition-colors"
+          >
+            <div className="w-11 h-11 rounded-xl bg-indigo-100 dark:bg-indigo-500/20 flex items-center justify-center flex-shrink-0">
+              <IconSparkles className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div className="flex-1">
+              <h2 className="text-xl md:text-2xl font-semibold text-neutral-900 dark:text-white mb-2">
+                Create a Taste
+              </h2>
+              <p className="text-neutral-500 dark:text-neutral-400 text-sm md:text-base leading-relaxed">
+                Pick the moods you&apos;re into and how much should be familiar, new or random. Mudit turns it
+                into playlists that fit, whenever you want one.
+              </p>
+            </div>
+            <div className="flex-shrink-0">
+              <Link
+                href="/tastes?new=1"
+                className="block text-center rounded-xl bg-indigo-600 hover:bg-indigo-500
+                  text-white font-medium py-3 px-8 transition text-sm"
+              >
+                Create Taste
               </Link>
             </div>
           </motion.div>
