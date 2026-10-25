@@ -16,6 +16,10 @@ const SORTS = [
   { value: "name", label: "A–Z" },
 ];
 
+// Every card fills its own grid cell. A card sized for a carousel (fixed
+// width) would otherwise spill over its neighbour on a phone.
+const GRID = "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4 [&>*]:!w-full [&>*]:!min-w-0 [&>*]:!max-w-full";
+
 function ArtistsList() {
   const paging = usePagedUrlState({ basePath: "/artists", sorts: SORTS.map(s => s.value) });
   const { q, page, sort } = paging;
@@ -39,7 +43,7 @@ function ArtistsList() {
       isError={isError}
       emptyIcon={<IconMicrophone2 className="w-7 h-7 text-neutral-400 dark:text-neutral-700" />}
       emptyText="No artists yet — they're extracted automatically from public tracks during the weekly sync."
-      gridClassName="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"
+      gridClassName={GRID}
       skeletonClassName="aspect-[3/4] rounded-2xl"
     >
       {data?.items.map(artist => (

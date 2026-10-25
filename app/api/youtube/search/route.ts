@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ObjectId, type Collection, type Db } from "mongodb";
-import { auth } from "@clerk/nextjs/server";
 import clientPromise from "@/lib/mongo/mongodb";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 /**
  * GET /api/youtube/search?trackId=<id>&duration=<seconds>
@@ -292,11 +292,9 @@ async function lookup(
 
 // ───────────────────────── access ─────────────────────────
 
-async function currentUserId(db: Db): Promise<string | null> {
+async function currentUserId(): Promise<string | null> {
   try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) return null;
-    const user = await db.collection("users").findOne({ clerkId }, { projection: { _id: 1 } });
+    const user = await getCurrentUser();
     return user ? String(user._id) : null;
   } catch {
     return null;
@@ -317,7 +315,7 @@ export async function GET(req: NextRequest) {
 
   let db: Db;
   try {
-    db = (await clientPromise).db();
+    db = (await clientPromise).db(process.env.MONGODB_DB!);
   } catch (err) {
     console.error("[youtube] database connection failed:", err);
     return fail(500, { stage: "db", error: "Database connection failed" });
@@ -345,7 +343,7 @@ export async function GET(req: NextRequest) {
 
   // Private tracks only for their owner. Same answer as "not found" otherwise.
   if ((row.visibility ?? "public") === "private") {
-    const me = await currentUserId(db);
+    const me = await currentUserId();
     if (!me || String(row.ownerId ?? "") !== me) {
       return fail(404, { stage: "not-found", error: "Track not found" });
     }

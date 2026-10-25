@@ -14,7 +14,9 @@ import {
   IconPlaylist,
   IconPlaylistAdd,
   IconPlus,
+  IconSparkles,
   IconUserCircle,
+  
 } from "@tabler/icons-react";
 import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
@@ -47,6 +49,7 @@ export function SidebarDemo({ children }: SidebarLayoutProps) {
     { label: "My Playlists",        href: "/playlists",        icon: <IconPlaylist     className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "Edit",                href: "/edit/updateTrack", icon: <IconEdit         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
     { label: "lyrics",                href: "/lyrics", icon: <IconBook         className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
+    { label: "Tastes",                href: "/tastes", icon: <IconSparkles        className="h-5 w-5 shrink-0 text-neutral-700 dark:text-neutral-200" /> },
   ];
 
   return (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { IconPlus, IconEdit } from "@tabler/icons-react";
 import ThemeToggle from "@/components/basics/ThemeToggle";
+import QuickMixMenu from "@/components/home/QuickMixMenu";
 import { useCurrentUser } from "@/lib/TanStackQuery/authQueries/hooks/useCurrentUser";
 
 // The home page used "/Signup" on mobile and "/signup" on desktop. On a
@@ -44,6 +45,7 @@ export default function HeaderActions({ className = "", toggleClassName = "" }: 
               <Link href="/edit" className={secondaryBtn}>
                 <IconEdit className="w-4 h-4" /> Edit
               </Link>
+              <QuickMixMenu buttonClassName={secondaryBtn} />
             </>
           ) : (
             <>
